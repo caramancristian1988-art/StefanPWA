@@ -7,6 +7,7 @@ import { listTaskComments } from "@/lib/services/tasks";
 import { dateKeyOf, formatTime } from "@/lib/date";
 import TaskCommentSection from "@/app/components/TaskCommentSection";
 import TaskAttachmentSection from "@/app/components/TaskAttachmentSection";
+import TaskStatusChanger from "@/app/components/TaskStatusChanger";
 import type { TaskStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -253,6 +254,10 @@ export default async function TaskDetailPage({
           )}
           <MetaRow label="Creat" value={fmtDateTime(task.createdAt)} />
           <MetaRow label="Creat de" value={task.creator.name} />
+        </div>
+
+        <div className="mt-4 border-t border-[var(--color-line)] pt-4">
+          <TaskStatusChanger taskId={id} initialStatus={task.status} />
         </div>
       </div>
 

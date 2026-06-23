@@ -329,7 +329,13 @@ export async function notifyNewTask(taskId: string): Promise<void> {
         [...observerIds],
         {
           title: `${TASK_TYPE_RO[task.type]} nou: ${task.title} (#${task.seq ?? "—"})`,
-          body: task.assignee?.name ? `Asignat: ${task.assignee.name}` : task.project?.name ? `Proiect: ${task.project.name}` : undefined,
+          body: (() => {
+            const parts: string[] = [];
+            if (task.assignee?.name) parts.push(`Asignat: ${task.assignee.name}`);
+            else if (task.project?.name) parts.push(`Proiect: ${task.project.name}`);
+            if (task.description?.trim()) parts.push(task.description.trim());
+            return parts.length > 0 ? parts.join("\n") : undefined;
+          })(),
           taskId: task.id,
           seq: task.seq,
           url: "/tasks",

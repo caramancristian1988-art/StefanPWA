@@ -106,6 +106,15 @@ export async function searchClients(userId: string, q: string, limit = 8) {
   });
 }
 
+export async function clientOptions(userId: string): Promise<{ id: string; name: string }[]> {
+  if (DEMO) return [];
+  return prisma.client.findMany({
+    where: { userId },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
 export async function getClient(userId: string, id: string) {
   if (DEMO) return demoClients.find((c) => c.id === id) ?? null;
   return prisma.client.findFirst({

@@ -6,6 +6,7 @@ import {
   editMessageText,
   taskStatusButtons,
   taskReopenButton,
+  taskOpenButton,
   TASK_STATUS_RO,
   TASK_TYPE_RO,
   TASK_PRIORITY_RO,
@@ -117,7 +118,7 @@ async function notifyTaskUpdateTelegram(
           console.log(`[tasks] telegram: user ${uid} nu are chat Telegram legat — sărit`);
           return;
         }
-        const res = await sendMessage(chatId, text);
+        const res = await sendMessage(chatId, text, taskOpenButton(info.seq, info.taskId));
         if (!res) {
           console.error(`[tasks] telegram: sendMessage a eșuat pentru user ${uid}`);
         }
@@ -141,7 +142,7 @@ async function notifyTaskOverdueTelegram(
       try {
         const chatId = await telegramChatFor(uid);
         if (!chatId) return;
-        const res = await sendMessage(chatId, text);
+        const res = await sendMessage(chatId, text, taskOpenButton(seq, taskId));
         if (!res) console.error(`[tasks] telegram: sendMessage (overdue) a eșuat pentru user ${uid}`);
       } catch (e) {
         console.error(`[tasks] telegram: notificare overdue eșuată pentru user ${uid}`, e);

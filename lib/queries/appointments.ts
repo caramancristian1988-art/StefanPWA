@@ -79,6 +79,49 @@ export function listForKanban(userId: string, dateKeys: string[]) {
   });
 }
 
+const CAL_SELECT = {
+  id: true,
+  userId: true,
+  clientId: true,
+  title: true,
+  status: true,
+  startAt: true,
+  endAt: true,
+  clientNameSnapshot: true,
+  categoryColorSnapshot: true,
+} as const;
+
+export type CalendarAppt = {
+  id: string;
+  userId: string;
+  clientId: string;
+  title: string;
+  status: AppointmentStatus;
+  startAt: Date;
+  endAt: Date;
+  clientNameSnapshot: string;
+  categoryColorSnapshot: string | null;
+};
+
+/** Programările dintr-un interval de timp (pentru calendar). userId opțional = toate dacă lipsă. */
+export async function apptsBetween(opts: {
+  userId?: string;
+  clientId?: string;
+  from: Date;
+  to: Date;
+}): Promise<CalendarAppt[]> {
+  if (DEMO) return [];
+  return prisma.appointment.findMany({
+    where: {
+      ...(opts.userId ? { userId: opts.userId } : {}),
+      ...(opts.clientId ? { clientId: opts.clientId } : {}),
+      startAt: { gte: opts.from, lt: opts.to },
+    },
+    select: CAL_SELECT,
+    orderBy: { startAt: "asc" },
+  });
+}
+
 export function getAppointment(userId: string, id: string) {
   if (DEMO) {
     const a = demoAppointments().find((x) => x.id === id) ?? null;

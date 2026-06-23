@@ -1,16 +1,34 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
 import { getUserTimezone } from "@/lib/queries/settings";
-import { tasksDueBetween, type CalendarTask } from "@/lib/queries/tasks";
-import { todayKey, addDaysToKey, humanDay, dayBoundsUtc, dateKeyOf } from "@/lib/date";
-import { IconChevronLeft, IconChevronRight } from "@/app/components/icons";
+import { tasksDueBetween } from "@/lib/queries/tasks";
+import { apptsBetween } from "@/lib/queries/appointments";
+import { userOptions } from "@/lib/queries/users";
+import { teamOptions } from "@/lib/queries/teams";
+import { projectOptions } from "@/lib/queries/projects";
+import { clientOptions } from "@/lib/queries/clients";
+import { todayKey, addDaysToKey, dayBoundsUtc, dateKeyOf } from "@/lib/date";
+import CalendarControls from "@/app/components/CalendarControls";
+import type { TaskType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-type View = "month" | "day";
-type Status = CalendarTask["status"];
+type View = "month" | "week" | "day";
 
-const DOT: Record<Status, string> = {
+type CalItem = {
+  id: string;
+  kind: "TASK" | "TICKET" | "WORK_ORDER" | "APPT";
+  title: string;
+  dateAt: Date;
+  status: string;
+  seq: number | null;
+  assigneeName: string | null;
+  clientName: string | null;
+  color: string | null;
+};
+
+const TASK_DOT: Record<string, string> = {
   NEW: "bg-st-new",
   ASSIGNED: "bg-st-new",
   READ: "bg-st-confirmed",
@@ -20,89 +38,190 @@ const DOT: Record<Status, string> = {
   DONE: "bg-st-done",
   CANCELLED: "bg-st-cancelled",
 };
-const ST_RO: Record<Status, string> = {
+const TASK_ST_RO: Record<string, string> = {
   NEW: "Nou", ASSIGNED: "Asignat", READ: "Citit", IN_PROGRESS: "În lucru",
   ON_HOLD: "În așteptare", REVIEW: "În verificare", DONE: "Finalizat", CANCELLED: "Anulat",
 };
-const TYPE_RO = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Work order" } as const;
+const TYPE_BADGE: Record<string, string> = {
+  TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Comandă", APPT: "Programare",
+};
+
+function dot(item: CalItem) {
+  if (item.kind === "APPT") {
+    return item.color
+      ? <span className="mt-0.5 size-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+      : <span className="mt-0.5 size-2 shrink-0 rounded-full bg-[#8b5cf6]" />;
+  }
+  return <span className={`mt-0.5 size-2 shrink-0 rounded-full ${TASK_DOT[item.status] ?? "bg-ink-soft"}`} />;
+}
+
+function CalCard({ item }: { item: CalItem }) {
+  const href = item.kind === "APPT" ? "/appointments" : `/tasks/${item.id}`;
+  return (
+    <Link href={href} prefetch={false} className="card flex items-start gap-1.5 p-1.5 text-[11px] hover:opacity-80">
+      {dot(item)}
+      <div className="min-w-0 flex-1 overflow-hidden">
+        {item.seq != null && (
+          <span className="mr-0.5 font-mono text-[10px] font-semibold text-brand">#{item.seq}</span>
+        )}
+        <span className="truncate">{item.title}</span>
+        {item.clientName && <div className="truncate text-ink-soft">{item.clientName}</div>}
+      </div>
+    </Link>
+  );
+}
 
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; date?: string }>;
+  searchParams: Promise<Record<string, string>>;
 }) {
   const user = await requirePermission("tasks.view");
   const tz = await getUserTimezone(user.id);
   const sp = await searchParams;
-  const view = (["month", "day"].includes(sp.view ?? "") ? sp.view : "month") as View;
+
+  const view = (["month", "week", "day"].includes(sp.view ?? "") ? sp.view : "month") as View;
   const anchor = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : todayKey(tz);
+
+  const scope = (["all", "mine", "created"].includes(sp.scope ?? "") ? sp.scope : "all") as "all" | "mine" | "created";
+  const showTasks = sp.showTasks !== "0";
+  const showTickets = sp.showTickets !== "0";
+  const showAppts = sp.showAppts !== "0";
+  const assigneeId = sp.assigneeId || undefined;
+  const teamId = sp.teamId || undefined;
+  const projectId = sp.projectId || undefined;
+  const clientId = sp.clientId || undefined;
+
+  // Date range for the current view
+  let from: Date;
+  let to: Date;
+  let weekKeys: string[] = [];
+
+  const [y, m, d] = anchor.split("-").map(Number);
+
+  if (view === "month") {
+    const firstKey = `${y}-${String(m).padStart(2, "0")}-01`;
+    const firstDow = (new Date(Date.UTC(y, m - 1, 1, 12)).getUTCDay() + 6) % 7;
+    const gridStart = addDaysToKey(firstKey, -firstDow, tz);
+    const cells = Array.from({ length: 42 }, (_, i) => addDaysToKey(gridStart, i, tz));
+    from = dayBoundsUtc(cells[0], tz).start;
+    to = dayBoundsUtc(cells[cells.length - 1], tz).end;
+  } else if (view === "week") {
+    const dow = (new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay() + 6) % 7;
+    const monday = addDaysToKey(anchor, -dow, tz);
+    weekKeys = Array.from({ length: 7 }, (_, i) => addDaysToKey(monday, i, tz));
+    from = dayBoundsUtc(weekKeys[0], tz).start;
+    to = dayBoundsUtc(weekKeys[6], tz).end;
+  } else {
+    const bounds = dayBoundsUtc(anchor, tz);
+    from = bounds.start;
+    to = bounds.end;
+  }
+
+  // Build task types filter
+  const taskTypes: TaskType[] = [];
+  if (showTasks) taskTypes.push("TASK", "WORK_ORDER");
+  if (showTickets) taskTypes.push("TICKET");
+
+  const needTasks = taskTypes.length > 0;
+
+  // Appointment user filter
+  const apptUserId = assigneeId ?? (scope === "mine" || scope === "created" ? user.id : undefined);
+
+  const [tasks, appts, users, teams, projects, clients] = await Promise.all([
+    needTasks
+      ? tasksDueBetween({
+          scope,
+          userId: user.id,
+          teamIds: user.teamIds,
+          from,
+          to,
+          assigneeId,
+          teamId,
+          projectId,
+          clientId,
+          types: taskTypes,
+        })
+      : [],
+    showAppts ? apptsBetween({ userId: apptUserId, clientId, from, to }) : [],
+    userOptions(),
+    teamOptions(),
+    projectOptions(),
+    clientOptions(user.id),
+  ]);
+
+  // Merge into CalItem[]
+  const items: CalItem[] = [
+    ...tasks.map((t) => ({
+      id: t.id,
+      kind: t.type as CalItem["kind"],
+      title: t.title,
+      dateAt: t.dueAt,
+      status: t.status,
+      seq: t.seq,
+      assigneeName: t.assigneeName,
+      clientName: null,
+      color: null,
+    })),
+    ...appts.map((a) => ({
+      id: a.id,
+      kind: "APPT" as const,
+      title: a.title,
+      dateAt: a.startAt,
+      status: a.status,
+      seq: null,
+      assigneeName: null,
+      clientName: a.clientNameSnapshot,
+      color: a.categoryColorSnapshot,
+    })),
+  ].sort((a, b) => a.dateAt.getTime() - b.dateAt.getTime());
 
   return (
     <div className="w-full">
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-full bg-[var(--color-surface-2)] p-1">
-          {(["month", "day"] as View[]).map((v) => (
-            <Link
-              key={v}
-              href={`/calendar?view=${v}&date=${anchor}`}
-              prefetch={false}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-medium ${
-                view === v ? "bg-brand text-white" : "text-ink-soft"
-              }`}
-            >
-              {v === "month" ? "Lună" : "Zi"}
-            </Link>
-          ))}
-        </div>
-        <Link
-          href={`/calendar?view=${view}&date=${todayKey(tz)}`}
-          prefetch={false}
-          className="tap card ml-auto rounded-full px-3.5 py-1.5 text-sm"
-        >
-          Azi
-        </Link>
-      </div>
+      <Suspense fallback={<div className="mb-3 h-36 animate-pulse rounded-2xl bg-[var(--color-surface-2)]" />}>
+        <CalendarControls
+          anchor={anchor}
+          view={view}
+          tz={tz}
+          users={users}
+          teams={teams}
+          projects={projects}
+          clients={clients}
+        />
+      </Suspense>
 
-      {view === "month" ? (
-        <MonthView userId={user.id} teamIds={user.teamIds} tz={tz} anchor={anchor} />
-      ) : (
-        <DayView userId={user.id} teamIds={user.teamIds} tz={tz} dateKey={anchor} />
+      {view === "month" && (
+        <MonthView anchor={anchor} tz={tz} items={items} />
+      )}
+      {view === "week" && (
+        <WeekView weekKeys={weekKeys} tz={tz} items={items} />
+      )}
+      {view === "day" && (
+        <DayView anchor={anchor} tz={tz} items={items} />
       )}
     </div>
   );
 }
 
-async function MonthView({
-  userId, teamIds, tz, anchor,
-}: { userId: string; teamIds: string[]; tz: string; anchor: string }) {
+function MonthView({ anchor, tz, items }: { anchor: string; tz: string; items: CalItem[] }) {
   const [y, m] = anchor.split("-").map(Number);
   const firstKey = `${y}-${String(m).padStart(2, "0")}-01`;
   const firstDow = (new Date(Date.UTC(y, m - 1, 1, 12)).getUTCDay() + 6) % 7;
   const gridStart = addDaysToKey(firstKey, -firstDow, tz);
   const cells = Array.from({ length: 42 }, (_, i) => addDaysToKey(gridStart, i, tz));
+  const today = todayKey(tz);
+  const curMonth = `${y}-${String(m).padStart(2, "0")}`;
 
-  const from = dayBoundsUtc(cells[0], tz).start;
-  const to = dayBoundsUtc(cells[cells.length - 1], tz).end;
-  const tasks = await tasksDueBetween({ scope: "mine", userId, teamIds, from, to });
-
-  const byDay = new Map<string, CalendarTask[]>();
-  for (const t of tasks) {
-    const key = dateKeyOf(t.dueAt, tz);
+  const byDay = new Map<string, CalItem[]>();
+  for (const item of items) {
+    const key = dateKeyOf(item.dateAt, tz);
     const arr = byDay.get(key) ?? [];
-    arr.push(t);
+    arr.push(item);
     byDay.set(key, arr);
   }
 
-  const today = todayKey(tz);
-  const prevMonth = addDaysToKey(firstKey, -1, tz).slice(0, 7) + "-01";
-  const nextMonth = addDaysToKey(`${y}-${String(m).padStart(2, "0")}-28`, 7, tz).slice(0, 7) + "-01";
-  const monthLabel = new Intl.DateTimeFormat("ro-RO", { timeZone: tz, month: "long", year: "numeric" }).format(
-    new Date(Date.UTC(y, m - 1, 15)),
-  );
-
   return (
     <div>
-      <Nav view="month" prev={prevMonth} next={nextMonth} label={monthLabel} />
       <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-semibold text-ink-soft">
         {["L", "Ma", "Mi", "J", "V", "S", "D"].map((d) => (
           <div key={d} className="py-1">{d}</div>
@@ -110,8 +229,8 @@ async function MonthView({
       </div>
       <div className="grid grid-cols-7 gap-1">
         {cells.map((day) => {
-          const inMonth = day.slice(0, 7) === `${y}-${String(m).padStart(2, "0")}`;
-          const items = byDay.get(day) ?? [];
+          const inMonth = day.slice(0, 7) === curMonth;
+          const dayItems = byDay.get(day) ?? [];
           return (
             <Link
               key={day}
@@ -125,12 +244,25 @@ async function MonthView({
                 {Number(day.slice(8))}
               </span>
               <div className="flex flex-wrap gap-0.5">
-                {items.slice(0, 5).map((t) => (
-                  <span key={t.id} className={`size-1.5 rounded-full ${DOT[t.status]}`} title={`${t.title} · ${ST_RO[t.status]}`} />
-                ))}
+                {dayItems.slice(0, 6).map((item) =>
+                  item.kind === "APPT" ? (
+                    <span
+                      key={item.id}
+                      className="size-1.5 rounded-full"
+                      style={{ backgroundColor: item.color ?? "#8b5cf6" }}
+                      title={`${item.title} · Programare`}
+                    />
+                  ) : (
+                    <span
+                      key={item.id}
+                      className={`size-1.5 rounded-full ${TASK_DOT[item.status] ?? "bg-ink-soft"}`}
+                      title={`${item.title} · ${TASK_ST_RO[item.status]}`}
+                    />
+                  )
+                )}
               </div>
-              {items.length > 0 && (
-                <span className="mt-auto text-[10px] font-medium text-ink-soft">{items.length}</span>
+              {dayItems.length > 0 && (
+                <span className="mt-auto text-[10px] font-medium text-ink-soft">{dayItems.length}</span>
               )}
             </Link>
           );
@@ -140,50 +272,95 @@ async function MonthView({
   );
 }
 
-async function DayView({
-  userId, teamIds, tz, dateKey,
-}: { userId: string; teamIds: string[]; tz: string; dateKey: string }) {
-  const { start, end } = dayBoundsUtc(dateKey, tz);
-  const tasks = await tasksDueBetween({ scope: "mine", userId, teamIds, from: start, to: end });
+function WeekView({ weekKeys, tz, items }: { weekKeys: string[]; tz: string; items: CalItem[] }) {
+  const today = todayKey(tz);
+  const DAY_NAMES = ["L", "Ma", "Mi", "J", "V", "S", "D"];
+
+  const byDay = new Map<string, CalItem[]>();
+  for (const k of weekKeys) byDay.set(k, []);
+  for (const item of items) {
+    const key = dateKeyOf(item.dateAt, tz);
+    byDay.get(key)?.push(item);
+  }
 
   return (
-    <div>
-      <Nav
-        view="day"
-        prev={addDaysToKey(dateKey, -1, tz)}
-        next={addDaysToKey(dateKey, 1, tz)}
-        label={humanDay(dateKey, tz)}
-      />
-      {tasks.length === 0 ? (
-        <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
-          Niciun task scadent în această zi.
-        </div>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          {tasks.map((t) => (
-            <Link key={t.id} href="/tasks" prefetch={false} className="card flex items-center gap-2.5 px-3 py-2">
-              <span className={`size-2.5 shrink-0 rounded-full ${DOT[t.status]}`} title={ST_RO[t.status]} />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">{t.title}</span>
-              <span className="hidden shrink-0 text-[11px] text-ink-soft sm:inline">{TYPE_RO[t.type]}</span>
-              {t.assigneeName && <span className="shrink-0 text-[11px] text-ink-soft">{t.assigneeName}</span>}
-            </Link>
-          ))}
-        </div>
-      )}
+    <div className="overflow-x-auto">
+      <div className="grid min-w-[560px] grid-cols-7 gap-1">
+        {weekKeys.map((dayKey, i) => {
+          const dayNum = Number(dayKey.slice(8));
+          const isToday = dayKey === today;
+          const dayItems = byDay.get(dayKey) ?? [];
+          return (
+            <div
+              key={dayKey}
+              className={`flex min-h-32 flex-col rounded-xl border p-1.5 ${
+                isToday ? "border-brand" : "border-[var(--color-line)]"
+              }`}
+            >
+              <Link
+                href={`/calendar?view=day&date=${dayKey}`}
+                prefetch={false}
+                className={`mb-1.5 flex items-center gap-1 text-xs font-semibold ${
+                  isToday ? "text-brand" : "text-ink-soft"
+                }`}
+              >
+                <span>{DAY_NAMES[i]}</span>
+                <span
+                  className={`ml-auto tabular-nums ${
+                    isToday ? "size-5 rounded-full bg-brand text-center text-white leading-5" : ""
+                  }`}
+                >
+                  {dayNum}
+                </span>
+              </Link>
+              <div className="flex flex-col gap-1">
+                {dayItems.map((item) => <CalCard key={item.id} item={item} />)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function Nav({ view, prev, next, label }: { view: View; prev: string; next: string; label: string }) {
+function DayView({ anchor, tz, items }: { anchor: string; tz: string; items: CalItem[] }) {
+  if (items.length === 0) {
+    return (
+      <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
+        Nicio intrare în această zi.
+      </div>
+    );
+  }
   return (
-    <div className="mb-3 flex items-center justify-between">
-      <Link href={`/calendar?view=${view}&date=${prev}`} prefetch={false} className="tap card grid size-9 place-items-center rounded-lg" aria-label="Anterior">
-        <IconChevronLeft className="size-4" />
-      </Link>
-      <span className="text-sm font-semibold capitalize">{label}</span>
-      <Link href={`/calendar?view=${view}&date=${next}`} prefetch={false} className="tap card grid size-9 place-items-center rounded-lg" aria-label="Următor">
-        <IconChevronRight className="size-4" />
-      </Link>
+    <div className="flex flex-col gap-1.5">
+      {items.map((item) => {
+        const href = item.kind === "APPT" ? "/appointments" : `/tasks/${item.id}`;
+        return (
+          <Link key={item.id} href={href} prefetch={false} className="card flex items-center gap-2.5 px-3 py-2">
+            {item.kind === "APPT" ? (
+              <span
+                className="size-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: item.color ?? "#8b5cf6" }}
+              />
+            ) : (
+              <span className={`size-2.5 shrink-0 rounded-full ${TASK_DOT[item.status] ?? "bg-ink-soft"}`} />
+            )}
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+              {item.seq != null && <span className="mr-1 font-mono text-xs text-brand">#{item.seq}</span>}
+              {item.title}
+            </span>
+            <span className="shrink-0 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] text-ink-soft">
+              {TYPE_BADGE[item.kind]}
+            </span>
+            {(item.assigneeName ?? item.clientName) && (
+              <span className="hidden shrink-0 text-[11px] text-ink-soft sm:inline">
+                {item.assigneeName ?? item.clientName}
+              </span>
+            )}
+          </Link>
+        );
+      })}
     </div>
   );
 }

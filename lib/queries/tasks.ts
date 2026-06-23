@@ -199,12 +199,18 @@ export async function listTasks(
 
 export type CalendarTask = {
   id: string;
+  seq: number | null;
   title: string;
   type: TaskType;
   status: TaskStatus;
   priority: TaskPriority;
   dueAt: Date;
+  creatorId: string;
+  assigneeId: string | null;
   assigneeName: string | null;
+  teamId: string | null;
+  projectId: string | null;
+  clientId: string | null;
 };
 
 /** Task-uri cu scadență într-un interval (pentru calendar). */
@@ -214,31 +220,57 @@ export async function tasksDueBetween(opts: {
   teamIds?: string[];
   from: Date;
   to: Date;
+  assigneeId?: string;
+  teamId?: string;
+  projectId?: string;
+  clientId?: string;
+  types?: TaskType[];
 }): Promise<CalendarTask[]> {
   if (DEMO) return [];
-  const where = buildWhere({ scope: opts.scope, userId: opts.userId, teamIds: opts.teamIds });
+  const where = buildWhere({
+    scope: opts.scope,
+    userId: opts.userId,
+    teamIds: opts.teamIds,
+    assigneeId: opts.assigneeId,
+    teamId: opts.teamId,
+    projectId: opts.projectId,
+    clientId: opts.clientId,
+  });
+  if (opts.types?.length) where.type = { in: opts.types };
   where.dueAt = { gte: opts.from, lte: opts.to };
   const rows = await prisma.task.findMany({
     where,
     select: {
       id: true,
+      seq: true,
       title: true,
       type: true,
       status: true,
       priority: true,
       dueAt: true,
+      creatorId: true,
+      assigneeId: true,
+      teamId: true,
+      projectId: true,
       assignee: { select: { name: true } },
+      project: { select: { clientId: true } },
     },
     orderBy: { dueAt: "asc" },
   });
   return rows.map((r) => ({
     id: r.id,
+    seq: r.seq ?? null,
     title: r.title,
     type: r.type,
     status: r.status,
     priority: r.priority,
     dueAt: r.dueAt as Date,
+    creatorId: r.creatorId,
+    assigneeId: r.assigneeId ?? null,
     assigneeName: r.assignee?.name ?? null,
+    teamId: r.teamId ?? null,
+    projectId: r.projectId ?? null,
+    clientId: r.project?.clientId ?? null,
   }));
 }
 

@@ -4,7 +4,15 @@ import { env } from "./env";
 
 const BASE = () => `https://api.telegram.org/bot${env.telegram.botToken}`;
 
-export type InlineButton = { text: string; callback_data: string };
+export type InlineButton =
+  | { text: string; callback_data: string }
+  | { text: string; url: string };
+
+/** Buton URL care deschide task-ul direct în PWA. */
+export function taskOpenButton(seq: number | null | undefined, taskId: string): InlineButton[][] {
+  const label = seq != null ? `🔗 Deschide task #${seq}` : "🔗 Deschide task";
+  return [[{ text: label, url: `${env.appUrl}/tasks/${taskId}` }]];
+}
 
 async function tgCall<T = unknown>(
   method: string,

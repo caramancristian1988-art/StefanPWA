@@ -364,6 +364,7 @@ export async function changeTaskStatus(
       id: true,
       seq: true,
       title: true,
+      description: true,
       type: true,
       status: true,
       creatorId: true,
@@ -436,10 +437,18 @@ export async function changeTaskStatus(
 
     if (opts.fromTelegram && task.telegramChatId && task.telegramMessageId) {
       const closed = newStatus === "DONE" || newStatus === "CANCELLED";
+      const editLines = [
+        `📋 <b>${TASK_TYPE_RO[task.type]}</b> (${taskRef(task.seq, task.id)})`,
+        `<b>${escapeHtml(task.title)}</b>`,
+      ];
+      if (!closed && task.description?.trim()) {
+        editLines.push("", escapeHtml(task.description.trim()));
+      }
+      editLines.push("", `Status: <b>${TASK_STATUS_RO[newStatus]}</b>`);
       await editMessageText(
         task.telegramChatId,
         task.telegramMessageId,
-        `📋 ${escapeHtml(task.title)}\n\nStatus: <b>${TASK_STATUS_RO[newStatus]}</b>`,
+        editLines.join("\n"),
         closed ? undefined : taskStatusButtons(task.id),
       );
     }

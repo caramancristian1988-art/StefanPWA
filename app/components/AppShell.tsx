@@ -1,0 +1,270 @@
+"use client";
+
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { logout } from "@/app/actions/auth";
+import { ToastProvider } from "./toast";
+import CreateMenu from "./CreateMenu";
+
+type NavItem = { href: string; label: string; icon: ReactNode; perm?: string };
+
+const NAV: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: gridIcon() },
+  { href: "/tasks", label: "Task-uri", icon: checklistIcon(), perm: "tasks.view" },
+  { href: "/kanban", label: "Kanban", icon: kanbanIcon(), perm: "tasks.view" },
+  { href: "/calendar", label: "Calendar", icon: calIcon(), perm: "tasks.view" },
+  { href: "/projects", label: "Proiecte", icon: folderIcon(), perm: "projects.view" },
+  { href: "/team", label: "Echipă", icon: usersIcon(), perm: "teams.view" },
+  { href: "/invoices", label: "Facturi", icon: invoiceIcon(), perm: "invoices.view" },
+  { href: "/clients", label: "Clienți", icon: usersIcon(), perm: "clients.view" },
+  { href: "/users", label: "Utilizatori", icon: userIcon(), perm: "users.manage" },
+  { href: "/admin/audit-logs", label: "Audit Logs", icon: shieldIcon(), perm: "audit.view" },
+  { href: "/telegram", label: "Telegram", icon: sendIcon() },
+  { href: "/settings", label: "Setări", icon: gearIcon() },
+];
+
+function visibleNav(perms?: Record<string, boolean>): NavItem[] {
+  return NAV.filter((n) => !n.perm || perms?.[n.perm] !== false);
+}
+
+function NavList({
+  onNavigate,
+  perms,
+}: {
+  onNavigate?: () => void;
+  perms?: Record<string, boolean>;
+}) {
+  const path = usePathname();
+  return (
+    <nav className="flex flex-col gap-1">
+      {visibleNav(perms).map((item) => {
+        const active = path === item.href || path.startsWith(`${item.href}/`);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            prefetch={false}
+            onClick={onNavigate}
+            className={`tap flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ${
+              active
+                ? "bg-brand text-white"
+                : "text-ink-soft hover:bg-[var(--color-surface-2)] hover:text-ink"
+            }`}
+          >
+            <span className="grid size-5 place-items-center">{item.icon}</span>
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function ThemeToggle() {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const el = document.documentElement;
+        const dark = el.classList.toggle("dark");
+        localStorage.setItem("theme", dark ? "dark" : "light");
+      }}
+      className="tap grid size-11 place-items-center rounded-xl bg-[var(--color-surface-2)] text-ink hover:bg-brand-soft"
+      title="Comută tema"
+      aria-label="Comută tema"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
+      </svg>
+    </button>
+  );
+}
+
+export default function AppShell({
+  userName,
+  demo = false,
+  perms,
+  unread = 0,
+  children,
+}: {
+  userName: string;
+  demo?: boolean;
+  perms?: Record<string, boolean>;
+  unread?: number;
+  children: ReactNode;
+}) {
+  const [drawer, setDrawer] = useState(false);
+  const path = usePathname();
+  const current = NAV.find((n) => path.startsWith(n.href))?.label ?? "Dashboard";
+
+  return (
+    <ToastProvider>
+      <div className="lg:grid lg:grid-cols-[260px_1fr]">
+        {/* Sidebar desktop */}
+        <aside className="sticky top-0 hidden h-dvh flex-col border-r border-[var(--color-line)] bg-[var(--color-surface)] p-4 lg:flex">
+          <Brand />
+          <div className="mt-6 flex-1">
+            <NavList perms={perms} />
+          </div>
+          <Account userName={userName} />
+        </aside>
+
+        {/* Drawer mobil */}
+        {drawer && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setDrawer(false)} />
+            <aside className="absolute left-0 top-0 flex h-full w-72 flex-col bg-[var(--color-surface)] p-4">
+              <Brand />
+              <div className="mt-6 flex-1">
+                <NavList onNavigate={() => setDrawer(false)} perms={perms} />
+              </div>
+              <Account userName={userName} />
+            </aside>
+          </div>
+        )}
+
+        <div className="flex min-h-dvh min-w-0 flex-col">
+          {/* Header */}
+          <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-app)]/80 px-4 py-3 backdrop-blur">
+            <button
+              onClick={() => setDrawer(true)}
+              className="tap grid size-10 place-items-center rounded-xl bg-[var(--color-surface-2)] lg:hidden"
+              aria-label="Meniu"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <h1 className="text-lg font-bold lg:text-xl">{current}</h1>
+            <div className="ml-auto flex items-center gap-2">
+              <Link
+                href="/notificari"
+                prefetch={false}
+                className="tap relative grid size-11 place-items-center rounded-xl bg-[var(--color-surface-2)] text-ink hover:bg-brand-soft"
+                aria-label="Notificări"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                </svg>
+                {unread > 0 && (
+                  <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-st-cancelled px-1 text-[10px] font-bold text-white">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
+              </Link>
+              <ThemeToggle />
+            </div>
+          </header>
+
+          {demo && (
+            <div className="border-b border-amber-300/40 bg-amber-100 px-4 py-2 text-center text-xs font-medium text-amber-900 dark:bg-amber-500/15 dark:text-amber-300">
+              Mod demo — date de exemplu. Conectează o bază de date ca să salvezi.
+            </div>
+          )}
+          <main className="flex-1 px-4 pb-28 pt-5 lg:px-8 lg:pb-10">{children}</main>
+        </div>
+      </div>
+
+      <CreateMenu />
+
+      {/* Bottom nav mobil */}
+      <BottomNav perms={perms} />
+    </ToastProvider>
+  );
+}
+
+function BottomNav({ perms }: { perms?: Record<string, boolean> }) {
+  const path = usePathname();
+  const items = visibleNav(perms).slice(0, 5);
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch border-t border-[var(--color-line)] bg-[var(--color-surface)] lg:hidden">
+      {items.map((item) => {
+        const active = path.startsWith(item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            prefetch={false}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] ${
+              active ? "text-brand" : "text-ink-soft"
+            }`}
+          >
+            <span className="grid size-5 place-items-center">{item.icon}</span>
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function Brand() {
+  return (
+    <div className="flex items-center gap-2.5 px-1">
+      <div className="grid size-9 place-items-center rounded-xl bg-brand text-white">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+          <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
+          <path d="M3 9h18M8 2.5v4M16 2.5v4" />
+        </svg>
+      </div>
+      <span className="text-base font-bold">Programări</span>
+    </div>
+  );
+}
+
+function Account({ userName }: { userName: string }) {
+  return (
+    <div className="mt-3 border-t border-[var(--color-line)] pt-3">
+      <div className="mb-2 flex items-center gap-2 px-1">
+        <div className="grid size-8 place-items-center rounded-full bg-brand-soft text-xs font-bold text-brand-strong">
+          {userName.slice(0, 1).toUpperCase()}
+        </div>
+        <span className="truncate text-sm font-medium">{userName}</span>
+      </div>
+      <form action={logout}>
+        <button className="tap w-full rounded-lg px-3 py-2 text-left text-sm text-ink-soft hover:bg-[var(--color-surface-2)]">
+          Deconectare
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/* ---- iconuri inline ---- */
+function gridIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>;
+}
+function listIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>;
+}
+function calIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>;
+}
+function kanbanIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 3v18M12 3v12M19 3v8"/></svg>;
+}
+function shieldIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 5 6v6c0 4 3 6.5 7 9 4-2.5 7-5 7-9V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>;
+}
+function usersIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M16 6a3 3 0 0 1 0 6M18.5 20a5 5 0 0 0-2.5-4"/></svg>;
+}
+function userIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>;
+}
+function checklistIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12M3.5 6 4.5 7 6 5M3.5 12l1 1L6 11M3.5 18l1 1L6 17"/></svg>;
+}
+function folderIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>;
+}
+function invoiceIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2h9l3 3v15l-2.5-1.5L13 20l-2.5-1.5L8 20l-2.5-1.5L6 20V2Z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>;
+}
+function sendIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 3 11 13M22 3l-7 18-4-8-8-4 19-6Z"/></svg>;
+}
+function gearIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.2A1.6 1.6 0 0 0 6.6 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 4 13.4H4a2 2 0 0 1 0-4h.2A1.6 1.6 0 0 0 5 6.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5V2a2 2 0 0 1 4 0v.2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H22a2 2 0 0 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1Z"/></svg>;
+}

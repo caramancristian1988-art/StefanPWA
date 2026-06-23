@@ -1,0 +1,98 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+  clearReadNotifications,
+} from "@/app/actions/notifications";
+import { useToast } from "./toast";
+import { IconCheck, IconTrash } from "./icons";
+
+type Row = {
+  id: string;
+  title: string;
+  body: string | null;
+  url: string | null;
+  read: boolean;
+  createdAt: string | Date;
+};
+
+export default function NotificationsList({ items }: { items: Row[] }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [rows, setRows] = useState(items);
+  const hasUnread = rows.some((r) => !r.read);
+
+  function markAll() {
+    setRows((r) => r.map((x) => ({ ...x, read: true })));
+    markAllNotificationsRead().then(() => router.refresh());
+  }
+
+  function clearRead() {
+    setRows((r) => r.filter((x) => !x.read));
+    clearReadNotifications()
+      .then(() => {
+        toast.success("Notificările citite au fost șterse");
+        router.refresh();
+      })
+      .catch(() => toast.error("Eroare"));
+  }
+
+  function open(r: Row) {
+    if (!r.read) {
+      setRows((cur) => cur.map((x) => (x.id === r.id ? { ...x, read: true } : x)));
+      markNotificationRead(r.id);
+    }
+    if (r.url) router.push(r.url);
+  }
+
+  return (
+    <>
+      <div className="mb-3 flex items-center justify-between">
+        <h1 className="text-lg font-bold">Notificări</h1>
+        <div className="flex gap-2">
+          <button
+            onClick={markAll}
+            disabled={!hasUnread}
+            className="tap inline-flex items-center gap-1 rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+          >
+            <IconCheck className="size-3.5" /> Toate citite
+          </button>
+          <button
+            onClick={clearRead}
+            className="tap inline-flex items-center gap-1 rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs font-medium text-ink-soft hover:bg-[var(--color-surface-2)]"
+          >
+            <IconTrash className="size-3.5" /> Șterge citite
+          </button>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
+          Nicio notificare.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {rows.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => open(r)}
+              className={`card flex items-start gap-3 p-3 text-left ${r.read ? "opacity-60" : ""}`}
+            >
+              <span className={`mt-1.5 size-2 shrink-0 rounded-full ${r.read ? "bg-[var(--color-line)]" : "bg-brand"}`} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{r.title}</p>
+                {r.body && <p className="truncate text-xs text-ink-soft">{r.body}</p>}
+                <p className="mt-0.5 text-[11px] text-ink-soft">
+                  {new Date(r.createdAt).toLocaleString("ro-RO")}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}

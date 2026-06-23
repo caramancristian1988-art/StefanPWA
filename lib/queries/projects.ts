@@ -1,0 +1,110 @@
+import "server-only";
+import { unstable_cache } from "next/cache";
+import { prisma } from "../prisma";
+import { DEMO } from "../demo";
+import type { ProjectStatus } from "@prisma/client";
+
+export type ProjectRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  ownerId: string;
+  clientId: string | null;
+  assigneeId: string | null;
+  teamId: string | null;
+  taskCount: number;
+};
+
+export type ProjectFilter = {
+  search?: string;
+  status?: ProjectStatus;
+  page?: number;
+  pageSize?: number;
+};
+
+const PROJECT_PAGE_SIZE = 30;
+
+export async function listProjects(
+  filter: ProjectFilter = {},
+): Promise<{ items: ProjectRow[]; hasMore: boolean; page: number }> {
+  if (DEMO) return { items: [], hasMore: false, page: 1 };
+  const page = Math.max(1, filter.page ?? 1);
+  const pageSize = filter.pageSize ?? PROJECT_PAGE_SIZE;
+
+  const where: import("@prisma/client").Prisma.ProjectWhereInput = {};
+  if (filter.status) where.status = filter.status;
+  if (filter.search?.trim()) {
+    const s = filter.search.trim();
+    where.OR = [
+      { name: { contains: s, mode: "insensitive" } },
+      { description: { contains: s, mode: "insensitive" } },
+    ];
+  }
+
+  const rows = await prisma.project.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      status: true,
+      ownerId: true,
+      clientId: true,
+      assigneeId: true,
+      teamId: true,
+      _count: { select: { tasks: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    skip: (page - 1) * pageSize,
+    take: pageSize + 1,
+  });
+
+  const hasMore = rows.length > pageSize;
+  return {
+    items: rows.slice(0, pageSize).map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      status: r.status,
+      ownerId: r.ownerId,
+      clientId: r.clientId,
+      assigneeId: r.assigneeId,
+      teamId: r.teamId,
+      taskCount: r._count.tasks,
+    })),
+    hasMore,
+    page,
+  };
+}
+
+export const projectOptions = unstable_cache(
+  async (): Promise<
+    { id: string; name: string; assigneeId: string | null; teamId: string | null }[]
+  > => {
+    if (DEMO) return [];
+    return prisma.project.findMany({
+      where: { status: { in: ["ACTIVE", "ON_HOLD"] } },
+      select: { id: true, name: true, assigneeId: true, teamId: true },
+      orderBy: { name: "asc" },
+    });
+  },
+  ["project-options"],
+  { tags: ["projects"], revalidate: 300 },
+);
+
+export async function getProject(id: string) {
+  if (DEMO) return null;
+  return prisma.project.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      status: true,
+      ownerId: true,
+      assigneeId: true,
+      teamId: true,
+    },
+  });
+}

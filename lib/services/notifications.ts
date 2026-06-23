@@ -35,9 +35,15 @@ export async function notifyUsers(
   payload: NotifyPayload,
   opts: { telegram?: boolean } = {},
 ): Promise<void> {
-  if (DEMO) return;
+  if (DEMO) {
+    console.log("[notify] mod demo — notificare ignorată", payload.title);
+    return;
+  }
   const ids = [...new Set(userIds.filter(Boolean))];
-  if (ids.length === 0) return;
+  if (ids.length === 0) {
+    console.log("[notify] niciun destinatar pentru:", payload.title);
+    return;
+  }
 
   // 1) In-app
   await prisma.notification
@@ -50,19 +56,21 @@ export async function notifyUsers(
         taskId: payload.taskId ?? null,
       })),
     })
-    .catch(() => {});
+    .then(() => console.log(`[notify] in-app: ${ids.length} notificări create pentru "${payload.title}"`))
+    .catch((e) => console.error("[notify] in-app: createMany a eșuat", e));
 
   // 2) Push + Telegram (best-effort, în paralel)
   await Promise.all(
     ids.map(async (uid) => {
       try {
-        await sendPushToUser(uid, {
+        const res = await sendPushToUser(uid, {
           title: payload.title,
           body: payload.body ?? "",
           url: payload.url ?? "/notificari",
         });
-      } catch {
-        /* ignore */
+        console.log(`[notify] push user=${uid}: trimise=${res.sent} șterse=${res.removed}`);
+      } catch (e) {
+        console.error(`[notify] push: eșuat pentru user ${uid}`, e);
       }
       if (opts.telegram) {
         try {
@@ -72,13 +80,16 @@ export async function notifyUsers(
           });
           const chat = u?.telegramChatId || u?.telegramAccount?.chatId;
           if (chat) {
-            await sendMessage(
+            const res = await sendMessage(
               chat,
               `🔔 <b>${escapeHtml(payload.title)}</b>${payload.body ? `\n${escapeHtml(payload.body)}` : ""}`,
             );
+            if (!res) console.error(`[notify] telegram: sendMessage a eșuat pentru user ${uid}`);
+          } else {
+            console.log(`[notify] telegram: user ${uid} nu are chat legat — sărit`);
           }
-        } catch {
-          /* ignore */
+        } catch (e) {
+          console.error(`[notify] telegram: eșuat pentru user ${uid}`, e);
         }
       }
     }),

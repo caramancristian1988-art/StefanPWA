@@ -21,12 +21,18 @@ export async function sendPushToUser(
   userId: string,
   payload: PushPayload,
 ): Promise<{ sent: number; removed: number }> {
-  if (!ensureConfigured()) return { sent: 0, removed: 0 };
+  if (!ensureConfigured()) {
+    console.log("[push] omis: VAPID neconfigurat (NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY)");
+    return { sent: 0, removed: 0 };
+  }
 
   const subs = await prisma.pushSubscription.findMany({
     where: { userId },
     select: { id: true, endpoint: true, p256dh: true, auth: true },
   });
+  if (subs.length === 0) {
+    console.log(`[push] user ${userId} nu are niciun abonament push activ`);
+  }
 
   let sent = 0;
   let removed = 0;
@@ -42,9 +48,19 @@ export async function sendPushToUser(
         sent++;
       } catch (e: unknown) {
         const status = (e as { statusCode?: number })?.statusCode;
-        if (status === 404 || status === 410) {
+        const rawBody = (e as { body?: string })?.body ?? "";
+        // 404/410 = abonament mort. VapidPkHashMismatch = abonamentul a fost creat cu o
+        // pereche VAPID diferită de cea curentă (ex. chei regenerate) — nu se va repara
+        // niciodată singur, deci îl curățăm la fel ca pe cele expirate.
+        const vapidMismatch = status === 400 && rawBody.includes("VapidPkHashMismatch");
+        if (status === 404 || status === 410 || vapidMismatch) {
           await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
           removed++;
+          console.log(
+            `[push] abonament invalid șters (status ${status}${vapidMismatch ? ", VapidPkHashMismatch — cheile VAPID s-au schimbat" : ""}) pentru user ${userId}`,
+          );
+        } else {
+          console.error(`[push] sendNotification eșuat pentru user ${userId} (status ${status ?? "?"})`, e);
         }
       }
     }),

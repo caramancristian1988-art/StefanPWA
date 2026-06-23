@@ -36,7 +36,7 @@ const STATUSES: TaskStatus[] = [
 ];
 
 function revalidateTasks() {
-  for (const p of ["/tasks", "/dashboard", "/projects"]) revalidatePath(p);
+  for (const p of ["/tasks", "/dashboard", "/projects", "/kanban", "/notificari"]) revalidatePath(p);
 }
 
 export async function createTaskAction(
@@ -87,9 +87,16 @@ export async function createTaskAction(
 /** Schimbarea statusului e permisă oricărui utilizator autentificat (acțiune zilnică). */
 export async function setTaskStatus(id: string, status: string): Promise<TaskState> {
   const user = await requireUser();
-  if (!STATUSES.includes(status as TaskStatus)) return { error: "Status invalid." };
+  console.log(`[tasks.action] setTaskStatus: user=${user.id} (${user.name}) task=${id} -> ${status}`);
+  if (!STATUSES.includes(status as TaskStatus)) {
+    console.error(`[tasks.action] setTaskStatus: status invalid primit din client: "${status}"`);
+    return { error: "Status invalid." };
+  }
   const res = await changeTaskStatus(id, user.id, status as TaskStatus);
-  if (!res.ok) return { error: res.error };
+  if (!res.ok) {
+    console.error(`[tasks.action] setTaskStatus: eșuat — ${res.error}`);
+    return { error: res.error };
+  }
   if (res.changed) {
     await logAudit(
       { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },
@@ -110,8 +117,12 @@ export async function setTaskStatus(id: string, status: string): Promise<TaskSta
 /** Actualizare progres (0-100), permisă oricărui utilizator autentificat. */
 export async function setTaskProgress(id: string, progress: number): Promise<TaskState> {
   const user = await requireUser();
+  console.log(`[tasks.action] setTaskProgress: user=${user.id} (${user.name}) task=${id} -> ${progress}%`);
   const res = await changeTaskProgress(id, user.id, progress);
-  if (!res.ok) return { error: res.error };
+  if (!res.ok) {
+    console.error(`[tasks.action] setTaskProgress: eșuat — ${res.error}`);
+    return { error: res.error };
+  }
   if (res.changed) {
     await logAudit(
       { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },

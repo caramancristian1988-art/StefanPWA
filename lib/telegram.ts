@@ -10,7 +10,10 @@ async function tgCall<T = unknown>(
   method: string,
   body: Record<string, unknown>,
 ): Promise<T | null> {
-  if (!env.telegram.botToken) return null;
+  if (!env.telegram.botToken) {
+    console.error(`[telegram] ${method} omis: TELEGRAM_BOT_TOKEN nu este configurat`);
+    return null;
+  }
   try {
     const res = await fetch(`${BASE()}/${method}`, {
       method: "POST",
@@ -18,8 +21,13 @@ async function tgCall<T = unknown>(
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    return data?.ok ? (data.result as T) : null;
-  } catch {
+    if (!data?.ok) {
+      console.error(`[telegram] ${method} a răspuns cu eroare:`, data?.description ?? data);
+      return null;
+    }
+    return data.result as T;
+  } catch (e) {
+    console.error(`[telegram] ${method} request eșuat:`, e);
     return null;
   }
 }

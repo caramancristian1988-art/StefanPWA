@@ -5,8 +5,11 @@ import {
   answerCallback,
   mainMenu,
   apptButtons,
+  taskDetailButtons,
   getFileBuffer,
   verifyLinkToken,
+  TASK_STATUS_RO,
+  TASK_PRIORITY_RO,
   type InlineButton,
 } from "../telegram";
 import { getUserTimezone } from "../queries/settings";
@@ -14,9 +17,9 @@ import { listByDateKey, listByDateKeys } from "../queries/appointments";
 import { searchClients } from "../queries/clients";
 import { listCategories } from "../queries/categories";
 import { createAppointment, changeStatus } from "./appointments";
-import { createTask, changeTaskStatus, changeTaskProgress, notifyNewTask } from "./tasks";
+import { createTask, changeTaskStatus, changeTaskProgress, addTaskComment, notifyNewTask } from "./tasks";
 import { transcribeAudio } from "./voice";
-import { todayKey, tomorrowKey, weekKeys, formatTime, humanDay } from "../date";
+import { todayKey, tomorrowKey, weekKeys, formatTime, formatDate, humanDay } from "../date";
 import type { AppointmentStatus, TaskStatus } from "@prisma/client";
 
 const STATUS_RO: Record<AppointmentStatus, string> = {
@@ -30,12 +33,94 @@ const STATUS_RO: Record<AppointmentStatus, string> = {
 
 type LinkedUser = { userId: string; chatId: string };
 
+/** Doar conturi APROBATE de admin (userId setat) — cele pending rămân fără acces la funcții. */
 async function resolveUser(telegramUserId: number | string): Promise<LinkedUser | null> {
   const acc = await prisma.telegramAccount.findUnique({
     where: { telegramUserId: String(telegramUserId) },
     select: { userId: true, chatId: true },
   });
-  return acc;
+  if (!acc?.userId) return null;
+  return { userId: acc.userId, chatId: acc.chatId };
+}
+
+/** Mesaj contextual când userul nu e încă utilizabil (pending vs niciodată /start). */
+async function notLinkedMessage(telegramUserId: number | string): Promise<string> {
+  const acc = await prisma.telegramAccount.findUnique({
+    where: { telegramUserId: String(telegramUserId) },
+    select: { userId: true },
+  });
+  if (acc && !acc.userId) {
+    return "⏳ Cererea ta a fost înregistrată. Un administrator trebuie să-ți activeze contul — vei fi notificat aici imediat ce se face asta.";
+  }
+  return "👋 Trimite /start ca să te înregistrezi.";
+}
+
+/** Task-urile active asignate lucrătorului (pentru meniul „Task-urile mele"). */
+async function myOpenTasks(userId: string) {
+  return prisma.task.findMany({
+    where: { assigneeId: userId, status: { notIn: ["DONE", "CANCELLED"] } },
+    select: { id: true, title: true, status: true, priority: true, progress: true, dueAt: true },
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: 15,
+  });
+}
+
+async function renderMyTasks(chatId: string | number, userId: string) {
+  const tasks = await myOpenTasks(userId);
+  if (tasks.length === 0) {
+    await sendMessage(chatId, "📋 Nu ai task-uri active momentan.", mainMenu());
+    return;
+  }
+  await sendMessage(chatId, `📋 <b>Task-urile tale</b> (${tasks.length})`, undefined);
+  for (const t of tasks) {
+    const line =
+      `<b>${escapeHtml(t.title)}</b>\n` +
+      `${TASK_STATUS_RO[t.status]} · ${TASK_PRIORITY_RO[t.priority]}${t.progress > 0 ? ` · ${t.progress}%` : ""}`;
+    await sendMessage(chatId, line, [[{ text: "ℹ️ Detalii", callback_data: `TDET:${t.id}` }]]);
+  }
+}
+
+async function renderTaskDetail(chatId: string | number, userId: string, taskId: string) {
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, assigneeId: userId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      priority: true,
+      progress: true,
+      dueAt: true,
+      comments: {
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        select: { body: true, createdAt: true, user: { select: { name: true } } },
+      },
+    },
+  });
+  if (!task) {
+    await sendMessage(chatId, "❌ Task inexistent sau nu este al tău.", mainMenu());
+    return;
+  }
+  const tz = await getUserTimezone(userId);
+  const lines = [
+    `📋 <b>${escapeHtml(task.title)}</b>`,
+    task.description ? escapeHtml(task.description) : "",
+    "",
+    `Status: <b>${TASK_STATUS_RO[task.status]}</b> · ${TASK_PRIORITY_RO[task.priority]}${task.progress > 0 ? ` · ${task.progress}%` : ""}`,
+  ];
+  if (task.dueAt) lines.push(`📅 Scadent: ${formatDate(task.dueAt, tz)}`);
+  if (task.comments.length > 0) {
+    lines.push("", "💬 <b>Ultimele comentarii</b>");
+    for (const c of task.comments.slice().reverse()) {
+      lines.push(`• ${escapeHtml(c.user?.name ?? "—")}: ${escapeHtml(c.body)}`);
+    }
+  }
+  await sendMessage(chatId, lines.filter(Boolean).join("\n"), taskDetailButtons(task.id));
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 async function renderDay(chatId: string | number, userId: string, dateKey: string, tz: string) {
@@ -85,7 +170,7 @@ export async function handleUpdate(update: Record<string, unknown>): Promise<voi
 
 type Msg = {
   chat: { id: number };
-  from: { id: number; username?: string; first_name?: string };
+  from: { id: number; username?: string; first_name?: string; last_name?: string };
   text?: string;
   voice?: { file_id: string };
 };
@@ -101,7 +186,7 @@ async function handleMessage(msg: Msg) {
   const chatId = msg.chat.id;
   const text = (msg.text ?? "").trim();
 
-  // /start [token] — linkare cont
+  // /start [token] — linkare cont admin (din aplicație) SAU înregistrare contact pending (lucrător)
   if (text.startsWith("/start")) {
     const token = text.split(/\s+/)[1];
     if (token) {
@@ -115,6 +200,7 @@ async function handleMessage(msg: Msg) {
             chatId: String(chatId),
             username: msg.from.username ?? null,
             firstName: msg.from.first_name ?? null,
+            lastName: msg.from.last_name ?? null,
           },
           update: { chatId: String(chatId), userId },
         }).catch(() => {});
@@ -124,10 +210,41 @@ async function handleMessage(msg: Msg) {
       await sendMessage(chatId, "❌ Cod de conectare invalid sau expirat.");
       return;
     }
-    await sendMessage(
-      chatId,
-      "👋 Salut! Conectează-te din aplicație: <b>Telegram → Conectează</b>.",
-    );
+
+    // Fără token: lucrător fără cont CRM. Înregistrăm contactul ca „pending" —
+    // chat ID-ul apare în CRM (Telegram → Utilizatori neatribuiți) pentru ca un
+    // admin să completeze profilul. Dacă era deja aprobat, nu schimbăm nimic.
+    const existing = await prisma.telegramAccount.findUnique({
+      where: { telegramUserId: String(msg.from.id) },
+      select: { userId: true },
+    });
+    await prisma.telegramAccount
+      .upsert({
+        where: { telegramUserId: String(msg.from.id) },
+        create: {
+          telegramUserId: String(msg.from.id),
+          chatId: String(chatId),
+          username: msg.from.username ?? null,
+          firstName: msg.from.first_name ?? null,
+          lastName: msg.from.last_name ?? null,
+        },
+        update: {
+          chatId: String(chatId),
+          username: msg.from.username ?? null,
+          firstName: msg.from.first_name ?? null,
+          lastName: msg.from.last_name ?? null,
+        },
+      })
+      .catch((e) => console.error("[telegram-bot] /start: upsert pending contact eșuat", e));
+
+    if (existing?.userId) {
+      await sendMessage(chatId, "✅ Cont conectat! Alege o opțiune:", mainMenu());
+    } else {
+      await sendMessage(
+        chatId,
+        "👋 Salut! Cererea ta a fost înregistrată.\nUn administrator trebuie să-ți activeze contul din aplicație — vei primi un mesaj aici imediat ce ești activat.",
+      );
+    }
     return;
   }
 
@@ -135,18 +252,38 @@ async function handleMessage(msg: Msg) {
 
   // Mesaj vocal → programare
   if (msg.voice) {
-    if (!user) return void sendMessage(chatId, "Conectează-te mai întâi din aplicație.");
+    if (!user) return void sendMessage(chatId, await notLinkedMessage(msg.from.id));
     await handleVoice(chatId, user.userId, msg.voice.file_id);
     return;
   }
 
   if (!user) {
-    await sendMessage(chatId, "Conectează-te din aplicație pentru a folosi botul.");
+    await sendMessage(chatId, await notLinkedMessage(msg.from.id));
+    return;
+  }
+
+  // Comentariu în curs de scriere (declanșat de butonul „💬 Adaugă comentariu")
+  const account = await prisma.telegramAccount.findUnique({
+    where: { telegramUserId: String(msg.from.id) },
+    select: { lastMenuState: true },
+  });
+  if (account?.lastMenuState?.startsWith("awaiting_comment:") && text) {
+    const taskId = account.lastMenuState.slice("awaiting_comment:".length);
+    await prisma.telegramAccount
+      .update({ where: { telegramUserId: String(msg.from.id) }, data: { lastMenuState: null } })
+      .catch(() => {});
+    const res = await addTaskComment(taskId, user.userId, text, "TELEGRAM");
+    await sendMessage(chatId, res.ok ? "✅ Comentariu adăugat." : `❌ ${res.error}`, mainMenu());
     return;
   }
 
   if (text === "/menu" || text === "/start") {
     await sendMessage(chatId, "Meniu:", mainMenu());
+    return;
+  }
+
+  if (text === "/tasks") {
+    await renderMyTasks(chatId, user.userId);
     return;
   }
 
@@ -170,11 +307,12 @@ async function handleCallback(cb: Cb) {
 
   const user = await resolveUser(cb.from.id);
   if (!user) {
-    await sendMessage(chatId, "Conectează-te din aplicație.");
+    await sendMessage(chatId, await notLinkedMessage(cb.from.id));
     return;
   }
   const tz = await getUserTimezone(user.userId);
 
+  if (data === "MY_TASKS") return void renderMyTasks(chatId, user.userId);
   if (data === "TODAY") return void renderDay(chatId, user.userId, todayKey(tz), tz);
   if (data === "TOMORROW") return void renderDay(chatId, user.userId, tomorrowKey(tz), tz);
   if (data === "WEEK") return void renderWeek(chatId, user.userId, tz);
@@ -186,6 +324,23 @@ async function handleCallback(cb: Cb) {
     return void sendMessage(chatId, "🔍 Scrie numele clientului pentru căutare.");
   if (data === "SETTINGS")
     return void sendMessage(chatId, "⚙️ Setările se gestionează din aplicație.", mainMenu());
+
+  // Detalii task (din lista „Task-urile mele")
+  const detMatch = data.match(/^TDET:(.+)$/);
+  if (detMatch) return void renderTaskDetail(chatId, user.userId, detMatch[1]);
+
+  // Pornește fluxul de comentariu: următorul mesaj text trimis devine comentariul
+  const commMatch = data.match(/^TCOMM:(.+)$/);
+  if (commMatch) {
+    await prisma.telegramAccount
+      .update({
+        where: { telegramUserId: String(cb.from.id) },
+        data: { lastMenuState: `awaiting_comment:${commMatch[1]}` },
+      })
+      .catch((e) => console.error("[telegram-bot] TCOMM: setare lastMenuState eșuată", e));
+    await sendMessage(chatId, "💬 Scrie comentariul și trimite-l ca mesaj text.");
+    return;
+  }
 
   // Schimbare status TASK (din butoanele de notificare)
   const taskMatch = data.match(/^TST:(\w+):(.+)$/);

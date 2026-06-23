@@ -10,7 +10,7 @@ import {
   TASK_PRIORITY_RO,
 } from "../telegram";
 import { formatTime, DEFAULT_TZ } from "../date";
-import { notifyUsers, observerRecipients } from "./notifications";
+import { notifyUsers, observerRecipients, filteredAdminRecipients } from "./notifications";
 import type { TaskStatus, TaskType, TaskPriority, CreatedFrom } from "@prisma/client";
 
 export type CreateTaskInput = {
@@ -28,28 +28,17 @@ export type CreateTaskInput = {
 async function telegramChatFor(userId: string): Promise<string | null> {
   const u = await prisma.user.findUnique({
     where: { id: userId },
-    select: { telegramChatId: true, telegramAccount: { select: { chatId: true } } },
+    select: { telegramChatId: true, telegramAccounts: { select: { chatId: true }, take: 1 } },
   });
-  return u?.telegramChatId || u?.telegramAccount?.chatId || null;
+  return u?.telegramChatId || u?.telegramAccounts[0]?.chatId || null;
 }
 
-/**
- * Toți administratorii activi — notificați mereu la schimbări de status/progres,
- * indiferent cine a creat task-ul (nu doar creatorul exact).
- */
-async function adminRecipients(): Promise<string[]> {
-  const admins = await prisma.user.findMany({
-    where: { isActive: true, role: "ADMIN" },
-    select: { id: true },
-  });
-  return admins.map((a) => a.id);
-}
-
-/** Mesaj Telegram dedicat schimbării de status/progres (format fix, lizibil). */
+/** Mesaj Telegram dedicat schimbării de status/progres/comentariu (format fix, lizibil). */
 function taskUpdateTelegramText(
   actorName: string,
   taskTitle: string,
   statusLabel: string,
+  lineLabel: string = "Status",
 ): string {
   const time = formatTime(new Date(), DEFAULT_TZ);
   return [
@@ -57,7 +46,18 @@ function taskUpdateTelegramText(
     "",
     `Lucrător: ${escapeHtml(actorName)}`,
     `Task: ${escapeHtml(taskTitle)}`,
-    `Status: <b>${escapeHtml(statusLabel)}</b>`,
+    `${lineLabel}: <b>${escapeHtml(statusLabel)}</b>`,
+    `Ora: ${time}`,
+  ].join("\n");
+}
+
+/** Mesaj Telegram pentru task întârziat (fără actor — notificare automată). */
+function taskOverdueTelegramText(taskTitle: string): string {
+  const time = formatTime(new Date(), DEFAULT_TZ);
+  return [
+    "⏰ <b>Task în întârziere</b>",
+    "",
+    `Task: ${escapeHtml(taskTitle)}`,
     `Ora: ${time}`,
   ].join("\n");
 }
@@ -65,9 +65,9 @@ function taskUpdateTelegramText(
 /** Trimite mesajul de actualizare pe Telegram către fiecare destinatar cu chat legat (best-effort, logat). */
 async function notifyTaskUpdateTelegram(
   userIds: string[],
-  info: { actorName: string; taskTitle: string; statusLabel: string },
+  info: { actorName: string; taskTitle: string; statusLabel: string; lineLabel?: string },
 ): Promise<void> {
-  const text = taskUpdateTelegramText(info.actorName, info.taskTitle, info.statusLabel);
+  const text = taskUpdateTelegramText(info.actorName, info.taskTitle, info.statusLabel, info.lineLabel);
   await Promise.all(
     userIds.map(async (uid) => {
       try {
@@ -82,6 +82,23 @@ async function notifyTaskUpdateTelegram(
         }
       } catch (e) {
         console.error(`[tasks] telegram: notificare eșuată pentru user ${uid}`, e);
+      }
+    }),
+  );
+}
+
+/** Trimite mesajul de „task întârziat" pe Telegram (fără actor — notificare automată). */
+async function notifyTaskOverdueTelegram(userIds: string[], taskTitle: string): Promise<void> {
+  const text = taskOverdueTelegramText(taskTitle);
+  await Promise.all(
+    userIds.map(async (uid) => {
+      try {
+        const chatId = await telegramChatFor(uid);
+        if (!chatId) return;
+        const res = await sendMessage(chatId, text);
+        if (!res) console.error(`[tasks] telegram: sendMessage (overdue) a eșuat pentru user ${uid}`);
+      } catch (e) {
+        console.error(`[tasks] telegram: notificare overdue eșuată pentru user ${uid}`, e);
       }
     }),
   );
@@ -172,7 +189,7 @@ export async function notifyNewTask(taskId: string): Promise<void> {
         creatorId: true,
         assigneeId: true,
         teamId: true,
-        assignee: { select: { name: true } },
+        assignee: { select: { name: true, teamIds: true } },
         project: { select: { name: true } },
       },
     });
@@ -233,14 +250,21 @@ export async function notifyNewTask(taskId: string): Promise<void> {
       { telegram: false },
     );
 
-    // Observatori (cei care au bifat evenimentul): creare + asignare.
+    // Observatori (staff cu evenimentul bifat) + administratori filtrați (echipă/membru/eveniment).
     const createdKey = task.type === "TICKET" ? "ticket.created" : "task.created";
-    const observerIds = new Set<string>(await observerRecipients(createdKey));
+    const eventKeys = task.assigneeId ? [createdKey, "task.assigned"] : [createdKey];
+    const admins = await filteredAdminRecipients({
+      eventKeys,
+      teamIds: [task.teamId, ...(task.assignee?.teamIds ?? [])],
+      memberIds: [task.assigneeId, task.creatorId],
+    });
+    const observerIds = new Set<string>([...admins, ...(await observerRecipients(createdKey))]);
     if (task.assigneeId) {
       for (const id of await observerRecipients("task.assigned")) observerIds.add(id);
     }
     observerIds.delete(task.creatorId); // creatorul știe deja
     for (const id of recipients) observerIds.delete(id); // deja notificați ca direcți
+    console.log(`[tasks] notifyNewTask: ${observerIds.size} observatori/admini de notificat pentru task ${task.id}`);
     if (observerIds.size > 0) {
       await notifyUsers(
         [...observerIds],
@@ -253,8 +277,8 @@ export async function notifyNewTask(taskId: string): Promise<void> {
         { telegram: true },
       );
     }
-  } catch {
-    // notificarea nu trebuie să afecteze nimic
+  } catch (e) {
+    console.error(`[tasks] notifyNewTask: eșuat pentru task ${taskId}`, e);
   }
 }
 
@@ -277,8 +301,10 @@ export async function changeTaskStatus(
       status: true,
       creatorId: true,
       assigneeId: true,
+      teamId: true,
       telegramChatId: true,
       telegramMessageId: true,
+      assignee: { select: { teamIds: true } },
     },
   });
   if (!task) {
@@ -298,14 +324,23 @@ export async function changeTaskStatus(
 
   // Notificări best-effort (nu afectează rezultatul scrierii de mai sus)
   try {
-    const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true } });
+    const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true, teamIds: true } });
     const actorName = actor?.name ?? "Cineva";
 
-    // Direcți: creatorul + TOȚI administratorii activi (nu doar creatorul exact) + asignatul.
-    // Observatori: cei care au bifat „Status task schimbat". Fără cel care a modificat.
+    // Direcți: creatorul + asignatul. Administratorii: filtrați după echipă/membru/tip eveniment
+    // (notifyScope din Settings utilizator). Observatori: cei cu „Status task schimbat" bifat.
+    const eventKeys =
+      newStatus === "READ" ? ["task.status", "task.read"]
+      : newStatus === "DONE" ? ["task.status", "task.done"]
+      : ["task.status"];
+    const admins = await filteredAdminRecipients({
+      eventKeys,
+      teamIds: [task.teamId, ...(task.assignee?.teamIds ?? []), ...(actor?.teamIds ?? [])],
+      memberIds: [actorId, task.assigneeId],
+    });
     const recipients = new Set<string>([
       task.creatorId,
-      ...(await adminRecipients()),
+      ...admins,
       ...(await observerRecipients("task.status")),
     ]);
     if (task.assigneeId) recipients.add(task.assigneeId);
@@ -352,7 +387,16 @@ export async function changeTaskProgress(taskId: string, actorId: string, progre
   const p = Math.max(0, Math.min(100, Math.round(progress)));
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { id: true, title: true, type: true, progress: true, creatorId: true, assigneeId: true },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      progress: true,
+      creatorId: true,
+      assigneeId: true,
+      teamId: true,
+      assignee: { select: { teamIds: true } },
+    },
   });
   if (!task) {
     console.error(`[tasks] changeTaskProgress: task ${taskId} nu există`);
@@ -367,12 +411,17 @@ export async function changeTaskProgress(taskId: string, actorId: string, progre
   console.log(`[tasks] changeTaskProgress: salvat în DB — ${task.progress}% → ${p}%`);
 
   try {
-    const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true } });
+    const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true, teamIds: true } });
     const actorName = actor?.name ?? "Cineva";
 
+    const admins = await filteredAdminRecipients({
+      eventKeys: ["task.progress"],
+      teamIds: [task.teamId, ...(task.assignee?.teamIds ?? []), ...(actor?.teamIds ?? [])],
+      memberIds: [actorId, task.assigneeId],
+    });
     const recipients = new Set<string>([
       task.creatorId,
-      ...(await adminRecipients()),
+      ...admins,
       ...(await observerRecipients("task.progress")),
     ]);
     if (task.assigneeId) recipients.add(task.assigneeId);
@@ -398,6 +447,153 @@ export async function changeTaskProgress(taskId: string, actorId: string, progre
     console.error(`[tasks] changeTaskProgress: pipeline-ul de notificare a eșuat pentru task ${taskId}`, e);
   }
   return { ok: true as const, changed: true, fromProgress: task.progress, title: task.title, type: task.type };
+}
+
+/** Adaugă un comentariu pe task + notificare (web sau Telegram, best-effort, logat). */
+export async function addTaskComment(
+  taskId: string,
+  actorId: string,
+  body: string,
+  source: CreatedFrom = "WEB",
+) {
+  console.log(`[tasks] addTaskComment: task=${taskId} actor=${actorId} source=${source}`);
+  if (DEMO) return { ok: false as const, error: "Mod demo." };
+  const text = body.trim();
+  if (!text) return { ok: false as const, error: "Comentariul e gol." };
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      id: true,
+      title: true,
+      creatorId: true,
+      assigneeId: true,
+      teamId: true,
+      assignee: { select: { teamIds: true } },
+    },
+  });
+  if (!task) {
+    console.error(`[tasks] addTaskComment: task ${taskId} nu există`);
+    return { ok: false as const, error: "Task inexistent." };
+  }
+
+  const comment = await prisma.taskComment.create({
+    data: { taskId, userId: actorId, body: text, source },
+    select: { id: true, createdAt: true },
+  });
+  console.log(`[tasks] addTaskComment: salvat comentariu ${comment.id} pe task ${taskId}`);
+
+  try {
+    const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true, teamIds: true } });
+    const actorName = actor?.name ?? "Cineva";
+
+    const admins = await filteredAdminRecipients({
+      eventKeys: ["task.comment"],
+      teamIds: [task.teamId, ...(task.assignee?.teamIds ?? []), ...(actor?.teamIds ?? [])],
+      memberIds: [actorId, task.assigneeId],
+    });
+    const recipients = new Set<string>([
+      task.creatorId,
+      ...admins,
+      ...(await observerRecipients("task.comment")),
+    ]);
+    if (task.assigneeId) recipients.add(task.assigneeId);
+    recipients.delete(actorId);
+    const recipientIds = [...recipients];
+    console.log(`[tasks] addTaskComment: ${recipientIds.length} destinatari de notificat`);
+
+    const preview = text.length > 140 ? `${text.slice(0, 140)}…` : text;
+    await notifyUsers(
+      recipientIds,
+      {
+        title: `${actorName} a comentat pe task-ul „${task.title}"`,
+        body: preview,
+        taskId: task.id,
+        url: "/tasks",
+      },
+      { telegram: false },
+    );
+    await notifyTaskUpdateTelegram(recipientIds, {
+      actorName,
+      taskTitle: task.title,
+      statusLabel: preview,
+      lineLabel: "Comentariu",
+    });
+  } catch (e) {
+    console.error(`[tasks] addTaskComment: pipeline de notificare eșuat pentru task ${taskId}`, e);
+  }
+
+  return { ok: true as const, id: comment.id };
+}
+
+/** Comentariile unui task, în ordine cronologică. */
+export async function listTaskComments(taskId: string) {
+  if (DEMO) return [];
+  return prisma.taskComment.findMany({
+    where: { taskId },
+    select: { id: true, body: true, source: true, createdAt: true, user: { select: { name: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/**
+ * Verifică task-urile cu termen trecut, nefinalizate, și trimite notificarea de
+ * întârziere o singură dată (overdueNotifiedAt). Apelată periodic (cron).
+ */
+export async function checkOverdueTasks(): Promise<{ checked: number; notified: number }> {
+  if (DEMO) return { checked: 0, notified: 0 };
+  const now = new Date();
+  // Notă: pe MongoDB, filtrul Prisma „overdueNotifiedAt: null" NU se potrivește cu
+  // documentele unde câmpul e absent (nescris încă) — doar cu cele unde e explicit
+  // null. Ca să prindem și task-urile vechi (fără câmpul scris), filtrăm în JS.
+  const candidates = await prisma.task.findMany({
+    where: { dueAt: { lt: now }, status: { notIn: ["DONE", "CANCELLED"] } },
+    select: {
+      id: true,
+      title: true,
+      creatorId: true,
+      assigneeId: true,
+      teamId: true,
+      overdueNotifiedAt: true,
+      assignee: { select: { teamIds: true } },
+    },
+  });
+  const tasks = candidates.filter((t) => !t.overdueNotifiedAt);
+  console.log(
+    `[tasks] checkOverdueTasks: ${candidates.length} cu termen trecut, ${tasks.length} încă nenotificate`,
+  );
+
+  let notified = 0;
+  for (const task of tasks) {
+    try {
+      const admins = await filteredAdminRecipients({
+        eventKeys: ["task.overdue"],
+        teamIds: [task.teamId, ...(task.assignee?.teamIds ?? [])],
+        memberIds: [task.assigneeId, task.creatorId],
+      });
+      const recipients = new Set<string>([
+        task.creatorId,
+        ...admins,
+        ...(await observerRecipients("task.overdue")),
+      ]);
+      if (task.assigneeId) recipients.add(task.assigneeId);
+      const recipientIds = [...recipients];
+
+      await notifyUsers(
+        recipientIds,
+        { title: `Task în întârziere: „${task.title}"`, taskId: task.id, url: "/tasks" },
+        { telegram: false },
+      );
+      await notifyTaskOverdueTelegram(recipientIds, task.title);
+
+      await prisma.task.update({ where: { id: task.id }, data: { overdueNotifiedAt: now } });
+      notified++;
+    } catch (e) {
+      console.error(`[tasks] checkOverdueTasks: eșuat pentru task ${task.id}`, e);
+    }
+  }
+  console.log(`[tasks] checkOverdueTasks: ${notified}/${tasks.length} notificate`);
+  return { checked: tasks.length, notified };
 }
 
 function escapeHtml(s: string): string {

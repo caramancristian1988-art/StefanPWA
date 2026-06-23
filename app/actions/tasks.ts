@@ -11,6 +11,8 @@ import {
   changeTaskStatus,
   changeTaskProgress,
   notifyNewTask,
+  addTaskComment,
+  listTaskComments,
 } from "@/lib/services/tasks";
 import { taskHistory, type TaskHistoryRow } from "@/lib/queries/tasks";
 import { logAudit } from "@/lib/services/audit";
@@ -147,12 +149,48 @@ export async function getTaskHistory(id: string): Promise<TaskHistoryRow[]> {
   return taskHistory(id);
 }
 
+export type TaskCommentRow = {
+  id: string;
+  body: string;
+  source: "WEB" | "TELEGRAM" | "VOICE";
+  createdAt: Date;
+  userName: string;
+};
+
+/** Comentariile unui task — lazy, la expandarea unui task. */
+export async function getTaskComments(id: string): Promise<TaskCommentRow[]> {
+  const user = await requireUser();
+  if (!can(user, "tasks.view")) return [];
+  const rows = await listTaskComments(id);
+  return rows.map((r) => ({
+    id: r.id,
+    body: r.body,
+    source: r.source,
+    createdAt: r.createdAt,
+    userName: r.user?.name ?? "—",
+  }));
+}
+
+/** Adaugă un comentariu pe task, permis oricărui utilizator autentificat. */
+export async function addTaskCommentAction(id: string, body: string): Promise<TaskState> {
+  const user = await requireUser();
+  console.log(`[tasks.action] addTaskCommentAction: user=${user.id} (${user.name}) task=${id}`);
+  const res = await addTaskComment(id, user.id, body, "WEB");
+  if (!res.ok) {
+    console.error(`[tasks.action] addTaskCommentAction: eșuat — ${res.error}`);
+    return { error: res.error };
+  }
+  revalidateTasks();
+  return { ok: true, id: res.id };
+}
+
 export async function deleteTask(id: string): Promise<void> {
   const user = await requireUser();
   if (!can(user, "tasks.delete")) return;
   if (DEMO) return;
   const task = await prisma.task.findUnique({ where: { id }, select: { title: true, type: true } });
   await prisma.taskActivity.deleteMany({ where: { taskId: id } });
+  await prisma.taskComment.deleteMany({ where: { taskId: id } });
   await prisma.task.delete({ where: { id } }).catch(() => {});
   if (task) {
     await logAudit(

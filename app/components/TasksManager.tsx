@@ -8,6 +8,8 @@ import {
   setTaskProgress,
   deleteTask,
   getTaskHistory,
+  getTaskComments,
+  addTaskCommentAction,
   type TaskState,
 } from "@/app/actions/tasks";
 import { useToast } from "./toast";
@@ -20,6 +22,14 @@ type HistoryRow = {
   fromStatus: Status | null;
   toStatus: Status;
   note: string | null;
+  createdAt: string | Date;
+  userName: string;
+};
+
+type CommentRow = {
+  id: string;
+  body: string;
+  source: "WEB" | "TELEGRAM" | "VOICE";
   createdAt: string | Date;
   userName: string;
 };
@@ -109,10 +119,13 @@ export default function TasksManager({
   const [tasks, setTasks] = useState(items);
   useEffect(() => setTasks(items), [items]);
 
-  // Istoric (timeline) per task — expandare + cache lazy
+  // Istoric (timeline) + comentarii per task — expandare + cache lazy
   const [openId, setOpenId] = useState<string | null>(null);
   const [history, setHistory] = useState<Record<string, HistoryRow[]>>({});
   const [loadingHist, setLoadingHist] = useState<string | null>(null);
+  const [comments, setComments] = useState<Record<string, CommentRow[]>>({});
+  const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
+  const [postingComment, setPostingComment] = useState<string | null>(null);
 
   function toggleHistory(id: string) {
     if (openId === id) {
@@ -127,6 +140,28 @@ export default function TasksManager({
         .catch(() => toast.error("Nu am putut încărca istoricul"))
         .finally(() => setLoadingHist((cur) => (cur === id ? null : cur)));
     }
+    if (!comments[id]) {
+      getTaskComments(id)
+        .then((rows) => setComments((c) => ({ ...c, [id]: rows as CommentRow[] })))
+        .catch(() => toast.error("Nu am putut încărca comentariile"));
+    }
+  }
+
+  function postComment(id: string) {
+    const body = (commentDraft[id] ?? "").trim();
+    if (!body) return;
+    setPostingComment(id);
+    addTaskCommentAction(id, body)
+      .then((res) => {
+        if (res?.error) {
+          toast.error(res.error);
+          return;
+        }
+        setCommentDraft((d) => ({ ...d, [id]: "" }));
+        getTaskComments(id).then((rows) => setComments((c) => ({ ...c, [id]: rows as CommentRow[] })));
+        toast.success("Comentariu adăugat");
+      })
+      .finally(() => setPostingComment((cur) => (cur === id ? null : cur)));
   }
 
   // Filtrare 100% pe server: filtrele se reflectă în URL, pagina re-cere datele.
@@ -330,12 +365,21 @@ export default function TasksManager({
                 )}
               </div>
               {openId === t.id && (
-                <Timeline
-                  rows={history[t.id]}
-                  loading={loadingHist === t.id}
-                  createdAt={t.createdAt}
-                  creatorName={t.creatorName}
-                />
+                <>
+                  <Timeline
+                    rows={history[t.id]}
+                    loading={loadingHist === t.id}
+                    createdAt={t.createdAt}
+                    creatorName={t.creatorName}
+                  />
+                  <Comments
+                    rows={comments[t.id]}
+                    draft={commentDraft[t.id] ?? ""}
+                    posting={postingComment === t.id}
+                    onDraftChange={(v) => setCommentDraft((d) => ({ ...d, [t.id]: v }))}
+                    onSubmit={() => postComment(t.id)}
+                  />
+                </>
               )}
             </div>
           ))}
@@ -413,6 +457,67 @@ function Timeline({
           )}
         </ol>
       )}
+    </div>
+  );
+}
+
+const SOURCE_LABEL: Record<CommentRow["source"], string> = {
+  WEB: "",
+  TELEGRAM: " · via Telegram",
+  VOICE: " · din voce",
+};
+
+function Comments({
+  rows,
+  draft,
+  posting,
+  onDraftChange,
+  onSubmit,
+}: {
+  rows: CommentRow[] | undefined;
+  draft: string;
+  posting: boolean;
+  onDraftChange: (v: string) => void;
+  onSubmit: () => void;
+}) {
+  const fmt = (d: string | Date) => new Date(d).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" });
+  return (
+    <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-3 py-2.5">
+      <p className="mb-2 text-[11px] font-semibold text-ink-soft">💬 Comentarii</p>
+      <div className="mb-2 flex flex-col gap-2">
+        {rows === undefined ? (
+          <p className="text-[11px] text-ink-soft">Se încarcă…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-[11px] text-ink-soft">Niciun comentariu încă.</p>
+        ) : (
+          rows.map((c) => (
+            <div key={c.id} className="text-[11px]">
+              <span className="font-medium">{c.userName}</span>
+              <span className="text-ink-soft"> · {fmt(c.createdAt)}{SOURCE_LABEL[c.source]}</span>
+              <p className="mt-0.5 whitespace-pre-wrap">{c.body}</p>
+            </div>
+          ))
+        )}
+      </div>
+      <form
+        onSubmit={(e) => { e.preventDefault(); onSubmit(); }}
+        className="flex items-end gap-2"
+      >
+        <textarea
+          value={draft}
+          onChange={(e) => onDraftChange(e.target.value)}
+          placeholder="Scrie un comentariu…"
+          rows={1}
+          className="min-w-0 flex-1 resize-none rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 py-1.5 text-[12px] outline-none focus:border-brand"
+        />
+        <button
+          type="submit"
+          disabled={posting || !draft.trim()}
+          className="tap h-8 shrink-0 rounded-lg bg-brand px-3 text-[11px] font-semibold text-white hover:bg-brand-strong disabled:opacity-50"
+        >
+          {posting ? "…" : "Trimite"}
+        </button>
+      </form>
     </div>
   );
 }

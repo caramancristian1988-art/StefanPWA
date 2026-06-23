@@ -34,6 +34,15 @@ function parseNotifyEvents(formData: FormData): string[] {
     .filter((e) => NOTIFY_EVENT_KEYS.includes(e));
 }
 
+const NOTIFY_SCOPES = ["ALL", "TEAMS", "MEMBERS"];
+function parseNotifyScope(formData: FormData): string {
+  const v = String(formData.get("notifyScope") ?? "ALL");
+  return NOTIFY_SCOPES.includes(v) ? v : "ALL";
+}
+function parseIdList(formData: FormData, key: string): string[] {
+  return formData.getAll(key).map(String).filter(Boolean);
+}
+
 export async function createUser(
   _prev: UserState,
   formData: FormData,
@@ -65,6 +74,9 @@ export async function createUser(
       permissions: role === "ADMIN" ? [] : parsePerms(formData),
       notifyEvents: parseNotifyEvents(formData),
       telegramChatId: String(formData.get("telegramChatId") ?? "").trim() || null,
+      notifyScope: parseNotifyScope(formData),
+      notifyTeamIds: parseIdList(formData, "notifyTeamIds"),
+      notifyMemberIds: parseIdList(formData, "notifyMemberIds"),
     },
     select: { id: true },
   });
@@ -110,6 +122,9 @@ export async function updateUser(
       permissions: newPerms,
       notifyEvents: newNotify,
       telegramChatId: String(formData.get("telegramChatId") ?? "").trim() || null,
+      notifyScope: parseNotifyScope(formData),
+      notifyTeamIds: parseIdList(formData, "notifyTeamIds"),
+      notifyMemberIds: parseIdList(formData, "notifyMemberIds"),
       ...(newPassword.length >= 8 ? { passwordHash: await hashPassword(newPassword) } : {}),
     },
   });

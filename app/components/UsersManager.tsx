@@ -25,16 +25,22 @@ type UserRow = {
   permissions: string[];
   notifyEvents: string[];
   telegramChatId: string | null;
+  notifyScope: string;
+  notifyTeamIds: string[];
+  notifyMemberIds: string[];
 };
+type Opt = { id: string; name: string };
 
 const input =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
 
 export default function UsersManager({
   users,
+  teams = [],
   viewerIsSuper = false,
 }: {
   users: UserRow[];
+  teams?: Opt[];
   viewerIsSuper?: boolean;
 }) {
   const toast = useToast();
@@ -189,17 +195,34 @@ export default function UsersManager({
       )}
 
       {dialog.open && (
-        <UserDialog user={dialog.user} onClose={() => setDialog({ open: false, user: null })} />
+        <UserDialog
+          user={dialog.user}
+          allUsers={rows}
+          teams={teams}
+          onClose={() => setDialog({ open: false, user: null })}
+        />
       )}
     </>
   );
 }
 
-function UserDialog({ user, onClose }: { user: UserRow | null; onClose: () => void }) {
+function UserDialog({
+  user,
+  allUsers,
+  teams,
+  onClose,
+}: {
+  user: UserRow | null;
+  allUsers: UserRow[];
+  teams: Opt[];
+  onClose: () => void;
+}) {
   const router = useRouter();
   const action = user ? updateUser : createUser;
   const [state, formAction, pending] = useActionState<UserState, FormData>(action, undefined);
   const [role, setRole] = useState<"ADMIN" | "STAFF">(user?.role ?? "STAFF");
+  const [notifyScope, setNotifyScope] = useState<string>(user?.notifyScope ?? "ALL");
+  const staffOptions = allUsers.filter((u) => u.id !== user?.id);
 
   useEffect(() => {
     if (state?.ok) {
@@ -288,6 +311,7 @@ function UserDialog({ user, onClose }: { user: UserRow | null; onClose: () => vo
             <p className="mb-1 text-xs font-semibold text-ink-soft">Notificări (ce evenimente primește)</p>
             <p className="mb-2 text-[11px] text-ink-soft">
               Pe lângă astea, primește mereu notificările directe (task asignat lui, schimbări pe task-urile lui).
+              Listă goală = toate tipurile de evenimente.
             </p>
             <div className="grid grid-cols-2 gap-1.5">
               {NOTIFY_EVENTS.map((e) => (
@@ -304,6 +328,71 @@ function UserDialog({ user, onClose }: { user: UserRow | null; onClose: () => vo
               ))}
             </div>
           </div>
+
+          {role === "ADMIN" && (
+            <div className="rounded-xl border border-[var(--color-line)] p-3">
+              <p className="mb-1 text-xs font-semibold text-ink-soft">Sursa notificărilor (ca administrator)</p>
+              <p className="mb-2 text-[11px] text-ink-soft">
+                Filtrează ce notificări de task/tichet primește acest administrator, în funcție de
+                echipă sau membru. Tipurile de mai sus se aplică în continuare peste acest filtru.
+              </p>
+              <div className="mb-2 flex flex-wrap gap-3">
+                {[
+                  { v: "ALL", l: "Toate echipele/membrii" },
+                  { v: "TEAMS", l: "Doar anumite echipe" },
+                  { v: "MEMBERS", l: "Doar anumiți membri" },
+                ].map((o) => (
+                  <label key={o.v} className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="radio"
+                      name="notifyScope"
+                      value={o.v}
+                      checked={notifyScope === o.v}
+                      onChange={() => setNotifyScope(o.v)}
+                      className="size-4 accent-[var(--color-brand)]"
+                    />
+                    {o.l}
+                  </label>
+                ))}
+              </div>
+
+              {notifyScope === "TEAMS" && (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {teams.length === 0 && <p className="text-xs text-ink-soft">Nicio echipă creată încă.</p>}
+                  {teams.map((t) => (
+                    <label key={t.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        name="notifyTeamIds"
+                        value={t.id}
+                        defaultChecked={user?.notifyTeamIds.includes(t.id) ?? false}
+                        className="size-4 accent-[var(--color-brand)]"
+                      />
+                      {t.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {notifyScope === "MEMBERS" && (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {staffOptions.length === 0 && <p className="text-xs text-ink-soft">Niciun alt utilizator încă.</p>}
+                  {staffOptions.map((u) => (
+                    <label key={u.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        name="notifyMemberIds"
+                        value={u.id}
+                        defaultChecked={user?.notifyMemberIds.includes(u.id) ?? false}
+                        className="size-4 accent-[var(--color-brand)]"
+                      />
+                      {u.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">

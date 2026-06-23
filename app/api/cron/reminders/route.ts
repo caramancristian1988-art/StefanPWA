@@ -1,12 +1,14 @@
 import { env } from "@/lib/env";
 import { processDueReminders } from "@/lib/services/reminders";
+import { checkOverdueTasks } from "@/lib/services/tasks";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Job de remindere. Apelează periodic (Vercel Cron sau orice scheduler):
+ * Job periodic. Apelează regulat (Vercel Cron sau orice scheduler):
  *   GET /api/cron/reminders   cu header  Authorization: Bearer <CRON_SECRET>
+ * Procesează remindere de programări scadente + detectează task-uri întârziate.
  */
 async function run(req: Request) {
   const auth = req.headers.get("authorization");
@@ -19,8 +21,11 @@ async function run(req: Request) {
     return new Response("forbidden", { status: 401 });
   }
 
-  const result = await processDueReminders();
-  return Response.json({ ok: true, ...result });
+  const [reminders, overdueTasks] = await Promise.all([
+    processDueReminders(),
+    checkOverdueTasks(),
+  ]);
+  return Response.json({ ok: true, reminders, overdueTasks });
 }
 
 export async function GET(req: Request) {

@@ -120,6 +120,9 @@ export function verifyLinkToken(token: string): string | null {
 export function mainMenu(): InlineButton[][] {
   return [
     [
+      { text: "📋 Task-urile mele", callback_data: "MY_TASKS" },
+    ],
+    [
       { text: "📅 Azi", callback_data: "TODAY" },
       { text: "📆 Mâine", callback_data: "TOMORROW" },
     ],
@@ -133,6 +136,11 @@ export function mainMenu(): InlineButton[][] {
     ],
     [{ text: "⚙️ Setări", callback_data: "SETTINGS" }],
   ];
+}
+
+/** Meniu redus pentru lucrători fără acces CRM (doar task-uri). */
+export function workerMenu(): InlineButton[][] {
+  return [[{ text: "📋 Task-urile mele", callback_data: "MY_TASKS" }]];
 }
 
 export const TASK_STATUS_RO: Record<string, string> = {
@@ -182,6 +190,11 @@ export function taskStatusButtons(taskId: string): InlineButton[][] {
       { text: "100%", callback_data: `TPR:100:${taskId}` },
     ],
   ];
+}
+
+/** Butoanele din ecranul de detalii task: status + progres + adăugare comentariu. */
+export function taskDetailButtons(taskId: string): InlineButton[][] {
+  return [...taskStatusButtons(taskId), [{ text: "💬 Adaugă comentariu", callback_data: `TCOMM:${taskId}` }]];
 }
 
 /** Butoane per programare. */

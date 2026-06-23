@@ -116,6 +116,7 @@ model User {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   name         String
   email        String   @unique
+  phone        String?
   passwordHash String
   role         UserRole @default(ADMIN)
   isActive     Boolean  @default(true)
@@ -123,10 +124,18 @@ model User {
   isSuperAdmin Boolean  @default(false)
   // Permisiuni individuale (chei din lib/permissions.ts). ADMIN le are pe toate.
   permissions  String[] @default([])
-  // Evenimente la care primește notificări „observator" (chei din lib/notify-meta.ts)
+  // Evenimente la care primește notificări „observator" (chei din lib/notify-meta.ts).
+  // Listă vidă = toate evenimentele (când notifyScope permite).
   notifyEvents String[] @default([])
   // Chat ID Telegram setat manual de admin (pentru notificări), independent de linkarea prin bot
   telegramChatId String?
+
+  // --- Filtrare notificări „administrator" (ce echipe/membri îl interesează) ---
+  // ALL = toate echipele/membrii; TEAMS = doar notifyTeamIds; MEMBERS = doar notifyMemberIds
+  notifyScope     String   @default("ALL")
+  notifyTeamIds   String[] @db.ObjectId
+  notifyMemberIds String[] @db.ObjectId
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -135,7 +144,9 @@ model User {
   appointments    Appointment[]
   categories      Category[]
   reminders       Reminder[]
-  telegramAccount TelegramAccount?
+  // Listă (nu 1:1): TelegramAccount.userId NU e @unique — pe MongoDB, un index unic pe un
+  // câmp opțional ar trata toate contactele „pending" (userId absent) ca duplicate de null.
+  telegramAccounts TelegramAccount[]
   settings        AppSettings?
   notificationLog NotificationLog[]
   voiceLog        VoiceCommandLog[]
@@ -148,6 +159,7 @@ model User {
   createdTasks   Task[]        @relation("TaskCreator")
   assignedTasks  Task[]        @relation("TaskAssignee")
   taskActivities TaskActivity[]
+  taskComments   TaskComment[]
   invoices       Invoice[]
   notifications  Notification[]
 }
@@ -260,10 +272,14 @@ model Task {
   telegramChatId    String?
   telegramMessageId Int?
 
+  // Setat când s-a trimis deja notificarea de întârziere, ca să nu se repete la fiecare rulare de cron
+  overdueNotifiedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   activities TaskActivity[]
+  comments   TaskComment[]
   invoices   Invoice[]
 
   @@index([assigneeId, status])
@@ -271,6 +287,20 @@ model Task {
   @@index([projectId])
   @@index([teamId, status])
   @@index([status])
+  @@index([dueAt, status])
+}
+
+model TaskComment {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String      @db.ObjectId
+  task      Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String      @db.ObjectId
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  source    CreatedFrom @default(WEB)
+  createdAt DateTime    @default(now())
+
+  @@index([taskId, createdAt])
 }
 
 model TaskActivity {
@@ -483,20 +513,27 @@ model Reminder {
   @@index([userId])
 }
 
+// userId nul = contact Telegram „pending": a apăsat /start dar niciun admin
+// nu i-a creat încă profilul în CRM (lucrătorul nu are și nu are nevoie de cont CRM).
+// Notă: userId NU e @unique — pe MongoDB un index unic pe un câmp opțional ar respinge
+// al doilea contact „pending" (toate documentele fără userId sunt tratate ca null duplicat).
+// Unicitatea per-user e garantată la nivel de aplicație (approveTelegramContact).
 model TelegramAccount {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String   @unique @db.ObjectId
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?  @db.ObjectId
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   telegramUserId String   @unique
   chatId         String
   username       String?
   firstName      String?
-  // ce view e activ în bot, pentru context la callback-uri
+  lastName       String?
+  // ce view e activ în bot, pentru context la callback-uri (ex. „awaiting_comment:<taskId>")
   lastMenuState  String?
   linkedAt       DateTime @default(now())
 
   // telegramUserId e deja indexat prin @unique
   @@index([chatId])
+  @@index([userId])
 }
 
 model NotificationLog {

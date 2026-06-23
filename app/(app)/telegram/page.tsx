@@ -1,11 +1,15 @@
 import { requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { can } from "@/lib/permissions";
 import { getMe, signLinkToken } from "@/lib/telegram";
 import { formatDate } from "@/lib/date";
 import { getUserTimezone } from "@/lib/queries/settings";
+import { pendingTelegramContacts } from "@/lib/queries/telegram";
+import { teamOptions } from "@/lib/queries/teams";
 import { DEMO } from "@/lib/demo";
 import TelegramPanel from "@/app/components/TelegramPanel";
+import PendingTelegramUsers from "@/app/components/PendingTelegramUsers";
 import { IconCalendar, IconCheckCircle, IconMic, IconSearch } from "@/app/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -13,16 +17,19 @@ export const dynamic = "force-dynamic";
 export default async function TelegramPage() {
   const user = await requireUser();
   const enabled = env.telegram.enabled;
+  const canManageUsers = can(user, "users.manage");
 
-  const [botInfo, account, tz] = await Promise.all([
+  const [botInfo, account, tz, pending, teams] = await Promise.all([
     enabled ? getMe() : Promise.resolve(null),
     DEMO
       ? Promise.resolve(null)
-      : prisma.telegramAccount.findUnique({
+      : prisma.telegramAccount.findFirst({
           where: { userId: user.id },
           select: { username: true, firstName: true, linkedAt: true, chatId: true },
         }),
     getUserTimezone(user.id),
+    canManageUsers ? pendingTelegramContacts() : Promise.resolve([]),
+    canManageUsers ? teamOptions() : Promise.resolve([]),
   ]);
 
   const token = DEMO ? "demo" : signLinkToken(user.id);
@@ -48,6 +55,10 @@ export default async function TelegramPage() {
           </p>
         </div>
       </div>
+
+      {canManageUsers && pending.length > 0 && (
+        <PendingTelegramUsers contacts={pending} teams={teams} />
+      )}
 
       <TelegramPanel
         enabled={enabled}

@@ -24,6 +24,48 @@ export async function observerRecipients(eventKey: string): Promise<string[]> {
   return users.map((u) => u.id);
 }
 
+export type AdminNotifyContext = {
+  /** Cheile de eveniment aplicabile acestei notificări (ex. ["task.status","task.done"]). */
+  eventKeys: string[];
+  /** Echipe relevante (task.teamId, echipele asignatului/actorului). */
+  teamIds?: (string | null | undefined)[];
+  /** Persoane relevante (actorul care a făcut schimbarea, asignatul task-ului). */
+  memberIds?: (string | null | undefined)[];
+};
+
+/**
+ * Administratorii care trebuie notificați pentru acest eveniment, respectând
+ * setările individuale: notifyScope (ALL/TEAMS/MEMBERS) + notifyEvents (tipuri).
+ * notifyEvents vid = toate tipurile; altfel trebuie să intersecteze eventKeys.
+ */
+export async function filteredAdminRecipients(ctx: AdminNotifyContext): Promise<string[]> {
+  if (DEMO) return [];
+  const admins = await prisma.user.findMany({
+    where: { isActive: true, role: "ADMIN" },
+    select: { id: true, notifyScope: true, notifyTeamIds: true, notifyMemberIds: true, notifyEvents: true },
+  });
+
+  const teamSet = new Set((ctx.teamIds ?? []).filter((v): v is string => Boolean(v)));
+  const memberSet = new Set((ctx.memberIds ?? []).filter((v): v is string => Boolean(v)));
+
+  const ids = admins
+    .filter((a) => {
+      if (a.notifyEvents.length > 0 && !ctx.eventKeys.some((k) => a.notifyEvents.includes(k))) {
+        return false;
+      }
+      if (a.notifyScope === "TEAMS") return a.notifyTeamIds.some((t) => teamSet.has(t));
+      if (a.notifyScope === "MEMBERS") return a.notifyMemberIds.some((m) => memberSet.has(m));
+      return true; // ALL (default)
+    })
+    .map((a) => a.id);
+
+  console.log(
+    `[notify] filteredAdminRecipients: ${ids.length}/${admins.length} admini calificați pentru`,
+    ctx.eventKeys,
+  );
+  return ids;
+}
+
 /**
  * Trimite o notificare către mai mulți utilizatori pe toate canalele (best-effort):
  *  - in-app (tabel Notification, cu badge)
@@ -76,9 +118,9 @@ export async function notifyUsers(
         try {
           const u = await prisma.user.findUnique({
             where: { id: uid },
-            select: { telegramChatId: true, telegramAccount: { select: { chatId: true } } },
+            select: { telegramChatId: true, telegramAccounts: { select: { chatId: true }, take: 1 } },
           });
-          const chat = u?.telegramChatId || u?.telegramAccount?.chatId;
+          const chat = u?.telegramChatId || u?.telegramAccounts[0]?.chatId;
           if (chat) {
             const res = await sendMessage(
               chat,

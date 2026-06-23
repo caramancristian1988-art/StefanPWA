@@ -183,6 +183,11 @@ export const TASK_PRIORITY_RO: Record<string, string> = {
   URGENT: "Urgentă",
 };
 
+/** Buton unic pentru task finalizat/anulat — permite redeschiderea direct din mesaj. */
+export function taskReopenButton(taskId: string): InlineButton[][] {
+  return [[{ text: "↩️ Redeschide task", callback_data: `TST:IN_PROGRESS:${taskId}` }]];
+}
+
 /** Butoane pentru muncitor (acțiuni + progres). */
 export function taskStatusButtons(taskId: string): InlineButton[][] {
   return [

@@ -5,6 +5,7 @@ import {
   sendMessage,
   editMessageText,
   taskStatusButtons,
+  taskReopenButton,
   TASK_STATUS_RO,
   TASK_TYPE_RO,
   TASK_PRIORITY_RO,
@@ -458,7 +459,7 @@ export async function changeTaskStatus(
         task.telegramChatId,
         task.telegramMessageId,
         editLines.join("\n"),
-        closed ? undefined : taskStatusButtons(task.id),
+        closed ? taskReopenButton(task.id) : taskStatusButtons(task.id),
       );
     }
   } catch (e) {

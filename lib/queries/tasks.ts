@@ -259,6 +259,18 @@ export async function getTask(id: string) {
         orderBy: { createdAt: "desc" },
         take: 50,
       },
+      attachments: {
+        select: {
+          id: true,
+          name: true,
+          url: true,
+          size: true,
+          mimeType: true,
+          createdAt: true,
+          user: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 }

@@ -1,11 +1,17 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
+import { can } from "@/lib/permissions";
 import { getTask } from "@/lib/queries/tasks";
 import { listTaskComments } from "@/lib/services/tasks";
+import { dateKeyOf, formatTime } from "@/lib/date";
+import TaskCommentSection from "@/app/components/TaskCommentSection";
+import TaskAttachmentSection from "@/app/components/TaskAttachmentSection";
 import type { TaskStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+const TZ = "Europe/Bucharest";
 
 const ST: Record<string, { label: string; dot: string; badge: string }> = {
   NEW:         { label: "Nou",            dot: "bg-st-new",       badge: "bg-st-new/15 text-st-new" },
@@ -24,9 +30,15 @@ const SOURCE_RO: Record<string, string> = { WEB: "", TELEGRAM: "via Telegram", V
 function fmtDateTime(d: Date | string) {
   return new Date(d).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" });
 }
-function fmtDate(d: Date | string) {
-  return new Date(d).toLocaleDateString("ro-RO");
+
+function fmtDue(d: Date | string): string {
+  const date = new Date(d);
+  const key = dateKeyOf(date, TZ);
+  const time = formatTime(date, TZ);
+  const datePart = new Date(key + "T12:00:00Z").toLocaleDateString("ro-RO");
+  return time === "00:00" ? datePart : `${datePart}, ${time}`;
 }
+
 function fmtDuration(ms: number): string {
   const mins = Math.floor(ms / 60000);
   if (mins < 1) return "< 1 min";
@@ -43,8 +55,10 @@ export default async function TaskDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePermission("tasks.view");
+  const user = await requirePermission("tasks.view");
   const { id } = await params;
+
+  const { env } = await import("@/lib/env");
 
   const [task, comments] = await Promise.all([
     getTask(id),
@@ -64,7 +78,30 @@ export default async function TaskDetailPage({
 
   const overdueMs = isOverdue ? Date.now() - new Date(task.dueAt!).getTime() : 0;
 
-  // Build unified timeline: creation + status changes
+  const canDelete = can(user, "tasks.delete");
+
+  // Map attachments to the shape TaskAttachmentSection expects
+  const attachments = (task.attachments ?? []).map((a) => ({
+    id: a.id,
+    name: a.name,
+    url: a.url,
+    size: a.size,
+    mimeType: a.mimeType,
+    createdAt: a.createdAt,
+    userName: a.user.name,
+    userId: a.user.id,
+  }));
+
+  // Map comments to the shape TaskCommentSection expects
+  const commentRows = comments.map((c) => ({
+    id: c.id,
+    body: c.body,
+    source: c.source,
+    createdAt: c.createdAt,
+    user: c.user ?? null,
+  }));
+
+  // Build unified timeline
   type TimelineEvent = {
     key: string;
     at: Date;
@@ -147,13 +184,29 @@ export default async function TaskDetailPage({
           {task.dueAt && (
             <MetaRow
               label="Scadent"
-              value={fmtDate(task.dueAt)}
+              value={fmtDue(task.dueAt)}
               alert={!!isOverdue}
             />
           )}
           <MetaRow label="Creat" value={fmtDateTime(task.createdAt)} />
           <MetaRow label="Creat de" value={task.creator.name} />
         </div>
+      </div>
+
+      {/* ── Attachments ───────────────────────────────────── */}
+      <div className="mb-3">
+        <TaskAttachmentSection
+          taskId={id}
+          initialAttachments={attachments}
+          currentUserId={user.id}
+          canDelete={canDelete}
+          blobEnabled={env.blob.enabled}
+        />
+      </div>
+
+      {/* ── Comments ──────────────────────────────────────── */}
+      <div className="mb-3">
+        <TaskCommentSection taskId={id} initialComments={commentRows} />
       </div>
 
       {/* ── Timeline ──────────────────────────────────────── */}
@@ -204,27 +257,6 @@ export default async function TaskDetailPage({
           </div>
         )}
       </div>
-
-      {/* ── Comments ──────────────────────────────────────── */}
-      {comments.length > 0 && (
-        <div className="card p-4">
-          <h2 className="mb-3 text-sm font-bold">💬 Comentarii ({comments.length})</h2>
-          <div className="flex flex-col gap-4">
-            {comments.map((c) => (
-              <div key={c.id}>
-                <div className="mb-0.5 flex flex-wrap items-baseline gap-2">
-                  <span className="text-sm font-semibold">{c.user?.name ?? "—"}</span>
-                  <span className="text-[11px] text-ink-soft">{fmtDateTime(c.createdAt)}</span>
-                  {c.source !== "WEB" && (
-                    <span className="text-[10px] text-ink-soft">· {SOURCE_RO[c.source]}</span>
-                  )}
-                </div>
-                <p className="whitespace-pre-wrap text-sm">{c.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

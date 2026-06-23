@@ -80,6 +80,13 @@ export const env = {
     },
   },
 
+  blob: {
+    token: optional("BLOB_READ_WRITE_TOKEN"),
+    get enabled() {
+      return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+    },
+  },
+
   isProd: process.env.NODE_ENV === "production",
 
   // Aplicația e „activă" doar când are baza de date și secretul de sesiune.

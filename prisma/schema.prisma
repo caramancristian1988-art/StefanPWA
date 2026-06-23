@@ -159,7 +159,8 @@ model User {
   createdTasks   Task[]        @relation("TaskCreator")
   assignedTasks  Task[]        @relation("TaskAssignee")
   taskActivities TaskActivity[]
-  taskComments   TaskComment[]
+  taskComments    TaskComment[]
+  taskAttachments TaskAttachment[]
   invoices       Invoice[]
   notifications  Notification[]
 }
@@ -281,9 +282,10 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  activities TaskActivity[]
-  comments   TaskComment[]
-  invoices   Invoice[]
+  activities  TaskActivity[]
+  comments    TaskComment[]
+  attachments TaskAttachment[]
+  invoices    Invoice[]
 
   @@index([assigneeId, status])
   @@index([creatorId, status])
@@ -292,6 +294,21 @@ model Task {
   @@index([status])
   @@index([dueAt, status])
   @@index([seq])
+}
+
+model TaskAttachment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String   @db.ObjectId
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  url       String
+  size      Int
+  mimeType  String?
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
 }
 
 // Contor atomic generic (folosit pentru Task.seq) — MongoDB nu are autoincrement nativ.

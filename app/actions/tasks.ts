@@ -230,6 +230,81 @@ export async function updateTaskAction(
   return { ok: true, id };
 }
 
+export type AttachmentRow = {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  mimeType: string | null;
+  createdAt: Date;
+  userName: string;
+  userId: string;
+};
+
+export async function addAttachmentAction(
+  taskId: string,
+  formData: FormData,
+): Promise<{ ok?: boolean; error?: string; attachment?: AttachmentRow }> {
+  const user = await requireUser();
+  if (!can(user, "tasks.view")) return { error: "Nu ai permisiunea." };
+  if (DEMO) return { error: "Mod demo." };
+
+  const file = formData.get("file") as File | null;
+  if (!file || !file.size) return { error: "Niciun fișier selectat." };
+  if (file.size > 20 * 1024 * 1024) return { error: "Fișierul depășește 20 MB." };
+
+  const { env } = await import("@/lib/env");
+  if (!env.blob.enabled) return { error: "Stocarea fișierelor nu este configurată (BLOB_READ_WRITE_TOKEN lipsă)." };
+
+  const { put } = await import("@vercel/blob");
+  const safeName = file.name.replace(/[^\w.\-]/g, "_");
+  const blob = await put(`tasks/${taskId}/${Date.now()}-${safeName}`, file, { access: "public" });
+
+  const att = await prisma.taskAttachment.create({
+    data: {
+      taskId,
+      userId: user.id,
+      name: file.name,
+      url: blob.url,
+      size: file.size,
+      mimeType: file.type || null,
+    },
+    select: {
+      id: true, name: true, url: true, size: true, mimeType: true, createdAt: true,
+      user: { select: { id: true, name: true } },
+    },
+  });
+
+  revalidatePath(`/tasks/${taskId}`);
+  return { ok: true, attachment: { ...att, userName: att.user.name, userId: att.user.id } };
+}
+
+export async function deleteAttachmentAction(
+  attachmentId: string,
+  taskId: string,
+): Promise<{ ok?: boolean; error?: string }> {
+  const user = await requireUser();
+  if (DEMO) return { error: "Mod demo." };
+
+  const att = await prisma.taskAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { userId: true, url: true },
+  });
+  if (!att) return { error: "Atașament inexistent." };
+  if (att.userId !== user.id && !can(user, "tasks.delete")) {
+    return { error: "Nu poți șterge atașamentul altcuiva." };
+  }
+
+  const { env } = await import("@/lib/env");
+  if (env.blob.enabled) {
+    const { del } = await import("@vercel/blob");
+    await del(att.url).catch(() => {});
+  }
+  await prisma.taskAttachment.delete({ where: { id: attachmentId } });
+  revalidatePath(`/tasks/${taskId}`);
+  return { ok: true };
+}
+
 export async function deleteTask(id: string): Promise<void> {
   const user = await requireUser();
   if (!can(user, "tasks.delete")) return;

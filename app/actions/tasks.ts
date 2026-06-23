@@ -275,6 +275,10 @@ export async function addAttachmentAction(
     },
   });
 
+  await prisma.taskActivity
+    .create({ data: { taskId, userId: user.id, action: "ATTACHMENT_ADDED", meta: { fileName: file.name, size: file.size } } })
+    .catch(() => {});
+
   revalidatePath(`/tasks/${taskId}`);
   return { ok: true, attachment: { ...att, userName: att.user.name, userId: att.user.id } };
 }
@@ -288,7 +292,7 @@ export async function deleteAttachmentAction(
 
   const att = await prisma.taskAttachment.findUnique({
     where: { id: attachmentId },
-    select: { userId: true, url: true },
+    select: { userId: true, url: true, name: true },
   });
   if (!att) return { error: "Atașament inexistent." };
   if (att.userId !== user.id && !can(user, "tasks.delete")) {
@@ -301,6 +305,10 @@ export async function deleteAttachmentAction(
     await del(att.url).catch(() => {});
   }
   await prisma.taskAttachment.delete({ where: { id: attachmentId } });
+  await prisma.taskActivity
+    .create({ data: { taskId, userId: user.id, action: "ATTACHMENT_DELETED", meta: { fileName: att.name } } })
+    .catch(() => {});
+
   revalidatePath(`/tasks/${taskId}`);
   return { ok: true };
 }

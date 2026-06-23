@@ -9,7 +9,7 @@ import {
   TASK_TYPE_RO,
   TASK_PRIORITY_RO,
 } from "../telegram";
-import { formatTime, DEFAULT_TZ } from "../date";
+import { formatTime, formatDate, DEFAULT_TZ } from "../date";
 import { env } from "../env";
 import { notifyUsers, observerRecipients, filteredAdminRecipients } from "./notifications";
 import type { TaskStatus, TaskType, TaskPriority, CreatedFrom } from "@prisma/client";
@@ -386,7 +386,7 @@ export async function changeTaskStatus(
 
   await prisma.task.update({ where: { id: taskId }, data: { status: newStatus } });
   await prisma.taskActivity
-    .create({ data: { taskId, userId: actorId, fromStatus: task.status, toStatus: newStatus } })
+    .create({ data: { taskId, userId: actorId, action: "STATUS_CHANGED", fromStatus: task.status, toStatus: newStatus } })
     .catch((e) => console.error(`[tasks] changeTaskStatus: jurnalizare TaskActivity eșuată pentru ${taskId}`, e));
   console.log(`[tasks] changeTaskStatus: salvat în DB — ${task.status} → ${newStatus}`);
 
@@ -566,6 +566,9 @@ export async function addTaskComment(
     select: { id: true, createdAt: true },
   });
   console.log(`[tasks] addTaskComment: salvat comentariu ${comment.id} pe task ${taskId}`);
+  await prisma.taskActivity
+    .create({ data: { taskId, userId: actorId, action: "COMMENTED", meta: { body: text.length > 200 ? `${text.slice(0, 200)}…` : text } } })
+    .catch(() => {});
 
   try {
     const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true, teamIds: true } });
@@ -699,12 +702,27 @@ export type UpdateTaskInput = {
   dueAt?: Date | null;
 };
 
-/** Editează câmpurile unui task. Nu trimite notificări (editare admin — fără zgomot). */
-export async function updateTask(taskId: string, _actorId: string, input: UpdateTaskInput) {
+const EDIT_PRIO_RO: Record<string, string> = { LOW: "Scăzută", MEDIUM: "Medie", HIGH: "Ridicată", URGENT: "Urgentă" };
+function fmtDueLog(d: Date | null | undefined): string | null {
+  if (!d) return null;
+  const dk = formatDate(d, DEFAULT_TZ);
+  const tk = formatTime(d, DEFAULT_TZ);
+  return tk === "00:00" ? dk : `${dk} ${tk}`;
+}
+
+/** Editează câmpurile unui task și loghează câmpurile modificate în TaskActivity. */
+export async function updateTask(taskId: string, actorId: string, input: UpdateTaskInput) {
   if (DEMO) return { ok: false as const, error: "Mod demo." };
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { id: true, title: true, type: true },
+    select: {
+      id: true, title: true, type: true,
+      description: true, priority: true, dueAt: true,
+      assigneeId: true, teamId: true, projectId: true,
+      assignee: { select: { name: true } },
+      team: { select: { name: true } },
+      project: { select: { name: true } },
+    },
   });
   if (!task) return { ok: false as const, error: "Task inexistent." };
 
@@ -722,6 +740,72 @@ export async function updateTask(taskId: string, _actorId: string, input: Update
   if ("dueAt" in input) data.dueAt = input.dueAt ?? null;
 
   await prisma.task.update({ where: { id: taskId }, data });
+
+  // Compute diff for audit trail (best-effort, non-blocking)
+  try {
+    type Change = { field: string; from: string | null; to: string | null };
+    const changes: Change[] = [];
+
+    const newTitle = input.title?.trim();
+    if (newTitle !== undefined && newTitle !== task.title) {
+      changes.push({ field: "Titlu", from: task.title, to: newTitle });
+    }
+
+    const newDesc = input.description !== undefined ? (input.description.trim() || null) : undefined;
+    if (newDesc !== undefined) {
+      const oldDesc = task.description?.trim() || null;
+      if (oldDesc !== newDesc) {
+        const trunc = (s: string | null) => s && s.length > 80 ? `${s.slice(0, 80)}…` : s;
+        changes.push({ field: "Descriere", from: trunc(oldDesc), to: trunc(newDesc) });
+      }
+    }
+
+    if (input.priority !== undefined && input.priority !== task.priority) {
+      changes.push({ field: "Prioritate", from: EDIT_PRIO_RO[task.priority], to: EDIT_PRIO_RO[input.priority] });
+    }
+
+    const newDue = "dueAt" in input ? (input.dueAt ?? null) : undefined;
+    if (newDue !== undefined) {
+      const oldDueStr = fmtDueLog(task.dueAt);
+      const newDueStr = fmtDueLog(newDue);
+      if (oldDueStr !== newDueStr) {
+        changes.push({ field: "Deadline", from: oldDueStr, to: newDueStr });
+      }
+    }
+
+    const newAssigneeId = "assigneeId" in input ? (input.assigneeId || null) : undefined;
+    if (newAssigneeId !== undefined && newAssigneeId !== task.assigneeId) {
+      const newAssigneeName = newAssigneeId
+        ? (await prisma.user.findUnique({ where: { id: newAssigneeId }, select: { name: true } }))?.name ?? null
+        : null;
+      changes.push({ field: "Asignat", from: task.assignee?.name ?? null, to: newAssigneeName });
+    }
+
+    const newTeamId = "teamId" in input ? (input.teamId || null) : undefined;
+    if (newTeamId !== undefined && newTeamId !== task.teamId) {
+      const newTeamName = newTeamId
+        ? (await prisma.team.findUnique({ where: { id: newTeamId }, select: { name: true } }))?.name ?? null
+        : null;
+      changes.push({ field: "Echipă", from: task.team?.name ?? null, to: newTeamName });
+    }
+
+    const newProjectId = "projectId" in input ? (input.projectId || null) : undefined;
+    if (newProjectId !== undefined && newProjectId !== task.projectId) {
+      const newProjectName = newProjectId
+        ? (await prisma.project.findUnique({ where: { id: newProjectId }, select: { name: true } }))?.name ?? null
+        : null;
+      changes.push({ field: "Proiect", from: task.project?.name ?? null, to: newProjectName });
+    }
+
+    if (changes.length > 0) {
+      await prisma.taskActivity
+        .create({ data: { taskId, userId: actorId, action: "EDITED", meta: { changes } } })
+        .catch(() => {});
+    }
+  } catch {
+    // non-blocking
+  }
+
   return { ok: true as const, title: (input.title?.trim() ?? task.title), type: task.type };
 }
 

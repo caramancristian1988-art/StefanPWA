@@ -23,7 +23,7 @@ import { quickCreateProject } from "@/app/actions/projects";
 type HistoryRow = {
   id: string;
   fromStatus: Status | null;
-  toStatus: Status;
+  toStatus: Status | null;
   note: string | null;
   createdAt: string | Date;
   userName: string;
@@ -538,13 +538,13 @@ function Timeline({
               <span className="text-ink-soft"> · {creatorName} · {fmt(createdAt)}</span>
             </div>
           </li>
-          {(rows ?? []).map((r) => (
+          {(rows ?? []).filter((r) => r.toStatus).map((r) => (
             <li key={r.id} className="flex items-start gap-2.5">
-              <span className={`mt-1 size-2 shrink-0 rounded-full ${ST[r.toStatus]?.dot ?? "bg-st-new"}`} />
+              <span className={`mt-1 size-2 shrink-0 rounded-full ${ST[r.toStatus!]?.dot ?? "bg-st-new"}`} />
               <div className="min-w-0 text-[11px]">
                 <span className="font-medium">
                   {r.fromStatus ? `${ST[r.fromStatus]?.label ?? r.fromStatus} → ` : ""}
-                  {ST[r.toStatus]?.label ?? r.toStatus}
+                  {ST[r.toStatus!]?.label ?? r.toStatus}
                 </span>
                 <span className="text-ink-soft"> · {r.userName} · {fmt(r.createdAt)}</span>
                 {r.note && <span className="text-ink-soft"> · {r.note}</span>}

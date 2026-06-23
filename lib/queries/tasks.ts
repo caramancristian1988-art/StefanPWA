@@ -250,14 +250,16 @@ export async function getTask(id: string) {
       activities: {
         select: {
           id: true,
+          action: true,
           fromStatus: true,
           toStatus: true,
+          meta: true,
           note: true,
           createdAt: true,
           user: { select: { name: true } },
         },
         orderBy: { createdAt: "desc" },
-        take: 50,
+        take: 200,
       },
       attachments: {
         select: {
@@ -313,19 +315,20 @@ export async function dashboardStats(userId: string, teamIds: string[]) {
 export type TaskHistoryRow = {
   id: string;
   fromStatus: TaskStatus | null;
-  toStatus: TaskStatus;
+  toStatus: TaskStatus | null;
   note: string | null;
   createdAt: Date;
   userName: string;
 };
 
-/** Istoricul de status al unui task (timeline cu timestamp). */
+/** Istoricul de status al unui task — doar schimbările de status (pentru inlining în lista de task-uri). */
 export async function taskHistory(taskId: string): Promise<TaskHistoryRow[]> {
   if (DEMO) return [];
   const rows = await prisma.taskActivity.findMany({
     where: { taskId },
     select: {
       id: true,
+      action: true,
       fromStatus: true,
       toStatus: true,
       note: true,
@@ -334,14 +337,18 @@ export async function taskHistory(taskId: string): Promise<TaskHistoryRow[]> {
     },
     orderBy: { createdAt: "asc" },
   });
-  return rows.map((r) => ({
-    id: r.id,
-    fromStatus: r.fromStatus,
-    toStatus: r.toStatus,
-    note: r.note,
-    createdAt: r.createdAt,
-    userName: r.user?.name ?? "—",
-  }));
+  // Returnează doar evenimentele de schimbare de status (backwards-compat: null = STATUS_CHANGED)
+  return rows
+    .filter((r) => !r.action || r.action === "STATUS_CHANGED")
+    .filter((r) => r.toStatus)
+    .map((r) => ({
+      id: r.id,
+      fromStatus: r.fromStatus,
+      toStatus: r.toStatus,
+      note: r.note,
+      createdAt: r.createdAt,
+      userName: r.user?.name ?? "—",
+    }));
 }
 
 /** Activitate recentă (pentru admin: ce task-uri au fost modificate). */

@@ -128,7 +128,7 @@ export async function notifyUsers(
             // Înlocuiește "#N" din titlu cu un hyperlink HTML clic-abil (în loc să adaugi un sufix duplicat).
             let titleHtml = escapeHtml(payload.title);
             if (payload.taskId && payload.seq != null) {
-              const seqLink = `<a href="${env.appUrl}/tasks?open=${payload.taskId}">#${payload.seq}</a>`;
+              const seqLink = `<a href="${env.appUrl}/tasks/${payload.taskId}">#${payload.seq}</a>`;
               titleHtml = titleHtml.replace(`#${payload.seq}`, seqLink);
             }
             const res = await sendMessage(

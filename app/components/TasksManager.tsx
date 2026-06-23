@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   createTaskAction,
   updateTaskAction,
@@ -349,9 +350,14 @@ export default function TasksManager({
                 >
                   <div className="flex items-center gap-2">
                     {t.seq != null && (
-                      <span className="shrink-0 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-brand">
+                      <Link
+                        href={`/tasks/${t.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-brand hover:bg-brand/20"
+                        title="Pagina completă a task-ului"
+                      >
                         #{t.seq}
-                      </span>
+                      </Link>
                     )}
                     <span className="truncate text-sm font-medium">{t.title}</span>
                     <span className="hidden shrink-0 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] text-ink-soft sm:inline">

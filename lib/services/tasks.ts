@@ -45,9 +45,9 @@ async function telegramChatFor(userId: string): Promise<string | null> {
   return u?.telegramChatId || u?.telegramAccounts[0]?.chatId || null;
 }
 
-/** URL-ul PWA pentru un task (folosit de deep-link-ul invizibil din Telegram). */
+/** URL-ul PWA pentru un task (pagina dedicată de detalii). */
 function taskUrl(taskId: string): string {
-  return `${env.appUrl}/tasks?open=${taskId}`;
+  return `${env.appUrl}/tasks/${taskId}`;
 }
 
 /** "#123" ca hyperlink HTML — textul "#N" este el însuși ancora, clic-abil în Telegram. */

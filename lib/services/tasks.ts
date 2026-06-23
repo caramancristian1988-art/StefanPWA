@@ -235,6 +235,7 @@ export async function notifyNewTask(taskId: string): Promise<void> {
         id: true,
         seq: true,
         title: true,
+        description: true,
         type: true,
         priority: true,
         status: true,
@@ -259,10 +260,15 @@ export async function notifyNewTask(taskId: string): Promise<void> {
 
     const lines = [
       `🆕 <b>${TASK_TYPE_RO[task.type]} nou</b> (${taskRef(task.seq, task.id)})`,
-      escapeHtml(task.title),
+      `<b>${escapeHtml(task.title)}</b>`,
+    ];
+    if (task.description?.trim()) {
+      lines.push("", escapeHtml(task.description.trim()));
+    }
+    lines.push(
       "",
       `⚑ Prioritate: <b>${TASK_PRIORITY_RO[task.priority]}</b>`,
-    ];
+    );
     if (task.assignee?.name) lines.push(`👤 Asignat: ${escapeHtml(task.assignee.name)}`);
     if (task.project?.name) lines.push(`📁 Proiect: ${escapeHtml(task.project.name)}`);
     lines.push(`Status: <b>${TASK_STATUS_RO[task.status]}</b>`);

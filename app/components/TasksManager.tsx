@@ -57,7 +57,7 @@ type Task = {
   clientName: string | null;
   creatorName: string;
   createdAt: string | Date;
-  description?: string | null;
+  description: string | null;
 };
 
 const ST: Record<Status, { label: string; dot: string }> = {
@@ -403,6 +403,12 @@ export default function TasksManager({
               </div>
               {openId === t.id && (
                 <>
+                  {t.description && (
+                    <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-3 py-2.5">
+                      <p className="mb-1 text-[11px] font-semibold text-ink-soft">📝 Descriere</p>
+                      <p className="whitespace-pre-wrap text-[12px]">{t.description}</p>
+                    </div>
+                  )}
                   <Timeline
                     rows={history[t.id]}
                     loading={loadingHist === t.id}

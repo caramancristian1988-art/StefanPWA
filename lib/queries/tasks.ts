@@ -8,6 +8,7 @@ export type TaskRow = {
   seq: number | null;
   type: TaskType;
   title: string;
+  description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
   progress: number;
@@ -30,6 +31,7 @@ const TASK_SELECT = {
   seq: true,
   type: true,
   title: true,
+  description: true,
   status: true,
   priority: true,
   progress: true,
@@ -51,6 +53,7 @@ function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRo
     seq: t.seq ?? null,
     type: t.type,
     title: t.title,
+    description: t.description ?? null,
     status: t.status,
     priority: t.priority,
     progress: t.progress,

@@ -97,6 +97,15 @@ export async function getFileBuffer(fileId: string): Promise<ArrayBuffer | null>
   return res.arrayBuffer();
 }
 
+/**
+ * Link invizibil (caracter zero-width ca text de ancoră) — Telegram îl randează ca pe un
+ * link real (clic-abil, deschide URL-ul), dar fără niciun text vizibil în mesaj. Folosit
+ * ca să atașăm un deep-link discret către PWA (ex. lângă un #id) fără să "murdărim" mesajul.
+ */
+export function invisibleLink(url: string): string {
+  return `<a href="${url}">​</a>`;
+}
+
 /** Token de linkare semnat (userId + HMAC trunchiat). */
 export function signLinkToken(userId: string): string {
   const sig = createHmac("sha256", env.sessionSecret)

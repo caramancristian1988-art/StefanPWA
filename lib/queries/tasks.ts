@@ -5,6 +5,7 @@ import type { Prisma, TaskStatus, TaskType, TaskPriority } from "@prisma/client"
 
 export type TaskRow = {
   id: string;
+  seq: number | null;
   type: TaskType;
   title: string;
   status: TaskStatus;
@@ -26,6 +27,7 @@ export type TaskRow = {
 
 const TASK_SELECT = {
   id: true,
+  seq: true,
   type: true,
   title: true,
   status: true,
@@ -46,6 +48,7 @@ const TASK_SELECT = {
 function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRow {
   return {
     id: t.id,
+    seq: t.seq ?? null,
     type: t.type,
     title: t.title,
     status: t.status,

@@ -13,6 +13,7 @@ import {
   notifyNewTask,
   addTaskComment,
   listTaskComments,
+  updateTask,
 } from "@/lib/services/tasks";
 import { taskHistory, type TaskHistoryRow } from "@/lib/queries/tasks";
 import { logAudit } from "@/lib/services/audit";
@@ -182,6 +183,44 @@ export async function addTaskCommentAction(id: string, body: string): Promise<Ta
   }
   revalidateTasks();
   return { ok: true, id: res.id };
+}
+
+export async function updateTaskAction(
+  _prev: TaskState,
+  formData: FormData,
+): Promise<TaskState> {
+  const user = await requireUser();
+  if (!can(user, "tasks.edit")) return { error: "Nu ai permisiunea de editare." };
+  if (DEMO) return { error: "Mod demo: conectează o bază de date." };
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { error: "ID task lipsă." };
+
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "");
+  const dueRaw = String(formData.get("dueAt") ?? "");
+  const dueAt = /^\d{4}-\d{2}-\d{2}$/.test(dueRaw) ? new Date(`${dueRaw}T12:00:00`) : null;
+  const priority = PRIORITIES.includes(formData.get("priority") as TaskPriority)
+    ? (formData.get("priority") as TaskPriority)
+    : "MEDIUM";
+
+  const res = await updateTask(id, user.id, {
+    title,
+    description,
+    assigneeId: (formData.get("assigneeId") as string) || null,
+    teamId: (formData.get("teamId") as string) || null,
+    projectId: (formData.get("projectId") as string) || null,
+    priority,
+    dueAt,
+  });
+  if (!res.ok) return { error: res.error };
+
+  await logAudit(
+    { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },
+    { action: `${prefixForType(res.type)}.edit`, module: moduleForType(res.type), objectId: id, objectName: res.title },
+  );
+  revalidateTasks();
+  return { ok: true, id };
 }
 
 export async function deleteTask(id: string): Promise<void> {

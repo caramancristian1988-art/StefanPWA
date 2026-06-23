@@ -29,7 +29,7 @@ export default function CreateMenu() {
   }
 
   return (
-    <div ref={ref} className="fixed bottom-20 right-5 z-40 lg:bottom-6">
+    <div ref={ref} className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-5 z-40 lg:bottom-6">
       {open && (
         <div className="absolute bottom-16 right-0 w-44 overflow-hidden rounded-2xl border border-[var(--color-line)] bg-[var(--color-surface)] shadow-xl">
           {ITEMS.map((it) => (

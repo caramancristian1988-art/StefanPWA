@@ -246,6 +246,9 @@ model Project {
 
 model Task {
   id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  // Identificator scurt, secvențial (#123), pentru afișare ușoară (UI + Telegram).
+  // Opțional în schemă fiindcă task-urile vechi nu îl au — vezi scripts/backfill-task-seq.mjs.
+  seq         Int?
   type        TaskType     @default(TASK)
   title       String
   description String?
@@ -288,6 +291,14 @@ model Task {
   @@index([teamId, status])
   @@index([status])
   @@index([dueAt, status])
+  @@index([seq])
+}
+
+// Contor atomic generic (folosit pentru Task.seq) — MongoDB nu are autoincrement nativ.
+model Counter {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  name  String @unique
+  value Int    @default(0)
 }
 
 model TaskComment {

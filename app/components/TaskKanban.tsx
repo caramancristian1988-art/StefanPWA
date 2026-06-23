@@ -8,6 +8,7 @@ type Opt = { id: string; name: string };
 type Status = "NEW" | "ASSIGNED" | "READ" | "IN_PROGRESS" | "ON_HOLD" | "REVIEW" | "DONE" | "CANCELLED";
 type Task = {
   id: string;
+  seq: number | null;
   type: "TASK" | "TICKET" | "WORK_ORDER";
   title: string;
   status: Status;
@@ -163,6 +164,11 @@ export default function TaskKanban({ items, users }: { items: Task[]; users: Opt
                         {TYPE_RO[t.type]}
                       </span>
                     </div>
+                    {t.seq != null && (
+                      <span className="mt-1 inline-block rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-brand">
+                        #{t.seq}
+                      </span>
+                    )}
                     <p className="mt-1 truncate text-[11px] text-ink-soft">
                       <span className={PRIO_CLR[t.priority]}>{PRIO[t.priority]}</span>
                       {t.projectName && ` · ${t.projectName}`}

@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createTaskAction,
+  updateTaskAction,
   setTaskStatus,
   setTaskProgress,
   deleteTask,
@@ -13,7 +14,7 @@ import {
   type TaskState,
 } from "@/app/actions/tasks";
 import { useToast } from "./toast";
-import { IconTrash, IconX, IconChevronLeft, IconChevronRight } from "./icons";
+import { IconTrash, IconX, IconChevronLeft, IconChevronRight, IconPencil } from "./icons";
 import QuickSelect from "./QuickSelect";
 import { quickCreateProject } from "@/app/actions/projects";
 
@@ -38,6 +39,7 @@ type Opt = { id: string; name: string };
 type Status = "NEW" | "ASSIGNED" | "READ" | "IN_PROGRESS" | "ON_HOLD" | "REVIEW" | "DONE" | "CANCELLED";
 type Task = {
   id: string;
+  seq: number | null;
   type: "TASK" | "TICKET" | "WORK_ORDER";
   title: string;
   status: Status;
@@ -45,6 +47,7 @@ type Task = {
   progress: number;
   dueAt: string | Date | null;
   assigneeId: string | null;
+  teamId: string | null;
   projectId: string | null;
   clientId: string | null;
   assigneeName: string | null;
@@ -53,6 +56,7 @@ type Task = {
   clientName: string | null;
   creatorName: string;
   createdAt: string | Date;
+  description?: string | null;
 };
 
 const ST: Record<Status, { label: string; dot: string }> = {
@@ -92,9 +96,11 @@ export default function TasksManager({
   filters,
   canCreate,
   canDelete,
+  canEdit = false,
   canCreateProject = false,
   initialCreate,
   initialProjectId,
+  initialOpenId,
 }: {
   items: Task[];
   hasMore: boolean;
@@ -107,9 +113,11 @@ export default function TasksManager({
   filters: TaskFilters;
   canCreate: boolean;
   canDelete: boolean;
+  canEdit?: boolean;
   canCreateProject?: boolean;
   initialCreate?: "TASK" | "TICKET" | "WORK_ORDER";
   initialProjectId?: string;
+  initialOpenId?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -119,8 +127,21 @@ export default function TasksManager({
   const [tasks, setTasks] = useState(items);
   useEffect(() => setTasks(items), [items]);
 
+  const [editTask, setEditTask] = useState<Task | null>(null);
+
   // Istoric (timeline) + comentarii per task — expandare + cache lazy
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
+  useEffect(() => {
+    if (initialOpenId) {
+      getTaskHistory(initialOpenId)
+        .then((rows) => setHistory((h) => ({ ...h, [initialOpenId]: rows as HistoryRow[] })))
+        .catch(() => {});
+      getTaskComments(initialOpenId)
+        .then((rows) => setComments((c) => ({ ...c, [initialOpenId]: rows as CommentRow[] })))
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [history, setHistory] = useState<Record<string, HistoryRow[]>>({});
   const [loadingHist, setLoadingHist] = useState<string | null>(null);
   const [comments, setComments] = useState<Record<string, CommentRow[]>>({});
@@ -327,6 +348,11 @@ export default function TasksManager({
                   title="Vezi istoricul de status"
                 >
                   <div className="flex items-center gap-2">
+                    {t.seq != null && (
+                      <span className="shrink-0 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-brand">
+                        #{t.seq}
+                      </span>
+                    )}
                     <span className="truncate text-sm font-medium">{t.title}</span>
                     <span className="hidden shrink-0 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] text-ink-soft sm:inline">
                       {TYPE_RO[t.type]}
@@ -358,6 +384,11 @@ export default function TasksManager({
                 >
                   {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
                 </select>
+                {canEdit && (
+                  <button onClick={() => setEditTask(t)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title="Editează">
+                    <IconPencil className="size-3.5" />
+                  </button>
+                )}
                 {canDelete && (
                   <button onClick={() => remove(t.id)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title="Șterge">
                     <IconTrash className="size-3.5" />
@@ -408,6 +439,20 @@ export default function TasksManager({
           initialProjectId={initialProjectId}
           onClose={() => setCreateType(null)}
           onCreated={() => router.refresh()}
+        />
+      )}
+      {editTask && (
+        <EditDialog
+          task={editTask}
+          users={users}
+          teams={teams}
+          projects={projects}
+          onClose={() => setEditTask(null)}
+          onSaved={(updated) => {
+            setTasks((cur) => cur.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+            setEditTask(null);
+            router.refresh();
+          }}
         />
       )}
     </>
@@ -518,6 +563,83 @@ function Comments({
           {posting ? "…" : "Trimite"}
         </button>
       </form>
+    </div>
+  );
+}
+
+function EditDialog({
+  task,
+  users,
+  teams,
+  projects,
+  onClose,
+  onSaved,
+}: {
+  task: Task;
+  users: Opt[];
+  teams: Opt[];
+  projects: Opt[];
+  onClose: () => void;
+  onSaved: (updated: Partial<Task> & { id: string }) => void;
+}) {
+  const toast = useToast();
+  const [state, action, pending] = useActionState<TaskState, FormData>(updateTaskAction, undefined);
+  useEffect(() => {
+    if (state?.ok) {
+      toast.success("Salvat");
+      onSaved({ id: task.id });
+    } else if (state?.error) {
+      toast.error(state.error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  const dueVal = task.dueAt ? new Date(task.dueAt).toISOString().slice(0, 10) : "";
+  const seqLabel = task.seq != null ? ` #${task.seq}` : "";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-b-none rounded-t-2xl p-5 sm:rounded-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold">Editează{seqLabel}</h2>
+          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">
+            <IconX className="size-4" />
+          </button>
+        </div>
+        <form action={action} className="flex flex-col gap-3">
+          <input type="hidden" name="id" value={task.id} />
+          <input name="title" defaultValue={task.title} placeholder="Titlu *" required autoFocus className={dlgInput} />
+          <textarea name="description" placeholder="Descriere" rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
+          <select name="priority" defaultValue={task.priority} className={dlgInput}>
+            <option value="LOW">Prioritate scăzută</option>
+            <option value="MEDIUM">Prioritate medie</option>
+            <option value="HIGH">Prioritate ridicată</option>
+            <option value="URGENT">Urgentă</option>
+          </select>
+          <select name="projectId" defaultValue={task.projectId ?? ""} className={dlgInput}>
+            <option value="">Fără proiect</option>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <div className="grid grid-cols-2 gap-3">
+            <select name="assigneeId" defaultValue={task.assigneeId ?? ""} className={dlgInput}>
+              <option value="">Fără persoană</option>
+              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+            <select name="teamId" defaultValue={task.teamId ?? ""} className={dlgInput}>
+              <option value="">Fără echipă</option>
+              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
+            <input type="date" name="dueAt" defaultValue={dueVal} className={dlgInput} />
+          </div>
+          {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
+          <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
+            {pending ? "Se salvează…" : "Salvează"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

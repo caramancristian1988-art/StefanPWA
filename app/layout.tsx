@@ -24,6 +24,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Necesar ca env(safe-area-inset-*) să raporteze valori reale în PWA standalone pe iOS —
+  // fără asta, bara de jos fixă (nav, FAB, toasturi) se poziționează inconsistent la scroll.
+  viewportFit: "cover",
 };
 
 // Evită flash-ul de temă: aplică .dark înainte de hydration.

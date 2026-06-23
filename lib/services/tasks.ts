@@ -5,13 +5,26 @@ import {
   sendMessage,
   editMessageText,
   taskStatusButtons,
+  invisibleLink,
   TASK_STATUS_RO,
   TASK_TYPE_RO,
   TASK_PRIORITY_RO,
 } from "../telegram";
 import { formatTime, DEFAULT_TZ } from "../date";
+import { env } from "../env";
 import { notifyUsers, observerRecipients, filteredAdminRecipients } from "./notifications";
 import type { TaskStatus, TaskType, TaskPriority, CreatedFrom } from "@prisma/client";
+
+/** Contor atomic (MongoDB nu are autoincrement nativ) — folosit pentru Task.seq. */
+async function nextSeq(name: string): Promise<number> {
+  const counter = await prisma.counter.upsert({
+    where: { name },
+    create: { name, value: 1 },
+    update: { value: { increment: 1 } },
+    select: { value: true },
+  });
+  return counter.value;
+}
 
 export type CreateTaskInput = {
   title: string;
@@ -33,11 +46,24 @@ async function telegramChatFor(userId: string): Promise<string | null> {
   return u?.telegramChatId || u?.telegramAccounts[0]?.chatId || null;
 }
 
+/** URL-ul PWA pentru un task (folosit de deep-link-ul invizibil din Telegram). */
+function taskUrl(taskId: string): string {
+  return `${env.appUrl}/tasks?open=${taskId}`;
+}
+
+/** "#123" cu link invizibil către task atașat exact pe id (cerut: id-ul e ancora). */
+function taskRef(seq: number | null | undefined, taskId: string): string {
+  const label = seq != null ? `#${seq}` : "#—";
+  return `${label}${invisibleLink(taskUrl(taskId))}`;
+}
+
 /** Mesaj Telegram dedicat schimbării de status/progres/comentariu (format fix, lizibil). */
 function taskUpdateTelegramText(
   actorName: string,
   taskTitle: string,
   statusLabel: string,
+  taskId: string,
+  seq: number | null | undefined,
   lineLabel: string = "Status",
 ): string {
   const time = formatTime(new Date(), DEFAULT_TZ);
@@ -45,19 +71,19 @@ function taskUpdateTelegramText(
     "🔔 <b>Actualizare task</b>",
     "",
     `Lucrător: ${escapeHtml(actorName)}`,
-    `Task: ${escapeHtml(taskTitle)}`,
+    `Task: ${escapeHtml(taskTitle)} (${taskRef(seq, taskId)})`,
     `${lineLabel}: <b>${escapeHtml(statusLabel)}</b>`,
     `Ora: ${time}`,
   ].join("\n");
 }
 
 /** Mesaj Telegram pentru task întârziat (fără actor — notificare automată). */
-function taskOverdueTelegramText(taskTitle: string): string {
+function taskOverdueTelegramText(taskTitle: string, taskId: string, seq: number | null | undefined): string {
   const time = formatTime(new Date(), DEFAULT_TZ);
   return [
     "⏰ <b>Task în întârziere</b>",
     "",
-    `Task: ${escapeHtml(taskTitle)}`,
+    `Task: ${escapeHtml(taskTitle)} (${taskRef(seq, taskId)})`,
     `Ora: ${time}`,
   ].join("\n");
 }
@@ -65,9 +91,23 @@ function taskOverdueTelegramText(taskTitle: string): string {
 /** Trimite mesajul de actualizare pe Telegram către fiecare destinatar cu chat legat (best-effort, logat). */
 async function notifyTaskUpdateTelegram(
   userIds: string[],
-  info: { actorName: string; taskTitle: string; statusLabel: string; lineLabel?: string },
+  info: {
+    actorName: string;
+    taskTitle: string;
+    statusLabel: string;
+    taskId: string;
+    seq: number | null | undefined;
+    lineLabel?: string;
+  },
 ): Promise<void> {
-  const text = taskUpdateTelegramText(info.actorName, info.taskTitle, info.statusLabel, info.lineLabel);
+  const text = taskUpdateTelegramText(
+    info.actorName,
+    info.taskTitle,
+    info.statusLabel,
+    info.taskId,
+    info.seq,
+    info.lineLabel,
+  );
   await Promise.all(
     userIds.map(async (uid) => {
       try {
@@ -88,8 +128,13 @@ async function notifyTaskUpdateTelegram(
 }
 
 /** Trimite mesajul de „task întârziat" pe Telegram (fără actor — notificare automată). */
-async function notifyTaskOverdueTelegram(userIds: string[], taskTitle: string): Promise<void> {
-  const text = taskOverdueTelegramText(taskTitle);
+async function notifyTaskOverdueTelegram(
+  userIds: string[],
+  taskTitle: string,
+  taskId: string,
+  seq: number | null | undefined,
+): Promise<void> {
+  const text = taskOverdueTelegramText(taskTitle, taskId, seq);
   await Promise.all(
     userIds.map(async (uid) => {
       try {
@@ -105,8 +150,13 @@ async function notifyTaskOverdueTelegram(userIds: string[], taskTitle: string): 
 }
 
 /** Textul notificării in-app, exact pe tipul de tranziție (cerut de spec). */
-function statusChangeTitle(actorName: string, taskTitle: string, status: TaskStatus): string {
-  const t = `„${taskTitle}"`;
+function statusChangeTitle(
+  actorName: string,
+  taskTitle: string,
+  status: TaskStatus,
+  seq: number | null | undefined,
+): string {
+  const t = seq != null ? `„${taskTitle}" (#${seq})` : `„${taskTitle}"`;
   switch (status) {
     case "READ":
       return `Lucrătorul ${actorName} a citit task-ul ${t}`;
@@ -154,9 +204,11 @@ export async function createTask(
 
   // Asignat cuiva => ASSIGNED; altfel NEW
   const status: TaskStatus = assigneeId || teamId ? "ASSIGNED" : "NEW";
+  const seq = await nextSeq("task");
 
   const task = await prisma.task.create({
     data: {
+      seq,
       title: input.title.trim(),
       description: input.description?.trim() || null,
       type: input.type ?? "TASK",
@@ -169,10 +221,10 @@ export async function createTask(
       createdFrom: source,
       status,
     },
-    select: { id: true, title: true },
+    select: { id: true, title: true, seq: true },
   });
 
-  return { ok: true as const, id: task.id, title: task.title };
+  return { ok: true as const, id: task.id, title: task.title, seq: task.seq };
 }
 
 /** Trimite notificarea de task nou către asignat / membrii echipei (best-effort). */
@@ -182,6 +234,7 @@ export async function notifyNewTask(taskId: string): Promise<void> {
       where: { id: taskId },
       select: {
         id: true,
+        seq: true,
         title: true,
         type: true,
         priority: true,
@@ -206,7 +259,7 @@ export async function notifyNewTask(taskId: string): Promise<void> {
     }
 
     const lines = [
-      `🆕 <b>${TASK_TYPE_RO[task.type]} nou</b>`,
+      `🆕 <b>${TASK_TYPE_RO[task.type]} nou</b> (${taskRef(task.seq, task.id)})`,
       escapeHtml(task.title),
       "",
       `⚑ Prioritate: <b>${TASK_PRIORITY_RO[task.priority]}</b>`,
@@ -242,9 +295,10 @@ export async function notifyNewTask(taskId: string): Promise<void> {
     await notifyUsers(
       [...recipients],
       {
-        title: `${TASK_TYPE_RO[task.type]} nou: ${task.title}`,
+        title: `${TASK_TYPE_RO[task.type]} nou: ${task.title} (#${task.seq ?? "—"})`,
         body: task.project?.name ? `Proiect: ${task.project.name}` : undefined,
         taskId: task.id,
+        seq: task.seq,
         url: "/tasks",
       },
       { telegram: false },
@@ -269,9 +323,10 @@ export async function notifyNewTask(taskId: string): Promise<void> {
       await notifyUsers(
         [...observerIds],
         {
-          title: `${TASK_TYPE_RO[task.type]} nou: ${task.title}`,
+          title: `${TASK_TYPE_RO[task.type]} nou: ${task.title} (#${task.seq ?? "—"})`,
           body: task.assignee?.name ? `Asignat: ${task.assignee.name}` : task.project?.name ? `Proiect: ${task.project.name}` : undefined,
           taskId: task.id,
+          seq: task.seq,
           url: "/tasks",
         },
         { telegram: true },
@@ -296,6 +351,7 @@ export async function changeTaskStatus(
     where: { id: taskId },
     select: {
       id: true,
+      seq: true,
       title: true,
       type: true,
       status: true,
@@ -352,8 +408,9 @@ export async function changeTaskStatus(
     await notifyUsers(
       recipientIds,
       {
-        title: statusChangeTitle(actorName, task.title, newStatus),
+        title: statusChangeTitle(actorName, task.title, newStatus, task.seq),
         taskId: task.id,
+        seq: task.seq,
         url: "/tasks",
       },
       { telegram: false },
@@ -362,6 +419,8 @@ export async function changeTaskStatus(
       actorName,
       taskTitle: task.title,
       statusLabel: TASK_STATUS_RO[newStatus],
+      taskId: task.id,
+      seq: task.seq,
     });
 
     if (opts.fromTelegram && task.telegramChatId && task.telegramMessageId) {
@@ -389,6 +448,7 @@ export async function changeTaskProgress(taskId: string, actorId: string, progre
     where: { id: taskId },
     select: {
       id: true,
+      seq: true,
       title: true,
       type: true,
       progress: true,
@@ -432,8 +492,9 @@ export async function changeTaskProgress(taskId: string, actorId: string, progre
     await notifyUsers(
       recipientIds,
       {
-        title: `Lucrătorul ${actorName} a actualizat task-ul „${task.title}" la ${p}%`,
+        title: `Lucrătorul ${actorName} a actualizat task-ul „${task.title}" (#${task.seq ?? "—"}) la ${p}%`,
         taskId: task.id,
+        seq: task.seq,
         url: "/tasks",
       },
       { telegram: false },
@@ -442,6 +503,8 @@ export async function changeTaskProgress(taskId: string, actorId: string, progre
       actorName,
       taskTitle: task.title,
       statusLabel: `Progres ${p}%`,
+      taskId: task.id,
+      seq: task.seq,
     });
   } catch (e) {
     console.error(`[tasks] changeTaskProgress: pipeline-ul de notificare a eșuat pentru task ${taskId}`, e);
@@ -465,6 +528,7 @@ export async function addTaskComment(
     where: { id: taskId },
     select: {
       id: true,
+      seq: true,
       title: true,
       creatorId: true,
       assigneeId: true,
@@ -506,9 +570,10 @@ export async function addTaskComment(
     await notifyUsers(
       recipientIds,
       {
-        title: `${actorName} a comentat pe task-ul „${task.title}"`,
+        title: `${actorName} a comentat pe task-ul „${task.title}" (#${task.seq ?? "—"})`,
         body: preview,
         taskId: task.id,
+        seq: task.seq,
         url: "/tasks",
       },
       { telegram: false },
@@ -517,6 +582,8 @@ export async function addTaskComment(
       actorName,
       taskTitle: task.title,
       statusLabel: preview,
+      taskId: task.id,
+      seq: task.seq,
       lineLabel: "Comentariu",
     });
   } catch (e) {
@@ -550,6 +617,7 @@ export async function checkOverdueTasks(): Promise<{ checked: number; notified: 
     where: { dueAt: { lt: now }, status: { notIn: ["DONE", "CANCELLED"] } },
     select: {
       id: true,
+      seq: true,
       title: true,
       creatorId: true,
       assigneeId: true,
@@ -581,10 +649,15 @@ export async function checkOverdueTasks(): Promise<{ checked: number; notified: 
 
       await notifyUsers(
         recipientIds,
-        { title: `Task în întârziere: „${task.title}"`, taskId: task.id, url: "/tasks" },
+        {
+          title: `Task în întârziere: „${task.title}" (#${task.seq ?? "—"})`,
+          taskId: task.id,
+          seq: task.seq,
+          url: "/tasks",
+        },
         { telegram: false },
       );
-      await notifyTaskOverdueTelegram(recipientIds, task.title);
+      await notifyTaskOverdueTelegram(recipientIds, task.title, task.id, task.seq);
 
       await prisma.task.update({ where: { id: task.id }, data: { overdueNotifiedAt: now } });
       notified++;
@@ -594,6 +667,42 @@ export async function checkOverdueTasks(): Promise<{ checked: number; notified: 
   }
   console.log(`[tasks] checkOverdueTasks: ${notified}/${tasks.length} notificate`);
   return { checked: tasks.length, notified };
+}
+
+export type UpdateTaskInput = {
+  title?: string;
+  description?: string;
+  assigneeId?: string | null;
+  teamId?: string | null;
+  projectId?: string | null;
+  priority?: TaskPriority;
+  dueAt?: Date | null;
+};
+
+/** Editează câmpurile unui task. Nu trimite notificări (editare admin — fără zgomot). */
+export async function updateTask(taskId: string, _actorId: string, input: UpdateTaskInput) {
+  if (DEMO) return { ok: false as const, error: "Mod demo." };
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { id: true, title: true, type: true },
+  });
+  if (!task) return { ok: false as const, error: "Task inexistent." };
+
+  const data: Record<string, unknown> = {};
+  if (input.title !== undefined) {
+    const t = input.title.trim();
+    if (!t) return { ok: false as const, error: "Titlul e obligatoriu." };
+    data.title = t;
+  }
+  if (input.description !== undefined) data.description = input.description.trim() || null;
+  if ("assigneeId" in input) data.assigneeId = input.assigneeId || null;
+  if ("teamId" in input) data.teamId = input.teamId || null;
+  if ("projectId" in input) data.projectId = input.projectId || null;
+  if (input.priority !== undefined) data.priority = input.priority;
+  if ("dueAt" in input) data.dueAt = input.dueAt ?? null;
+
+  await prisma.task.update({ where: { id: taskId }, data });
+  return { ok: true as const, title: (input.title?.trim() ?? task.title), type: task.type };
 }
 
 function escapeHtml(s: string): string {

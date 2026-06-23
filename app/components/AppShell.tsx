@@ -126,7 +126,7 @@ export default function AppShell({
 
         <div className="flex min-h-dvh min-w-0 flex-col">
           {/* Header */}
-          <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-app)]/80 px-4 py-3 backdrop-blur">
+          <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-app)]/80 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
             <button
               onClick={() => setDrawer(true)}
               className="tap grid size-10 place-items-center rounded-xl bg-[var(--color-surface-2)] lg:hidden"
@@ -162,7 +162,7 @@ export default function AppShell({
               Mod demo — date de exemplu. Conectează o bază de date ca să salvezi.
             </div>
           )}
-          <main className="flex-1 px-4 pb-28 pt-5 lg:px-8 lg:pb-10">{children}</main>
+          <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 lg:px-8 lg:pb-10">{children}</main>
         </div>
       </div>
 
@@ -178,7 +178,7 @@ function BottomNav({ perms }: { perms?: Record<string, boolean> }) {
   const path = usePathname();
   const items = visibleNav(perms).slice(0, 5);
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch border-t border-[var(--color-line)] bg-[var(--color-surface)] lg:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch border-t border-[var(--color-line)] bg-[var(--color-surface)] pb-[env(safe-area-inset-bottom)] lg:hidden">
       {items.map((item) => {
         const active = path.startsWith(item.href);
         return (

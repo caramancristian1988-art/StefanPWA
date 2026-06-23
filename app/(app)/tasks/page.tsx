@@ -32,6 +32,7 @@ export default async function TasksPage({
     scope?: string; page?: string; create?: string; project?: string;
     q?: string; status?: string; type?: string; assignee?: string;
     proj?: string; client?: string; prio?: string; due?: string;
+    open?: string;
   }>;
 }) {
   const user = await requirePermission("tasks.view");
@@ -43,6 +44,7 @@ export default async function TasksPage({
   const initialCreate =
     sp.create === "ticket" ? "TICKET" : sp.create === "work_order" ? "WORK_ORDER" : sp.create === "task" ? "TASK" : undefined;
   const initialProjectId = typeof sp.project === "string" ? sp.project : undefined;
+  const initialOpenId = typeof sp.open === "string" && sp.open ? sp.open : undefined;
 
   const dueBefore = /^\d{4}-\d{2}-\d{2}$/.test(sp.due ?? "") ? new Date(`${sp.due}T23:59:59.999`) : undefined;
 
@@ -107,9 +109,11 @@ export default async function TasksPage({
         }}
         canCreate={can(user, "tasks.create")}
         canDelete={can(user, "tasks.delete")}
+        canEdit={can(user, "tasks.edit")}
         canCreateProject={can(user, "projects.create")}
         initialCreate={can(user, "tasks.create") ? initialCreate : undefined}
         initialProjectId={can(user, "tasks.create") ? initialProjectId : undefined}
+        initialOpenId={initialOpenId}
       />
     </div>
   );

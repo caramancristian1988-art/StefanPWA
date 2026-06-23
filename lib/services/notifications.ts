@@ -1,14 +1,17 @@
 import "server-only";
 import { prisma } from "../prisma";
 import { DEMO } from "../demo";
+import { env } from "../env";
 import { sendPushToUser } from "../push";
-import { sendMessage } from "../telegram";
+import { sendMessage, invisibleLink } from "../telegram";
 
 export type NotifyPayload = {
   title: string;
   body?: string;
   url?: string;
   taskId?: string;
+  /** Id-ul scurt al task-ului (#123) — afișat + folosit pentru link-ul invizibil din Telegram. */
+  seq?: number | null;
 };
 
 /**
@@ -122,9 +125,13 @@ export async function notifyUsers(
           });
           const chat = u?.telegramChatId || u?.telegramAccounts[0]?.chatId;
           if (chat) {
+            const idSuffix =
+              payload.taskId && payload.seq != null
+                ? ` (#${payload.seq}${invisibleLink(`${env.appUrl}/tasks?open=${payload.taskId}`)})`
+                : "";
             const res = await sendMessage(
               chat,
-              `🔔 <b>${escapeHtml(payload.title)}</b>${payload.body ? `\n${escapeHtml(payload.body)}` : ""}`,
+              `🔔 <b>${escapeHtml(payload.title)}</b>${idSuffix}${payload.body ? `\n${escapeHtml(payload.body)}` : ""}`,
             );
             if (!res) console.error(`[notify] telegram: sendMessage a eșuat pentru user ${uid}`);
           } else {

@@ -3,7 +3,7 @@ import { prisma } from "../prisma";
 import { DEMO } from "../demo";
 import { env } from "../env";
 import { sendPushToUser } from "../push";
-import { sendMessage, invisibleLink } from "../telegram";
+import { sendMessage } from "../telegram";
 
 export type NotifyPayload = {
   title: string;
@@ -125,13 +125,15 @@ export async function notifyUsers(
           });
           const chat = u?.telegramChatId || u?.telegramAccounts[0]?.chatId;
           if (chat) {
-            const idSuffix =
-              payload.taskId && payload.seq != null
-                ? ` (#${payload.seq}${invisibleLink(`${env.appUrl}/tasks?open=${payload.taskId}`)})`
-                : "";
+            // Înlocuiește "#N" din titlu cu un hyperlink HTML clic-abil (în loc să adaugi un sufix duplicat).
+            let titleHtml = escapeHtml(payload.title);
+            if (payload.taskId && payload.seq != null) {
+              const seqLink = `<a href="${env.appUrl}/tasks?open=${payload.taskId}">#${payload.seq}</a>`;
+              titleHtml = titleHtml.replace(`#${payload.seq}`, seqLink);
+            }
             const res = await sendMessage(
               chat,
-              `🔔 <b>${escapeHtml(payload.title)}</b>${idSuffix}${payload.body ? `\n${escapeHtml(payload.body)}` : ""}`,
+              `🔔 <b>${titleHtml}</b>${payload.body ? `\n${escapeHtml(payload.body)}` : ""}`,
             );
             if (!res) console.error(`[notify] telegram: sendMessage a eșuat pentru user ${uid}`);
           } else {

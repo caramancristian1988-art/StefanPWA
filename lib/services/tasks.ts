@@ -5,7 +5,6 @@ import {
   sendMessage,
   editMessageText,
   taskStatusButtons,
-  invisibleLink,
   TASK_STATUS_RO,
   TASK_TYPE_RO,
   TASK_PRIORITY_RO,
@@ -51,10 +50,10 @@ function taskUrl(taskId: string): string {
   return `${env.appUrl}/tasks?open=${taskId}`;
 }
 
-/** "#123" cu link invizibil către task atașat exact pe id (cerut: id-ul e ancora). */
+/** "#123" ca hyperlink HTML — textul "#N" este el însuși ancora, clic-abil în Telegram. */
 function taskRef(seq: number | null | undefined, taskId: string): string {
   const label = seq != null ? `#${seq}` : "#—";
-  return `${label}${invisibleLink(taskUrl(taskId))}`;
+  return `<a href="${taskUrl(taskId)}">${label}</a>`;
 }
 
 /** Mesaj Telegram dedicat schimbării de status/progres/comentariu (format fix, lizibil). */

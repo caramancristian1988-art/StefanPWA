@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../prisma";
 import { DEMO } from "../demo";
+import { dayBoundsUtc, dateKeyOf, addDaysToKey, todayKey as getTodayKey, weekKeys } from "../date";
 import type { Prisma, TaskStatus, TaskType, TaskPriority } from "@prisma/client";
 
 export type TaskRow = {
@@ -73,22 +74,25 @@ function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRo
 }
 
 export type TaskFilter = {
-  scope?: "all" | "mine" | "created"; // mine = asignate mie / echipei mele
+  scope?: "all" | "mine" | "created";
   status?: TaskStatus;
   type?: TaskType;
   priority?: TaskPriority;
   projectId?: string;
   clientId?: string;
   assigneeId?: string;
+  teamId?: string;
   dueBefore?: Date;
+  dueRange?: "overdue" | "today" | "tomorrow" | "week" | "month";
+  sort?: "default" | "dueAsc" | "dueDesc";
   search?: string;
-  userId: string; // userul curent (pentru scope)
-  teamIds?: string[]; // echipele userului curent
+  userId: string;
+  teamIds?: string[];
   page?: number;
   pageSize?: number;
 };
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 20;
 
 function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
   const where: Prisma.TaskWhereInput = {};
@@ -103,12 +107,55 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
   } else if (filter.scope === "created") {
     where.creatorId = filter.userId;
   }
+  if (filter.teamId) where.teamId = filter.teamId;
   if (filter.status) where.status = filter.status;
   if (filter.type) where.type = filter.type;
   if (filter.priority) where.priority = filter.priority;
   if (filter.projectId) where.projectId = filter.projectId;
   if (filter.clientId) where.project = { is: { clientId: filter.clientId } };
-  if (filter.dueBefore) where.dueAt = { lte: filter.dueBefore };
+
+  if (filter.dueRange) {
+    const TZ = "Europe/Bucharest";
+    const now = new Date();
+    const tKey = getTodayKey(TZ);
+    switch (filter.dueRange) {
+      case "overdue": {
+        where.dueAt = { lt: now };
+        if (!filter.status) where.status = { notIn: ["DONE", "CANCELLED"] };
+        break;
+      }
+      case "today": {
+        const { start, end } = dayBoundsUtc(tKey, TZ);
+        where.dueAt = { gte: start, lt: end };
+        break;
+      }
+      case "tomorrow": {
+        const tmrKey = addDaysToKey(tKey, 1, TZ);
+        const { start, end } = dayBoundsUtc(tmrKey, TZ);
+        where.dueAt = { gte: start, lt: end };
+        break;
+      }
+      case "week": {
+        const keys = weekKeys(tKey, TZ);
+        const { start } = dayBoundsUtc(keys[0], TZ);
+        const { end } = dayBoundsUtc(keys[keys.length - 1], TZ);
+        where.dueAt = { gte: start, lt: end };
+        break;
+      }
+      case "month": {
+        const [y, m] = tKey.split("-").map(Number);
+        const firstOfMonth = `${y}-${String(m).padStart(2, "0")}-01`;
+        const nextMonthKey = dateKeyOf(new Date(Date.UTC(y, m, 1, 12, 0, 0)), TZ);
+        const { start } = dayBoundsUtc(firstOfMonth, TZ);
+        const { start: end } = dayBoundsUtc(nextMonthKey, TZ);
+        where.dueAt = { gte: start, lt: end };
+        break;
+      }
+    }
+  } else if (filter.dueBefore) {
+    where.dueAt = { lte: filter.dueBefore };
+  }
+
   if (filter.search?.trim()) {
     where.title = { contains: filter.search.trim(), mode: "insensitive" };
   }
@@ -117,24 +164,34 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
 
 export async function listTasks(
   filter: TaskFilter,
-): Promise<{ items: TaskRow[]; hasMore: boolean; page: number }> {
-  if (DEMO) return { items: [], hasMore: false, page: 1 };
+): Promise<{ items: TaskRow[]; hasMore: boolean; page: number; total: number; totalPages: number }> {
+  if (DEMO) return { items: [], hasMore: false, page: 1, total: 0, totalPages: 0 };
 
   const page = Math.max(1, filter.page ?? 1);
   const pageSize = filter.pageSize ?? PAGE_SIZE;
   const where = buildWhere(filter);
 
-  // Aducem pageSize+1 ca să știm dacă există pagină următoare, fără count separat.
-  const rows = await prisma.task.findMany({
-    where,
-    select: TASK_SELECT,
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    skip: (page - 1) * pageSize,
-    take: pageSize + 1,
-  });
+  const orderBy: Prisma.TaskOrderByWithRelationInput[] =
+    filter.sort === "dueAsc"
+      ? [{ dueAt: "asc" }, { createdAt: "desc" }]
+      : filter.sort === "dueDesc"
+        ? [{ dueAt: "desc" }, { createdAt: "desc" }]
+        : [{ status: "asc" }, { createdAt: "desc" }];
 
-  const hasMore = rows.length > pageSize;
-  return { items: rows.slice(0, pageSize).map(toRow), hasMore, page };
+  const [rows, total] = await Promise.all([
+    prisma.task.findMany({
+      where,
+      select: TASK_SELECT,
+      orderBy,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.task.count({ where }),
+  ]);
+
+  const totalPages = Math.ceil(total / pageSize);
+  const hasMore = page < totalPages;
+  return { items: rows.map(toRow), hasMore, page, total, totalPages };
 }
 
 export type CalendarTask = {

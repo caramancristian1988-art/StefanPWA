@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { DEMO } from "@/lib/demo";
+import { zonedToUtc } from "@/lib/date";
 import {
   createTask,
   changeTaskStatus,
@@ -59,8 +60,11 @@ export async function createTaskAction(
   const priority = PRIORITIES.includes(formData.get("priority") as TaskPriority)
     ? (formData.get("priority") as TaskPriority)
     : "MEDIUM";
-  const dueRaw = String(formData.get("dueAt") ?? "");
-  const dueAt = /^\d{4}-\d{2}-\d{2}$/.test(dueRaw) ? new Date(`${dueRaw}T12:00:00`) : null;
+  const dueDate = String(formData.get("dueDate") ?? "").trim();
+  const dueTime = String(formData.get("dueTime") ?? "").trim();
+  const dueAt = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
+    ? zonedToUtc(dueDate, dueTime || "00:00", "Europe/Bucharest")
+    : null;
 
   const res = await createTask(
     user.id,
@@ -198,8 +202,11 @@ export async function updateTaskAction(
 
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "");
-  const dueRaw = String(formData.get("dueAt") ?? "");
-  const dueAt = /^\d{4}-\d{2}-\d{2}$/.test(dueRaw) ? new Date(`${dueRaw}T12:00:00`) : null;
+  const dueDate = String(formData.get("dueDate") ?? "").trim();
+  const dueTime = String(formData.get("dueTime") ?? "").trim();
+  const dueAt = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
+    ? zonedToUtc(dueDate, dueTime || "00:00", "Europe/Bucharest")
+    : null;
   const priority = PRIORITIES.includes(formData.get("priority") as TaskPriority)
     ? (formData.get("priority") as TaskPriority)
     : "MEDIUM";

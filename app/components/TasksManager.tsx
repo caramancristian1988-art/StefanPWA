@@ -14,6 +14,7 @@ import {
   addTaskCommentAction,
   type TaskState,
 } from "@/app/actions/tasks";
+import { dateKeyOf, formatTime } from "@/lib/date";
 import { useToast } from "./toast";
 import { IconTrash, IconX, IconChevronLeft, IconChevronRight, IconPencil } from "./icons";
 import QuickSelect from "./QuickSelect";
@@ -74,10 +75,26 @@ const TYPE_RO = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Work order" };
 const PRIO_RO = { LOW: "Scăzută", MEDIUM: "Medie", HIGH: "Ridicată", URGENT: "Urgentă" };
 const STATUSES: Status[] = ["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED"];
 const PROGRESS = [0, 25, 50, 75, 100];
+const TZ = "Europe/Bucharest";
+
+/** Formatează dueAt cu ora dacă nu e miezul nopții (00:00) în fusul Romania. */
+function fmtDue(dueAt: string | Date): string {
+  const d = new Date(dueAt);
+  const parts = new Intl.DateTimeFormat("ro-RO", {
+    timeZone: TZ,
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  }).formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const h = get("hour"), m = get("minute");
+  const date = `${get("day")}.${get("month")}.${get("year")}`;
+  return h === "00" && m === "00" ? date : `${date} ${h}:${m}`;
+}
 
 type TaskFilters = {
   q: string; status: string; type: string; assignee: string;
-  proj: string; client: string; prio: string; due: string;
+  team: string; proj: string; client: string; prio: string;
+  due: string; sort: string;
 };
 
 const fld =
@@ -89,6 +106,7 @@ export default function TasksManager({
   items,
   hasMore,
   page,
+  totalPages,
   scope,
   users,
   teams,
@@ -106,6 +124,7 @@ export default function TasksManager({
   items: Task[];
   hasMore: boolean;
   page: number;
+  totalPages: number;
   scope: string;
   users: Opt[];
   teams: Opt[];
@@ -130,7 +149,6 @@ export default function TasksManager({
 
   const [editTask, setEditTask] = useState<Task | null>(null);
 
-  // Istoric (timeline) + comentarii per task — expandare + cache lazy
   const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
   useEffect(() => {
     if (initialOpenId) {
@@ -150,10 +168,7 @@ export default function TasksManager({
   const [postingComment, setPostingComment] = useState<string | null>(null);
 
   function toggleHistory(id: string) {
-    if (openId === id) {
-      setOpenId(null);
-      return;
-    }
+    if (openId === id) { setOpenId(null); return; }
     setOpenId(id);
     if (!history[id]) {
       setLoadingHist(id);
@@ -175,10 +190,7 @@ export default function TasksManager({
     setPostingComment(id);
     addTaskCommentAction(id, body)
       .then((res) => {
-        if (res?.error) {
-          toast.error(res.error);
-          return;
-        }
+        if (res?.error) { toast.error(res.error); return; }
         setCommentDraft((d) => ({ ...d, [id]: "" }));
         getTaskComments(id).then((rows) => setComments((c) => ({ ...c, [id]: rows as CommentRow[] })));
         toast.success("Comentariu adăugat");
@@ -186,7 +198,6 @@ export default function TasksManager({
       .finally(() => setPostingComment((cur) => (cur === id ? null : cur)));
   }
 
-  // Filtrare 100% pe server: filtrele se reflectă în URL, pagina re-cere datele.
   const [searchInput, setSearchInput] = useState(filters.q);
   useEffect(() => setSearchInput(filters.q), [filters.q]);
 
@@ -194,43 +205,28 @@ export default function TasksManager({
     const merged = { ...filters, ...patch } as Record<string, string | number | undefined>;
     const usp = new URLSearchParams();
     if (scope !== "mine") usp.set("scope", scope);
-    for (const k of ["q", "status", "type", "assignee", "proj", "client", "prio", "due"] as const) {
+    for (const k of ["q", "status", "type", "assignee", "team", "proj", "client", "prio", "due", "sort"] as const) {
       const v = merged[k];
       if (v) usp.set(k, String(v));
     }
-    // resetăm pagina la 1 la schimbarea unui filtru, dacă nu s-a cerut explicit altă pagină
     const pageVal = "page" in patch ? Number(patch.page) : 1;
     if (pageVal > 1) usp.set("page", String(pageVal));
     const qs = usp.toString();
     return `/tasks${qs ? `?${qs}` : ""}`;
   }
-  function setFilter(patch: Partial<TaskFilters>) {
-    router.push(buildUrl(patch));
-  }
-
-  function goPage(n: number) {
-    router.push(buildUrl({ page: n }));
-  }
+  function setFilter(patch: Partial<TaskFilters>) { router.push(buildUrl(patch)); }
+  function goPage(n: number) { router.push(buildUrl({ page: n })); }
 
   function changeStatus(id: string, next: Status) {
     const prev = tasks;
     setTasks((cur) => cur.map((t) => (t.id === id ? { ...t, status: next } : t)));
     setTaskStatus(id, next).then((res) => {
-      if (res?.error) {
-        setTasks(prev);
-        toast.error(res.error);
-      } else {
+      if (res?.error) { setTasks(prev); toast.error(res.error); }
+      else {
         toast.success(`Status: ${ST[next].label}`);
-        // istoricul s-a schimbat → invalidează cache-ul ca să se reîncarce la deschidere
-        setHistory((h) => {
-          if (!h[id]) return h;
-          const { [id]: _drop, ...rest } = h;
-          return rest;
-        });
+        setHistory((h) => { if (!h[id]) return h; const { [id]: _, ...rest } = h; return rest; });
         if (openId === id) {
-          getTaskHistory(id)
-            .then((rows) => setHistory((hh) => ({ ...hh, [id]: rows as HistoryRow[] })))
-            .catch(() => {});
+          getTaskHistory(id).then((rows) => setHistory((hh) => ({ ...hh, [id]: rows as HistoryRow[] }))).catch(() => {});
         }
       }
     });
@@ -240,12 +236,8 @@ export default function TasksManager({
     const prev = tasks;
     setTasks((cur) => cur.map((t) => (t.id === id ? { ...t, progress } : t)));
     setTaskProgress(id, progress).then((res) => {
-      if (res?.error) {
-        setTasks(prev);
-        toast.error(res.error);
-      } else {
-        toast.success(`Progres: ${progress}%`);
-      }
+      if (res?.error) { setTasks(prev); toast.error(res.error); }
+      else toast.success(`Progres: ${progress}%`);
     });
   }
 
@@ -253,22 +245,20 @@ export default function TasksManager({
     if (!confirm("Ștergi task-ul?")) return;
     const prev = tasks;
     setTasks((cur) => cur.filter((t) => t.id !== id));
-    deleteTask(id)
-      .then(() => toast.success("Șters"))
-      .catch(() => {
-        setTasks(prev);
-        toast.error("Ștergerea a eșuat");
-      });
+    deleteTask(id).then(() => toast.success("Șters")).catch(() => { setTasks(prev); toast.error("Ștergerea a eșuat"); });
   }
 
   const activeFilters = Boolean(
-    filters.status || filters.type || filters.assignee || filters.proj ||
-    filters.client || filters.prio || filters.due || filters.q,
+    filters.status || filters.type || filters.assignee || filters.team ||
+    filters.proj || filters.client || filters.prio || filters.due || filters.q,
   );
+
+  // Paginare: afișăm maxim 7 pagini vizibile în jurul paginii curente
+  const pageButtons = buildPageButtons(page, totalPages);
 
   return (
     <>
-      {/* Filtre (pe server — reflectate în URL) */}
+      {/* ── Filtre ─────────────────────────────────────────── */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <form
           onSubmit={(e) => { e.preventDefault(); setFilter({ q: searchInput }); }}
@@ -281,28 +271,32 @@ export default function TasksManager({
             className="h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
           />
         </form>
+
         <select value={filters.status} onChange={(e) => setFilter({ status: e.target.value })} className={fld}>
           <option value="">Status: toate</option>
           {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
         </select>
-        <select value={filters.type} onChange={(e) => setFilter({ type: e.target.value })} className={fld}>
-          <option value="">Tip: toate</option>
-          <option value="TASK">Task</option>
-          <option value="TICKET">Tichet</option>
-          <option value="WORK_ORDER">Work order</option>
-        </select>
+
         <select value={filters.assignee} onChange={(e) => setFilter({ assignee: e.target.value })} className={fld}>
           <option value="">Persoană: toți</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
+
+        <select value={filters.team} onChange={(e) => setFilter({ team: e.target.value })} className={fld}>
+          <option value="">Echipă: toate</option>
+          {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+
         <select value={filters.proj} onChange={(e) => setFilter({ proj: e.target.value })} className={fld}>
           <option value="">Proiect: toate</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+
         <select value={filters.client} onChange={(e) => setFilter({ client: e.target.value })} className={fld}>
           <option value="">Client: toți</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+
         <select value={filters.prio} onChange={(e) => setFilter({ prio: e.target.value })} className={fld}>
           <option value="">Prioritate: toate</option>
           <option value="LOW">Scăzută</option>
@@ -310,7 +304,22 @@ export default function TasksManager({
           <option value="HIGH">Ridicată</option>
           <option value="URGENT">Urgentă</option>
         </select>
-        <input type="date" value={filters.due} onChange={(e) => setFilter({ due: e.target.value })} title="Scadent până la" className={fld} />
+
+        <select value={filters.due} onChange={(e) => setFilter({ due: e.target.value })} className={fld}>
+          <option value="">Deadline: oricare</option>
+          <option value="overdue">Expirate</option>
+          <option value="today">Azi</option>
+          <option value="tomorrow">Mâine</option>
+          <option value="week">Săptămâna</option>
+          <option value="month">Luna</option>
+        </select>
+
+        <select value={filters.sort} onChange={(e) => setFilter({ sort: e.target.value })} className={fld}>
+          <option value="">Sortare: implicit</option>
+          <option value="dueAsc">Deadline ↑</option>
+          <option value="dueDesc">Deadline ↓</option>
+        </select>
+
         {activeFilters && (
           <button
             onClick={() => router.push(scope !== "mine" ? `/tasks?scope=${scope}` : "/tasks")}
@@ -334,7 +343,7 @@ export default function TasksManager({
 
       {tasks.length === 0 ? (
         <div className="card grid place-items-center p-8 text-center text-sm text-ink-soft">
-          {activeFilters ? "Niciun rezultat pentru filtre." : "Niciun task."}
+          {activeFilters ? "Niciun rezultat pentru filtrele selectate." : "Niciun task."}
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
@@ -346,7 +355,6 @@ export default function TasksManager({
                   type="button"
                   onClick={() => toggleHistory(t.id)}
                   className="min-w-0 flex-1 text-left"
-                  title="Vezi istoricul de status"
                 >
                   <div className="flex items-center gap-2">
                     {t.seq != null && (
@@ -354,7 +362,6 @@ export default function TasksManager({
                         href={`/tasks/${t.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="shrink-0 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-brand hover:bg-brand/20"
-                        title="Pagina completă a task-ului"
                       >
                         #{t.seq}
                       </Link>
@@ -371,7 +378,7 @@ export default function TasksManager({
                     {PRIO_RO[t.priority]}
                     {t.projectName && ` · ${t.projectName}`}
                     {(t.assigneeName || t.teamName) && ` · ${t.assigneeName ?? t.teamName}`}
-                    {t.dueAt && ` · ${new Date(t.dueAt).toLocaleDateString("ro-RO")}`}
+                    {t.dueAt && ` · ${fmtDue(t.dueAt)}`}
                     {t.progress > 0 && ` · ${t.progress}%`}
                   </p>
                 </button>
@@ -409,12 +416,7 @@ export default function TasksManager({
                       <p className="whitespace-pre-wrap text-[12px]">{t.description}</p>
                     </div>
                   )}
-                  <Timeline
-                    rows={history[t.id]}
-                    loading={loadingHist === t.id}
-                    createdAt={t.createdAt}
-                    creatorName={t.creatorName}
-                  />
+                  <Timeline rows={history[t.id]} loading={loadingHist === t.id} createdAt={t.createdAt} creatorName={t.creatorName} />
                   <Comments
                     rows={comments[t.id]}
                     draft={commentDraft[t.id] ?? ""}
@@ -429,14 +431,41 @@ export default function TasksManager({
         </div>
       )}
 
-      {(page > 1 || hasMore) && (
-        <div className="mt-4 flex items-center justify-between">
-          <button disabled={page <= 1} onClick={() => goPage(page - 1)} className="tap card inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-40">
-            <IconChevronLeft className="size-4" /> Anterior
+      {/* ── Paginare numerică ──────────────────────────────── */}
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-center gap-1">
+          <button
+            disabled={page <= 1}
+            onClick={() => goPage(page - 1)}
+            className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+            aria-label="Anterior"
+          >
+            <IconChevronLeft className="size-4" />
           </button>
-          <span className="text-sm text-ink-soft">Pagina {page}</span>
-          <button disabled={!hasMore} onClick={() => goPage(page + 1)} className="tap card inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-40">
-            Următor <IconChevronRight className="size-4" />
+          {pageButtons.map((b, i) =>
+            b === "…" ? (
+              <span key={`ellipsis-${i}`} className="flex h-9 w-6 items-center justify-center text-sm text-ink-soft">…</span>
+            ) : (
+              <button
+                key={b}
+                onClick={() => goPage(Number(b))}
+                className={`tap h-9 min-w-[36px] rounded-lg px-2.5 text-sm font-medium ${
+                  Number(b) === page
+                    ? "bg-brand text-white"
+                    : "border border-[var(--color-line)] text-ink hover:bg-[var(--color-surface-2)]"
+                }`}
+              >
+                {b}
+              </button>
+            ),
+          )}
+          <button
+            disabled={!hasMore}
+            onClick={() => goPage(page + 1)}
+            className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+            aria-label="Următor"
+          >
+            <IconChevronRight className="size-4" />
           </button>
         </div>
       )}
@@ -471,11 +500,24 @@ export default function TasksManager({
   );
 }
 
+/** Generează lista de butoane de paginare cu „…" pentru spații mari. */
+function buildPageButtons(current: number, total: number): (number | "…")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set<number>();
+  pages.add(1);
+  pages.add(total);
+  for (let i = Math.max(2, current - 2); i <= Math.min(total - 1, current + 2); i++) pages.add(i);
+  const sorted = [...pages].sort((a, b) => a - b);
+  const result: (number | "…")[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push("…");
+    result.push(sorted[i]);
+  }
+  return result;
+}
+
 function Timeline({
-  rows,
-  loading,
-  createdAt,
-  creatorName,
+  rows, loading, createdAt, creatorName,
 }: {
   rows: HistoryRow[] | undefined;
   loading: boolean;
@@ -519,17 +561,11 @@ function Timeline({
 }
 
 const SOURCE_LABEL: Record<CommentRow["source"], string> = {
-  WEB: "",
-  TELEGRAM: " · via Telegram",
-  VOICE: " · din voce",
+  WEB: "", TELEGRAM: " · via Telegram", VOICE: " · din voce",
 };
 
 function Comments({
-  rows,
-  draft,
-  posting,
-  onDraftChange,
-  onSubmit,
+  rows, draft, posting, onDraftChange, onSubmit,
 }: {
   rows: CommentRow[] | undefined;
   draft: string;
@@ -556,10 +592,7 @@ function Comments({
           ))
         )}
       </div>
-      <form
-        onSubmit={(e) => { e.preventDefault(); onSubmit(); }}
-        className="flex items-end gap-2"
-      >
+      <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="flex items-end gap-2">
         <textarea
           value={draft}
           onChange={(e) => onDraftChange(e.target.value)}
@@ -580,12 +613,7 @@ function Comments({
 }
 
 function EditDialog({
-  task,
-  users,
-  teams,
-  projects,
-  onClose,
-  onSaved,
+  task, users, teams, projects, onClose, onSaved,
 }: {
   task: Task;
   users: Opt[];
@@ -597,16 +625,14 @@ function EditDialog({
   const toast = useToast();
   const [state, action, pending] = useActionState<TaskState, FormData>(updateTaskAction, undefined);
   useEffect(() => {
-    if (state?.ok) {
-      toast.success("Salvat");
-      onSaved({ id: task.id });
-    } else if (state?.error) {
-      toast.error(state.error);
-    }
+    if (state?.ok) { toast.success("Salvat"); onSaved({ id: task.id }); }
+    else if (state?.error) toast.error(state.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  const dueVal = task.dueAt ? new Date(task.dueAt).toISOString().slice(0, 10) : "";
+  const dueDate = task.dueAt ? dateKeyOf(new Date(task.dueAt), TZ) : "";
+  const dueTimeRaw = task.dueAt ? formatTime(new Date(task.dueAt), TZ) : "";
+  const dueTime = dueTimeRaw !== "00:00" ? dueTimeRaw : "";
   const seqLabel = task.seq != null ? ` #${task.seq}` : "";
 
   return (
@@ -621,7 +647,7 @@ function EditDialog({
         <form action={action} className="flex flex-col gap-3">
           <input type="hidden" name="id" value={task.id} />
           <input name="title" defaultValue={task.title} placeholder="Titlu *" required autoFocus className={dlgInput} />
-          <textarea name="description" placeholder="Descriere" rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
+          <textarea name="description" defaultValue={task.description ?? ""} placeholder="Descriere" rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
           <select name="priority" defaultValue={task.priority} className={dlgInput}>
             <option value="LOW">Prioritate scăzută</option>
             <option value="MEDIUM">Prioritate medie</option>
@@ -644,7 +670,10 @@ function EditDialog({
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
-            <input type="date" name="dueAt" defaultValue={dueVal} className={dlgInput} />
+            <div className="grid grid-cols-2 gap-3">
+              <input type="date" name="dueDate" defaultValue={dueDate} className={dlgInput} />
+              <input type="time" name="dueTime" defaultValue={dueTime} placeholder="Ora (opțional)" className={dlgInput} />
+            </div>
           </div>
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
@@ -657,14 +686,7 @@ function EditDialog({
 }
 
 function CreateDialog({
-  initialType,
-  users,
-  teams,
-  projects,
-  canCreateProject,
-  initialProjectId,
-  onClose,
-  onCreated,
+  initialType, users, teams, projects, canCreateProject, initialProjectId, onClose, onCreated,
 }: {
   initialType: "TASK" | "TICKET" | "WORK_ORDER";
   users: Opt[];
@@ -678,13 +700,8 @@ function CreateDialog({
   const toast = useToast();
   const [state, action, pending] = useActionState<TaskState, FormData>(createTaskAction, undefined);
   useEffect(() => {
-    if (state?.ok) {
-      toast.success("Creat");
-      onCreated();
-      onClose();
-    } else if (state?.error) {
-      toast.error(state.error);
-    }
+    if (state?.ok) { toast.success("Creat"); onCreated(); onClose(); }
+    else if (state?.error) toast.error(state.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
@@ -737,7 +754,10 @@ function CreateDialog({
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
-            <input type="date" name="dueAt" className={dlgInput} />
+            <div className="grid grid-cols-2 gap-3">
+              <input type="date" name="dueDate" className={dlgInput} />
+              <input type="time" name="dueTime" placeholder="Ora (opțional)" className={dlgInput} />
+            </div>
           </div>
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">

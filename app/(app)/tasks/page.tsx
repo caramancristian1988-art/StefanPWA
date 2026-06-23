@@ -25,14 +25,17 @@ function pick<T extends string>(v: string | undefined, set: Set<string>): T | un
   return v && set.has(v) ? (v as T) : undefined;
 }
 
+const DUE_RANGES = new Set(["overdue", "today", "tomorrow", "week", "month"]);
+const SORTS = new Set(["dueAsc", "dueDesc"]);
+
 export default async function TasksPage({
   searchParams,
 }: {
   searchParams: Promise<{
     scope?: string; page?: string; create?: string; project?: string;
     q?: string; status?: string; type?: string; assignee?: string;
-    proj?: string; client?: string; prio?: string; due?: string;
-    open?: string;
+    team?: string; proj?: string; client?: string; prio?: string;
+    due?: string; sort?: string; open?: string;
   }>;
 }) {
   const user = await requirePermission("tasks.view");
@@ -46,9 +49,11 @@ export default async function TasksPage({
   const initialProjectId = typeof sp.project === "string" ? sp.project : undefined;
   const initialOpenId = typeof sp.open === "string" && sp.open ? sp.open : undefined;
 
-  const dueBefore = /^\d{4}-\d{2}-\d{2}$/.test(sp.due ?? "") ? new Date(`${sp.due}T23:59:59.999`) : undefined;
+  const dueRange = DUE_RANGES.has(sp.due ?? "")
+    ? (sp.due as "overdue" | "today" | "tomorrow" | "week" | "month")
+    : undefined;
+  const sort = SORTS.has(sp.sort ?? "") ? (sp.sort as "dueAsc" | "dueDesc") : "default";
 
-  // Filtrare 100% pe server: aducem doar ce se potrivește, paginat.
   const [result, users, teams, projects, clients] = await Promise.all([
     listTasks({
       scope,
@@ -58,12 +63,13 @@ export default async function TasksPage({
       type: pick<TaskType>(sp.type, TYPE_SET),
       priority: pick<TaskPriority>(sp.prio, PRIO_SET),
       assigneeId: sp.assignee || undefined,
+      teamId: sp.team || undefined,
       projectId: sp.proj || undefined,
       clientId: sp.client || undefined,
-      dueBefore,
+      dueRange,
+      sort,
       search: sp.q || undefined,
       page,
-      pageSize: 30,
     }),
     userOptions(),
     teamOptions(),
@@ -92,6 +98,7 @@ export default async function TasksPage({
         items={result.items}
         hasMore={result.hasMore}
         page={result.page}
+        totalPages={result.totalPages}
         scope={scope}
         users={users}
         teams={teams}
@@ -102,10 +109,12 @@ export default async function TasksPage({
           status: sp.status ?? "",
           type: sp.type ?? "",
           assignee: sp.assignee ?? "",
+          team: sp.team ?? "",
           proj: sp.proj ?? "",
           client: sp.client ?? "",
           prio: sp.prio ?? "",
           due: sp.due ?? "",
+          sort: sp.sort ?? "",
         }}
         canCreate={can(user, "tasks.create")}
         canDelete={can(user, "tasks.delete")}

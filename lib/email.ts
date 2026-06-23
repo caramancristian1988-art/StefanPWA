@@ -57,6 +57,61 @@ function template(d: ReminderEmailData): string {
 </body></html>`;
 }
 
+export type TaskReminderEmailData = {
+  to: string;
+  userName: string;
+  taskTitle: string;
+  seq: number | null | undefined;
+  taskUrl: string;
+  isOverdue?: boolean;
+};
+
+function taskReminderTemplate(d: TaskReminderEmailData): string {
+  const badge = d.isOverdue
+    ? `<div style="background:#fee2e2;border-radius:8px;padding:10px 14px;margin-bottom:16px;color:#991b1b;font-weight:600">⏰ Task în întârziere</div>`
+    : `<div style="background:#ede9fe;border-radius:8px;padding:10px 14px;margin-bottom:16px;color:#5b21b6;font-weight:600">🔔 Reamintire task</div>`;
+  const ref = d.seq != null ? ` <span style="color:#6366f1">#${d.seq}</span>` : "";
+  return `<!doctype html>
+<html lang="ro"><body style="margin:0;background:#f5f6f8;font-family:Segoe UI,Arial,sans-serif;color:#0f172a">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0">
+    <tr><td align="center">
+      <table role="presentation" width="100%" style="max-width:480px;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">
+        <tr><td style="background:#6366f1;padding:20px 24px;color:#fff;font-size:18px;font-weight:700">
+          Stefan CRM
+        </td></tr>
+        <tr><td style="padding:24px">
+          <p style="margin:0 0 14px;font-size:16px">Bună, <b>${d.userName}</b>.</p>
+          ${badge}
+          <p style="margin:0 0 18px;font-size:15px;line-height:1.5">
+            Task-ul <b>${d.taskTitle}</b>${ref} necesită atenția ta.
+          </p>
+          <a href="${d.taskUrl}" style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600">
+            Deschide task
+          </a>
+        </td></tr>
+        <tr><td style="padding:14px 24px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8">
+          Mesaj automat — te rugăm să nu răspunzi.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+export async function sendTaskReminderEmail(d: TaskReminderEmailData): Promise<void> {
+  const transporter = getTransporter();
+  if (!transporter) throw new Error("SMTP neconfigurat.");
+  const from = env.smtp.from;
+  const subject = d.isOverdue ? `⏰ Task în întârziere: ${d.taskTitle}` : `🔔 Reamintire task: ${d.taskTitle}`;
+  await transporter.sendMail({
+    from,
+    to: d.to,
+    subject,
+    text: `Bună, ${d.userName}. Task-ul „${d.taskTitle}"${d.seq != null ? ` (#${d.seq})` : ""} necesită atenția ta. ${d.taskUrl}`,
+    html: taskReminderTemplate(d),
+  });
+}
+
 /** Trimite reminder-ul. Aruncă eroare la eșec (pentru logica de retry). */
 export async function sendReminderEmail(d: ReminderEmailData): Promise<void> {
   const transporter = getTransporter();

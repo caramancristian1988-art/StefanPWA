@@ -279,6 +279,10 @@ model Task {
   // Setat când s-a trimis deja notificarea de întârziere, ca să nu se repete la fiecare rulare de cron
   overdueNotifiedAt DateTime?
 
+  // Reamintire periodică: interval în minute (null = dezactivat). nextReminderAt = ora trimiterii următoare.
+  reminderIntervalMinutes Int?
+  nextReminderAt          DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

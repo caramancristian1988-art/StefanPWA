@@ -34,6 +34,7 @@ export type CreateTaskInput = {
   assigneeId?: string | null;
   teamId?: string | null;
   projectId?: string | null;
+  reminderIntervalMinutes?: number | null;
 };
 
 /** Chat Telegram al unui user: întâi cel setat manual, apoi contul linkat prin bot. */
@@ -205,6 +206,9 @@ export async function createTask(
   const status: TaskStatus = assigneeId || teamId ? "ASSIGNED" : "NEW";
   const seq = await nextSeq("task");
 
+  const intervalMin = input.reminderIntervalMinutes || null;
+  const nextReminderAt = intervalMin ? new Date(Date.now() + intervalMin * 60_000) : null;
+
   const task = await prisma.task.create({
     data: {
       seq,
@@ -219,6 +223,8 @@ export async function createTask(
       projectId: input.projectId || null,
       createdFrom: source,
       status,
+      reminderIntervalMinutes: intervalMin,
+      nextReminderAt,
     },
     select: { id: true, title: true, seq: true },
   });
@@ -384,7 +390,11 @@ export async function changeTaskStatus(
     return { ok: true as const, changed: false, fromStatus: task.status, title: task.title, type: task.type };
   }
 
-  await prisma.task.update({ where: { id: taskId }, data: { status: newStatus } });
+  const closed = newStatus === "DONE" || newStatus === "CANCELLED";
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: newStatus, ...(closed ? { nextReminderAt: null } : {}) },
+  });
   await prisma.taskActivity
     .create({ data: { taskId, userId: actorId, action: "STATUS_CHANGED", fromStatus: task.status, toStatus: newStatus } })
     .catch((e) => console.error(`[tasks] changeTaskStatus: jurnalizare TaskActivity eșuată pentru ${taskId}`, e));
@@ -436,7 +446,6 @@ export async function changeTaskStatus(
     });
 
     if (opts.fromTelegram && task.telegramChatId && task.telegramMessageId) {
-      const closed = newStatus === "DONE" || newStatus === "CANCELLED";
       const editLines = [
         `📋 <b>${TASK_TYPE_RO[task.type]}</b> (${taskRef(task.seq, task.id)})`,
         `<b>${escapeHtml(task.title)}</b>`,
@@ -700,6 +709,7 @@ export type UpdateTaskInput = {
   projectId?: string | null;
   priority?: TaskPriority;
   dueAt?: Date | null;
+  reminderIntervalMinutes?: number | null;
 };
 
 const EDIT_PRIO_RO: Record<string, string> = { LOW: "Scăzută", MEDIUM: "Medie", HIGH: "Ridicată", URGENT: "Urgentă" };
@@ -738,6 +748,11 @@ export async function updateTask(taskId: string, actorId: string, input: UpdateT
   if ("projectId" in input) data.projectId = input.projectId || null;
   if (input.priority !== undefined) data.priority = input.priority;
   if ("dueAt" in input) data.dueAt = input.dueAt ?? null;
+  if ("reminderIntervalMinutes" in input) {
+    const intervalMin = input.reminderIntervalMinutes || null;
+    data.reminderIntervalMinutes = intervalMin;
+    data.nextReminderAt = intervalMin ? new Date(Date.now() + intervalMin * 60_000) : null;
+  }
 
   await prisma.task.update({ where: { id: taskId }, data });
 
@@ -807,6 +822,80 @@ export async function updateTask(taskId: string, actorId: string, input: UpdateT
   }
 
   return { ok: true as const, title: (input.title?.trim() ?? task.title), type: task.type };
+}
+
+/**
+ * Trimite reamintiri periodice pentru task-urile active cu `reminderIntervalMinutes` configurat.
+ * Se apelează din cron-job; best-effort, nu aruncă excepție.
+ */
+export async function checkTaskReminders(): Promise<{ checked: number; notified: number }> {
+  if (DEMO) return { checked: 0, notified: 0 };
+  const now = new Date();
+
+  const candidates = await prisma.task.findMany({
+    where: { status: { notIn: ["DONE", "CANCELLED"] }, nextReminderAt: { lte: now } },
+    select: {
+      id: true, seq: true, title: true, type: true, status: true,
+      dueAt: true, reminderIntervalMinutes: true,
+      creatorId: true, assigneeId: true, teamId: true,
+      assignee: { select: { teamIds: true } },
+    },
+  });
+  // Extra JS filter: skip tasks where nextReminderAt is null (MongoDB null <= date = true)
+  const tasks = candidates.filter((t) => t.reminderIntervalMinutes);
+
+  console.log(`[tasks] checkTaskReminders: ${tasks.length}/${candidates.length} task-uri cu reamintire scadentă`);
+
+  let notified = 0;
+  for (const task of tasks) {
+    try {
+      const isOverdue = task.dueAt && task.dueAt < now;
+      const titleMsg = `${TASK_TYPE_RO[task.type]} ${isOverdue ? "în întârziere" : "neîncheiat"}: „${task.title}" (#${task.seq ?? "—"})`;
+
+      const admins = await filteredAdminRecipients({
+        eventKeys: ["task.reminder"],
+        teamIds: [task.teamId, ...(task.assignee?.teamIds ?? [])],
+        memberIds: [task.assigneeId, task.creatorId],
+      });
+      const recipients = new Set<string>([task.creatorId, ...admins]);
+      if (task.assigneeId) recipients.add(task.assigneeId);
+      const recipientIds = [...recipients];
+
+      // In-app + PWA + Telegram
+      await notifyUsers(
+        recipientIds,
+        { title: isOverdue ? `⏰ ${titleMsg}` : `🔔 Reamintire: ${titleMsg}`, taskId: task.id, seq: task.seq, url: `/tasks/${task.id}` },
+        { telegram: true },
+      );
+
+      // Email (best-effort, per destinatar)
+      if (env.smtp.enabled) {
+        const { sendTaskReminderEmail } = await import("../email");
+        await Promise.all(
+          recipientIds.map(async (uid) => {
+            try {
+              const u = await prisma.user.findUnique({ where: { id: uid }, select: { email: true, name: true } });
+              if (u?.email) {
+                await sendTaskReminderEmail({ to: u.email, userName: u.name, taskTitle: task.title, seq: task.seq, taskUrl: taskUrl(task.id), isOverdue: !!isOverdue });
+              }
+            } catch {
+              // best-effort
+            }
+          }),
+        );
+      }
+
+      // Schedule next reminder
+      const nextAt = new Date(now.getTime() + task.reminderIntervalMinutes! * 60_000);
+      await prisma.task.update({ where: { id: task.id }, data: { nextReminderAt: nextAt } });
+      notified++;
+    } catch (e) {
+      console.error(`[tasks] checkTaskReminders: eșuat pentru task ${task.id}`, e);
+    }
+  }
+
+  console.log(`[tasks] checkTaskReminders: ${notified}/${tasks.length} notificate`);
+  return { checked: tasks.length, notified };
 }
 
 function escapeHtml(s: string): string {

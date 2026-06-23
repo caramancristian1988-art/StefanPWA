@@ -48,6 +48,7 @@ type Task = {
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   progress: number;
   dueAt: string | Date | null;
+  reminderIntervalMinutes: number | null;
   assigneeId: string | null;
   teamId: string | null;
   projectId: string | null;
@@ -675,6 +676,18 @@ function EditDialog({
               <input type="time" name="dueTime" defaultValue={dueTime} placeholder="Ora (opțional)" className={dlgInput} />
             </div>
           </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">Reamintire periodică</label>
+            <select name="reminderIntervalMinutes" defaultValue={task.reminderIntervalMinutes ?? 0} className={dlgInput}>
+              <option value={0}>Niciodată</option>
+              <option value={30}>La fiecare 30 min</option>
+              <option value={60}>La fiecare 1h</option>
+              <option value={180}>La fiecare 3h</option>
+              <option value={360}>La fiecare 6h</option>
+              <option value={720}>La fiecare 12h</option>
+              <option value={1440}>La fiecare 24h</option>
+            </select>
+          </div>
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
             {pending ? "Se salvează…" : "Salvează"}
@@ -758,6 +771,18 @@ function CreateDialog({
               <input type="date" name="dueDate" className={dlgInput} />
               <input type="time" name="dueTime" placeholder="Ora (opțional)" className={dlgInput} />
             </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">Reamintire periodică</label>
+            <select name="reminderIntervalMinutes" defaultValue={0} className={dlgInput}>
+              <option value={0}>Niciodată</option>
+              <option value={30}>La fiecare 30 min</option>
+              <option value={60}>La fiecare 1h</option>
+              <option value={180}>La fiecare 3h</option>
+              <option value={360}>La fiecare 6h</option>
+              <option value={720}>La fiecare 12h</option>
+              <option value={1440}>La fiecare 24h</option>
+            </select>
           </div>
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">

@@ -14,6 +14,7 @@ export type TaskRow = {
   priority: TaskPriority;
   progress: number;
   dueAt: Date | null;
+  reminderIntervalMinutes: number | null;
   creatorId: string;
   assigneeId: string | null;
   teamId: string | null;
@@ -37,6 +38,7 @@ const TASK_SELECT = {
   priority: true,
   progress: true,
   dueAt: true,
+  reminderIntervalMinutes: true,
   creatorId: true,
   assigneeId: true,
   teamId: true,
@@ -59,6 +61,7 @@ function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRo
     priority: t.priority,
     progress: t.progress,
     dueAt: t.dueAt,
+    reminderIntervalMinutes: t.reminderIntervalMinutes ?? null,
     creatorId: t.creatorId,
     assigneeId: t.assigneeId,
     teamId: t.teamId,

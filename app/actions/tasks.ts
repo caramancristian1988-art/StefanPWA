@@ -66,6 +66,9 @@ export async function createTaskAction(
     ? zonedToUtc(dueDate, dueTime || "00:00", "Europe/Bucharest")
     : null;
 
+  const reminderRaw = Number(formData.get("reminderIntervalMinutes") ?? 0);
+  const reminderIntervalMinutes = reminderRaw > 0 ? reminderRaw : null;
+
   const res = await createTask(
     user.id,
     {
@@ -77,6 +80,7 @@ export async function createTaskAction(
       assigneeId: (formData.get("assigneeId") as string) || null,
       teamId: (formData.get("teamId") as string) || null,
       projectId: (formData.get("projectId") as string) || null,
+      reminderIntervalMinutes,
     },
     "WEB",
   );
@@ -211,6 +215,9 @@ export async function updateTaskAction(
     ? (formData.get("priority") as TaskPriority)
     : "MEDIUM";
 
+  const reminderRaw = Number(formData.get("reminderIntervalMinutes") ?? 0);
+  const reminderIntervalMinutes = reminderRaw > 0 ? reminderRaw : null;
+
   const res = await updateTask(id, user.id, {
     title,
     description,
@@ -219,6 +226,7 @@ export async function updateTaskAction(
     projectId: (formData.get("projectId") as string) || null,
     priority,
     dueAt,
+    reminderIntervalMinutes,
   });
   if (!res.ok) return { error: res.error };
 

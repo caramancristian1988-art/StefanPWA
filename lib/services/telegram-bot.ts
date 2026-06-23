@@ -20,7 +20,7 @@ import { listCategories } from "../queries/categories";
 import { createAppointment, changeStatus } from "./appointments";
 import { createTask, changeTaskStatus, changeTaskProgress, addTaskComment, notifyNewTask } from "./tasks";
 import { transcribeAudio } from "./voice";
-import { todayKey, tomorrowKey, weekKeys, formatTime, formatDate, humanDay } from "../date";
+import { todayKey, tomorrowKey, weekKeys, formatTime, formatDate, humanDay, dayBoundsUtc, dateKeyOf } from "../date";
 import type { AppointmentStatus, TaskStatus } from "@prisma/client";
 
 const STATUS_RO: Record<AppointmentStatus, string> = {
@@ -166,6 +166,68 @@ async function renderWeek(chatId: string | number, user: LinkedUser, tz: string)
     );
   }
   await sendMessage(chatId, lines.join("\n"), menuFor(user));
+}
+
+/** Task-uri scadente pe o zi specifică — pentru lucrători (în loc de programări). */
+async function renderWorkerDay(chatId: string | number, user: LinkedUser, dateKey: string, tz: string) {
+  const label = humanDay(dateKey, tz);
+  const { start, end } = dayBoundsUtc(dateKey, tz);
+  const tasks = await prisma.task.findMany({
+    where: {
+      assigneeId: user.userId,
+      status: { notIn: ["DONE", "CANCELLED"] },
+      dueAt: { gte: start, lt: end },
+    },
+    select: { id: true, title: true, status: true, priority: true, progress: true },
+    orderBy: [{ status: "asc" }],
+    take: 15,
+  });
+  if (tasks.length === 0) {
+    await sendMessage(chatId, `📅 <b>${label}</b>\nNu ai task-uri scadente în această zi.`, workerMenu());
+    return;
+  }
+  await sendMessage(chatId, `📅 <b>${label}</b> — ${tasks.length} task-uri`, undefined);
+  for (const t of tasks) {
+    const line =
+      `<b>${escapeHtml(t.title)}</b>\n` +
+      `${TASK_STATUS_RO[t.status]} · ${TASK_PRIORITY_RO[t.priority]}${t.progress > 0 ? ` · ${t.progress}%` : ""}`;
+    await sendMessage(chatId, line, [
+      [{ text: "ℹ️ Detalii", callback_data: `TDET:${t.id}` }],
+      [{ text: "◀️ Înapoi", callback_data: "MY_TASKS" }],
+    ]);
+  }
+}
+
+/** Task-uri scadente în săptămâna curentă — pentru lucrători. */
+async function renderWorkerWeek(chatId: string | number, user: LinkedUser, tz: string) {
+  const keys = weekKeys(todayKey(tz), tz);
+  const weekStart = dayBoundsUtc(keys[0], tz).start;
+  const weekEnd = dayBoundsUtc(keys[keys.length - 1], tz).end;
+  const tasks = await prisma.task.findMany({
+    where: {
+      assigneeId: user.userId,
+      status: { notIn: ["DONE", "CANCELLED"] },
+      dueAt: { gte: weekStart, lt: weekEnd },
+    },
+    select: { id: true, title: true, status: true, priority: true, progress: true, dueAt: true },
+    orderBy: [{ dueAt: "asc" }],
+    take: 20,
+  });
+  if (tasks.length === 0) {
+    await sendMessage(chatId, "🗓 Niciun task scadent săptămâna aceasta.", workerMenu());
+    return;
+  }
+  const lines: string[] = ["🗓 <b>Task-uri săptămâna aceasta</b>", ""];
+  let lastDay = "";
+  for (const t of tasks) {
+    const dayKey = t.dueAt ? dateKeyOf(t.dueAt, tz) : "";
+    if (dayKey !== lastDay) {
+      if (dayKey) lines.push(`\n<b>${humanDay(dayKey, tz)}</b>`);
+      lastDay = dayKey;
+    }
+    lines.push(`• ${escapeHtml(t.title)} — ${TASK_STATUS_RO[t.status]}`);
+  }
+  await sendMessage(chatId, lines.join("\n"), workerMenu());
 }
 
 // ---------- Update entrypoint ----------
@@ -335,9 +397,21 @@ async function handleCallback(cb: Cb) {
   const tz = await getUserTimezone(user.userId);
 
   if (data === "MY_TASKS") return void renderMyTasks(chatId, user);
-  if (data === "TODAY") return void renderDay(chatId, user, todayKey(tz), tz);
-  if (data === "TOMORROW") return void renderDay(chatId, user, tomorrowKey(tz), tz);
-  if (data === "WEEK") return void renderWeek(chatId, user, tz);
+  if (data === "TODAY") {
+    return user.isAdmin
+      ? void renderDay(chatId, user, todayKey(tz), tz)
+      : void renderWorkerDay(chatId, user, todayKey(tz), tz);
+  }
+  if (data === "TOMORROW") {
+    return user.isAdmin
+      ? void renderDay(chatId, user, tomorrowKey(tz), tz)
+      : void renderWorkerDay(chatId, user, tomorrowKey(tz), tz);
+  }
+  if (data === "WEEK") {
+    return user.isAdmin
+      ? void renderWeek(chatId, user, tz)
+      : void renderWorkerWeek(chatId, user, tz);
+  }
   if (data === "ADD")
     return void sendMessage(chatId, "➕ Trimite un <b>mesaj vocal</b> cu programarea, ex: 'Ion maine la 3 la tuns'.");
   if (data === "VOICE")
@@ -385,9 +459,13 @@ async function handleCallback(cb: Cb) {
     return;
   }
 
-  // Schimbare status programare
+  // Schimbare status programare (doar admin)
   const stMatch = data.match(/^ST_(CONFIRM|DONE|CANCEL|NOSHOW):(.+)$/);
   if (stMatch) {
+    if (!user.isAdmin) {
+      await sendMessage(chatId, "❌ Nu ai acces la programări.", workerMenu());
+      return;
+    }
     const map: Record<string, AppointmentStatus> = {
       CONFIRM: "CONFIRMED",
       DONE: "DONE",
@@ -400,9 +478,13 @@ async function handleCallback(cb: Cb) {
     return;
   }
 
-  // Confirmare programare din voce
+  // Confirmare programare din voce (doar admin)
   const vMatch = data.match(/^V(CREATE|CANCEL):(.+)$/);
   if (vMatch) {
+    if (!user.isAdmin) {
+      await sendMessage(chatId, "❌ Nu ai acces la comenzi vocale.", workerMenu());
+      return;
+    }
     if (vMatch[1] === "CANCEL") {
       await prisma.voiceCommandLog.updateMany({
         where: { id: vMatch[2], userId: user.userId },

@@ -147,9 +147,16 @@ export function mainMenu(): InlineButton[][] {
   ];
 }
 
-/** Meniu redus pentru lucrători fără acces CRM (doar task-uri). */
+/** Meniu redus pentru lucrători fără acces CRM (task-uri + zile). */
 export function workerMenu(): InlineButton[][] {
-  return [[{ text: "📋 Task-urile mele", callback_data: "MY_TASKS" }]];
+  return [
+    [{ text: "📋 Task-urile mele", callback_data: "MY_TASKS" }],
+    [
+      { text: "📅 Azi", callback_data: "TODAY" },
+      { text: "📆 Mâine", callback_data: "TOMORROW" },
+    ],
+    [{ text: "🗓 Săptămâna", callback_data: "WEEK" }],
+  ];
 }
 
 export const TASK_STATUS_RO: Record<string, string> = {

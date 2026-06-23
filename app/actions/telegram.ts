@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/dal";
 import { env } from "@/lib/env";
 import { can, ALL_PERMISSION_KEYS } from "@/lib/permissions";
 import { hashPassword } from "@/lib/password";
-import { setWebhook, sendMessage, mainMenu } from "@/lib/telegram";
+import { setWebhook, sendMessage, mainMenu, workerMenu } from "@/lib/telegram";
 import { logAudit } from "@/lib/services/audit";
 import { DEMO } from "@/lib/demo";
 
@@ -111,7 +111,7 @@ export async function approveTelegramContact(
       contact.chatId,
       "✅ <b>Contul tău a fost activat de administrator!</b>\nDe acum primești task-uri și notificări direct aici.",
     );
-    await sendMessage(contact.chatId, "Alege o opțiune:", mainMenu());
+    await sendMessage(contact.chatId, "Alege o opțiune:", role === "ADMIN" ? mainMenu() : workerMenu());
   } catch (e) {
     console.error(`[telegram] approveTelegramContact: mesaj de bun venit eșuat pentru ${contact.chatId}`, e);
   }

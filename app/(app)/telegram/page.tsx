@@ -19,7 +19,7 @@ export default async function TelegramPage() {
   const enabled = env.telegram.enabled;
   const canManageUsers = can(user, "users.manage");
 
-  const [botInfo, account, tz, pending, teams] = await Promise.all([
+  const [botInfo, account, userRecord, tz, pending, teams] = await Promise.all([
     enabled ? getMe() : Promise.resolve(null),
     DEMO
       ? Promise.resolve(null)
@@ -27,10 +27,16 @@ export default async function TelegramPage() {
           where: { userId: user.id },
           select: { username: true, firstName: true, linkedAt: true, chatId: true },
         }),
+    DEMO
+      ? Promise.resolve(null)
+      : prisma.user.findUnique({ where: { id: user.id }, select: { telegramChatId: true } }),
     getUserTimezone(user.id),
     canManageUsers ? pendingTelegramContacts() : Promise.resolve([]),
     canManageUsers ? teamOptions() : Promise.resolve([]),
   ]);
+
+  const telegramChatId = userRecord?.telegramChatId ?? null;
+  const isConnected = Boolean(account || telegramChatId);
 
   const token = DEMO ? "demo" : signLinkToken(user.id);
   const botUsername = botInfo?.username ?? null;
@@ -49,9 +55,11 @@ export default async function TelegramPage() {
           <p className="text-sm text-ink-soft">
             {account
               ? `Conectat${account.firstName ? ` ca ${account.firstName}` : ""} · din ${formatDate(account.linkedAt, tz)}`
-              : enabled
-                ? "Neconectat"
-                : "Bot neconfigurat"}
+              : telegramChatId
+                ? "Conectat"
+                : enabled
+                  ? "Neconectat"
+                  : "Bot neconfigurat"}
           </p>
         </div>
       </div>
@@ -65,7 +73,7 @@ export default async function TelegramPage() {
         deepLink={deepLink}
         startToken={token}
         botUsername={botUsername}
-        hasAccount={Boolean(account)}
+        hasAccount={isConnected}
       />
 
       <div className="card mt-5 p-5 text-sm text-ink-soft">

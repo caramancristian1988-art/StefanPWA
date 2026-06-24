@@ -20,6 +20,9 @@ export type TaskRow = {
   teamId: string | null;
   projectId: string | null;
   clientId: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  categoryColor: string | null;
   assigneeName: string | null;
   teamName: string | null;
   projectName: string | null;
@@ -43,10 +46,14 @@ const TASK_SELECT = {
   assigneeId: true,
   teamId: true,
   projectId: true,
+  clientId: true,
   createdAt: true,
+  categoryId: true,
   assignee: { select: { name: true } },
   team: { select: { name: true } },
-  project: { select: { name: true, clientId: true, client: { select: { name: true } } } },
+  // project.client NOT selected — clientName not displayed in list; clientId is denormalized
+  project: { select: { name: true, clientId: true } },
+  category: { select: { name: true, color: true } },
   creator: { select: { name: true } },
 } as const;
 
@@ -66,11 +73,14 @@ function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRo
     assigneeId: t.assigneeId,
     teamId: t.teamId,
     projectId: t.projectId,
-    clientId: t.project?.clientId ?? null,
+    clientId: t.clientId ?? t.project?.clientId ?? null,
+    categoryId: t.categoryId ?? null,
+    categoryName: t.category?.name ?? null,
+    categoryColor: t.category?.color ?? null,
     assigneeName: t.assignee?.name ?? null,
     teamName: t.team?.name ?? null,
     projectName: t.project?.name ?? null,
-    clientName: t.project?.client?.name ?? null,
+    clientName: null,
     creatorName: t.creator.name,
     createdAt: t.createdAt,
   };
@@ -115,7 +125,7 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
   if (filter.type) where.type = filter.type;
   if (filter.priority) where.priority = filter.priority;
   if (filter.projectId) where.projectId = filter.projectId;
-  if (filter.clientId) where.project = { is: { clientId: filter.clientId } };
+  if (filter.clientId) where.clientId = filter.clientId;
 
   if (filter.dueRange) {
     const TZ = "Europe/Bucharest";
@@ -280,6 +290,8 @@ export async function getTask(id: string) {
     where: { id },
     select: {
       ...TASK_SELECT,
+      // Detail view needs client name via project (not stored in list TASK_SELECT)
+      project: { select: { name: true, clientId: true, client: { select: { name: true } } } },
       description: true,
       createdFrom: true,
       activities: {

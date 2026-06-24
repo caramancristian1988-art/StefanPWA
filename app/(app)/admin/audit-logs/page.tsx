@@ -5,11 +5,6 @@ import AuditLogsClient from "@/app/components/AuditLogsClient";
 
 export const dynamic = "force-dynamic";
 
-function toDate(s: string | undefined, end = false): Date | undefined {
-  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return undefined;
-  return new Date(`${s}T${end ? "23:59:59.999" : "00:00:00.000"}`);
-}
-
 export default async function AuditLogsPage({
   searchParams,
 }: {
@@ -18,9 +13,6 @@ export default async function AuditLogsPage({
     role?: string;
     action?: string;
     module?: string;
-    from?: string;
-    to?: string;
-    q?: string;
     page?: string;
   }>;
 }) {
@@ -34,11 +26,8 @@ export default async function AuditLogsPage({
       role: sp.role || undefined,
       action: sp.action || undefined,
       module: sp.module || undefined,
-      from: toDate(sp.from),
-      to: toDate(sp.to, true),
-      search: sp.q || undefined,
       page,
-      pageSize: 30,
+      pageSize: 50,
     }),
     userOptions(),
   ]);
@@ -59,9 +48,6 @@ export default async function AuditLogsPage({
           role: sp.role ?? "",
           action: sp.action ?? "",
           module: sp.module ?? "",
-          from: sp.from ?? "",
-          to: sp.to ?? "",
-          q: sp.q ?? "",
         }}
       />
     </div>

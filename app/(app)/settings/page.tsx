@@ -16,7 +16,7 @@ export default async function SettingsPage() {
   const user = await requireUser();
   const [settings, categories, company] = await Promise.all([
     getSettings(user.id),
-    listCategories(user.id),
+    listCategories(),
     getCompanySettings(),
   ]);
 

@@ -47,52 +47,57 @@ export async function createTaskAction(
   _prev: TaskState,
   formData: FormData,
 ): Promise<TaskState> {
-  const user = await requireUser();
-  if (!can(user, "tasks.create")) return { error: "Nu ai permisiunea de creare." };
-  if (DEMO) return { error: "Mod demo: conectează o bază de date." };
+  try {
+    const user = await requireUser();
+    if (!can(user, "tasks.create")) return { error: "Nu ai permisiunea de creare." };
+    if (DEMO) return { error: "Mod demo: conectează o bază de date." };
 
-  const title = String(formData.get("title") ?? "").trim();
-  if (!title) return { error: "Titlul e obligatoriu." };
+    const title = String(formData.get("title") ?? "").trim();
+    if (!title) return { error: "Titlul e obligatoriu." };
 
-  const type = TYPES.includes(formData.get("type") as TaskType)
-    ? (formData.get("type") as TaskType)
-    : "TASK";
-  const priority = PRIORITIES.includes(formData.get("priority") as TaskPriority)
-    ? (formData.get("priority") as TaskPriority)
-    : "MEDIUM";
-  const dueDate = String(formData.get("dueDate") ?? "").trim();
-  const dueTime = String(formData.get("dueTime") ?? "").trim();
-  const dueAt = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
-    ? zonedToUtc(dueDate, dueTime || "00:00", "Europe/Bucharest")
-    : null;
+    const type = TYPES.includes(formData.get("type") as TaskType)
+      ? (formData.get("type") as TaskType)
+      : "TASK";
+    const priority = PRIORITIES.includes(formData.get("priority") as TaskPriority)
+      ? (formData.get("priority") as TaskPriority)
+      : "MEDIUM";
+    const dueDate = String(formData.get("dueDate") ?? "").trim();
+    const dueTime = String(formData.get("dueTime") ?? "").trim();
+    const dueAt = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
+      ? zonedToUtc(dueDate, dueTime || "00:00", "Europe/Bucharest")
+      : null;
 
-  const reminderRaw = Number(formData.get("reminderIntervalMinutes") ?? 0);
-  const reminderIntervalMinutes = reminderRaw > 0 ? reminderRaw : null;
+    const reminderRaw = Number(formData.get("reminderIntervalMinutes") ?? 0);
+    const reminderIntervalMinutes = reminderRaw > 0 ? reminderRaw : null;
 
-  const res = await createTask(
-    user.id,
-    {
-      title,
-      description: String(formData.get("description") ?? ""),
-      type,
-      priority,
-      dueAt,
-      assigneeId: (formData.get("assigneeId") as string) || null,
-      teamId: (formData.get("teamId") as string) || null,
-      projectId: (formData.get("projectId") as string) || null,
-      reminderIntervalMinutes,
-    },
-    "WEB",
-  );
-  if (!res.ok) return { error: res.error };
-  // Notificare Telegram în fundal — nu blochează și nu poate face crearea să eșueze
-  after(() => notifyNewTask(res.id));
-  await logAudit(
-    { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },
-    { action: `${prefixForType(type)}.create`, module: moduleForType(type), objectId: res.id, objectName: title },
-  );
-  revalidateTasks();
-  return { ok: true, id: res.id };
+    const res = await createTask(
+      user.id,
+      {
+        title,
+        description: String(formData.get("description") ?? ""),
+        type,
+        priority,
+        dueAt,
+        assigneeId: (formData.get("assigneeId") as string) || null,
+        teamId: (formData.get("teamId") as string) || null,
+        projectId: (formData.get("projectId") as string) || null,
+        categoryId: (formData.get("categoryId") as string) || null,
+        reminderIntervalMinutes,
+      },
+      "WEB",
+    );
+    if (!res.ok) return { error: res.error };
+    after(() => notifyNewTask(res.id));
+    await logAudit(
+      { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },
+      { action: `${prefixForType(type)}.create`, module: moduleForType(type), objectId: res.id, objectName: title },
+    );
+    revalidateTasks();
+    return { ok: true, id: res.id };
+  } catch (e) {
+    console.error("[tasks.action] createTaskAction: eșuat", e);
+    return { error: "Eroare la creare. Încearcă din nou." };
+  }
 }
 
 /** Schimbarea statusului e permisă oricărui utilizator autentificat (acțiune zilnică). */
@@ -197,45 +202,51 @@ export async function updateTaskAction(
   _prev: TaskState,
   formData: FormData,
 ): Promise<TaskState> {
-  const user = await requireUser();
-  if (!can(user, "tasks.edit")) return { error: "Nu ai permisiunea de editare." };
-  if (DEMO) return { error: "Mod demo: conectează o bază de date." };
+  try {
+    const user = await requireUser();
+    if (!can(user, "tasks.edit")) return { error: "Nu ai permisiunea de editare." };
+    if (DEMO) return { error: "Mod demo: conectează o bază de date." };
 
-  const id = String(formData.get("id") ?? "").trim();
-  if (!id) return { error: "ID task lipsă." };
+    const id = String(formData.get("id") ?? "").trim();
+    if (!id) return { error: "ID task lipsă." };
 
-  const title = String(formData.get("title") ?? "").trim();
-  const description = String(formData.get("description") ?? "");
-  const dueDate = String(formData.get("dueDate") ?? "").trim();
-  const dueTime = String(formData.get("dueTime") ?? "").trim();
-  const dueAt = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
-    ? zonedToUtc(dueDate, dueTime || "00:00", "Europe/Bucharest")
-    : null;
-  const priority = PRIORITIES.includes(formData.get("priority") as TaskPriority)
-    ? (formData.get("priority") as TaskPriority)
-    : "MEDIUM";
+    const title = String(formData.get("title") ?? "").trim();
+    const description = String(formData.get("description") ?? "");
+    const dueDate = String(formData.get("dueDate") ?? "").trim();
+    const dueTime = String(formData.get("dueTime") ?? "").trim();
+    const dueAt = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
+      ? zonedToUtc(dueDate, dueTime || "00:00", "Europe/Bucharest")
+      : null;
+    const priority = PRIORITIES.includes(formData.get("priority") as TaskPriority)
+      ? (formData.get("priority") as TaskPriority)
+      : "MEDIUM";
 
-  const reminderRaw = Number(formData.get("reminderIntervalMinutes") ?? 0);
-  const reminderIntervalMinutes = reminderRaw > 0 ? reminderRaw : null;
+    const reminderRaw = Number(formData.get("reminderIntervalMinutes") ?? 0);
+    const reminderIntervalMinutes = reminderRaw > 0 ? reminderRaw : null;
 
-  const res = await updateTask(id, user.id, {
-    title,
-    description,
-    assigneeId: (formData.get("assigneeId") as string) || null,
-    teamId: (formData.get("teamId") as string) || null,
-    projectId: (formData.get("projectId") as string) || null,
-    priority,
-    dueAt,
-    reminderIntervalMinutes,
-  });
-  if (!res.ok) return { error: res.error };
+    const res = await updateTask(id, user.id, {
+      title,
+      description,
+      assigneeId: (formData.get("assigneeId") as string) || null,
+      teamId: (formData.get("teamId") as string) || null,
+      projectId: (formData.get("projectId") as string) || null,
+      categoryId: (formData.get("categoryId") as string) || null,
+      priority,
+      dueAt,
+      reminderIntervalMinutes,
+    });
+    if (!res.ok) return { error: res.error };
 
-  await logAudit(
-    { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },
-    { action: `${prefixForType(res.type)}.edit`, module: moduleForType(res.type), objectId: id, objectName: res.title },
-  );
-  revalidateTasks();
-  return { ok: true, id };
+    await logAudit(
+      { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },
+      { action: `${prefixForType(res.type)}.edit`, module: moduleForType(res.type), objectId: id, objectName: res.title },
+    );
+    revalidateTasks();
+    return { ok: true, id };
+  } catch (e) {
+    console.error("[tasks.action] updateTaskAction: eșuat", e);
+    return { error: "Eroare la salvare. Încearcă din nou." };
+  }
 }
 
 export type AttachmentRow = {

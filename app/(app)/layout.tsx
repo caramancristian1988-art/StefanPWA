@@ -4,6 +4,7 @@ import { DEMO } from "@/lib/demo";
 import { unreadCount } from "@/lib/queries/notifications";
 import AppShell from "@/app/components/AppShell";
 import PWARegister from "@/app/components/PWARegister";
+import OpenInApp from "@/app/components/OpenInApp";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export default async function AppLayout({
     <AppShell userName={user.name} demo={DEMO} perms={perms} unread={unread}>
       {children}
       <PWARegister />
+      <OpenInApp />
     </AppShell>
   );
 }

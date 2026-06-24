@@ -24,7 +24,7 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
     <form action={action} className="card flex flex-col gap-4 p-5">
       <h2 className="text-base font-bold">Preferințe</h2>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className={label}>Fus orar</label>
           <input name="timezone" defaultValue={settings.timezone} className={input} />
@@ -39,7 +39,7 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div>
           <label className={label}>Început zi</label>
           <input type="time" name="workdayStart" defaultValue={settings.workdayStart} className={input} />
@@ -76,7 +76,7 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className={label}>Nume expeditor email</label>
           <input name="emailFromName" defaultValue={settings.emailFromName ?? ""} className={input} />

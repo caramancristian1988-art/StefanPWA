@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -19,6 +19,7 @@ import { useToast } from "./toast";
 import { IconTrash, IconX, IconChevronLeft, IconChevronRight, IconPencil } from "./icons";
 import QuickSelect from "./QuickSelect";
 import { quickCreateProject } from "@/app/actions/projects";
+import type { CategoryLite } from "./types";
 
 type HistoryRow = {
   id: string;
@@ -53,6 +54,9 @@ type Task = {
   teamId: string | null;
   projectId: string | null;
   clientId: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  categoryColor: string | null;
   assigneeName: string | null;
   teamName: string | null;
   projectName: string | null;
@@ -113,6 +117,7 @@ export default function TasksManager({
   teams,
   projects,
   clients = [],
+  categories = [],
   filters,
   canCreate,
   canDelete,
@@ -131,6 +136,7 @@ export default function TasksManager({
   teams: Opt[];
   projects: Opt[];
   clients?: Opt[];
+  categories?: CategoryLite[];
   filters: TaskFilters;
   canCreate: boolean;
   canDelete: boolean;
@@ -142,6 +148,7 @@ export default function TasksManager({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const [navPending, startNav] = useTransition();
   const [createType, setCreateType] = useState<"TASK" | "TICKET" | "WORK_ORDER" | null>(
     initialCreate ?? (initialProjectId ? "TASK" : null),
   );
@@ -149,6 +156,9 @@ export default function TasksManager({
   useEffect(() => setTasks(items), [items]);
 
   const [editTask, setEditTask] = useState<Task | null>(null);
+
+  const [statusPending, setStatusPending] = useState<string | null>(null);
+  const [progressPending, setProgressPending] = useState<string | null>(null);
 
   const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
   useEffect(() => {
@@ -215,11 +225,12 @@ export default function TasksManager({
     const qs = usp.toString();
     return `/tasks${qs ? `?${qs}` : ""}`;
   }
-  function setFilter(patch: Partial<TaskFilters>) { router.push(buildUrl(patch)); }
-  function goPage(n: number) { router.push(buildUrl({ page: n })); }
+  function setFilter(patch: Partial<TaskFilters>) { startNav(() => router.push(buildUrl(patch))); }
+  function goPage(n: number) { startNav(() => router.push(buildUrl({ page: n }))); }
 
   function changeStatus(id: string, next: Status) {
     const prev = tasks;
+    setStatusPending(id);
     setTasks((cur) => cur.map((t) => (t.id === id ? { ...t, status: next } : t)));
     setTaskStatus(id, next).then((res) => {
       if (res?.error) { setTasks(prev); toast.error(res.error); }
@@ -230,16 +241,17 @@ export default function TasksManager({
           getTaskHistory(id).then((rows) => setHistory((hh) => ({ ...hh, [id]: rows as HistoryRow[] }))).catch(() => {});
         }
       }
-    });
+    }).finally(() => setStatusPending((cur) => (cur === id ? null : cur)));
   }
 
   function changeProgress(id: string, progress: number) {
     const prev = tasks;
+    setProgressPending(id);
     setTasks((cur) => cur.map((t) => (t.id === id ? { ...t, progress } : t)));
     setTaskProgress(id, progress).then((res) => {
       if (res?.error) { setTasks(prev); toast.error(res.error); }
       else toast.success(`Progres: ${progress}%`);
-    });
+    }).finally(() => setProgressPending((cur) => (cur === id ? null : cur)));
   }
 
   function remove(id: string) {
@@ -342,12 +354,16 @@ export default function TasksManager({
         </div>
       )}
 
+      {navPending && (
+        <div className="mb-2 h-0.5 animate-pulse rounded-full bg-brand opacity-60" />
+      )}
+
       {tasks.length === 0 ? (
         <div className="card grid place-items-center p-8 text-center text-sm text-ink-soft">
           {activeFilters ? "Niciun rezultat pentru filtrele selectate." : "Niciun task."}
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div className={`flex flex-col gap-1.5 transition-opacity duration-200 ${navPending ? "pointer-events-none opacity-50" : ""}`}>
           {tasks.map((t) => (
             <div key={t.id} className="card overflow-hidden">
               <div className="flex items-center gap-2.5 px-3 py-2">
@@ -375,26 +391,35 @@ export default function TasksManager({
                       className={`size-3.5 shrink-0 text-ink-soft transition-transform ${openId === t.id ? "rotate-90" : ""}`}
                     />
                   </div>
-                  <p className="truncate text-[11px] text-ink-soft">
+                  <p className="flex flex-wrap items-center gap-x-1 truncate text-[11px] text-ink-soft">
                     {PRIO_RO[t.priority]}
                     {t.projectName && ` · ${t.projectName}`}
                     {(t.assigneeName || t.teamName) && ` · ${t.assigneeName ?? t.teamName}`}
                     {t.dueAt && ` · ${fmtDue(t.dueAt)}`}
                     {t.progress > 0 && ` · ${t.progress}%`}
+                    {t.categoryName && (
+                      <span className="inline-flex items-center gap-1">
+                        {" · "}
+                        <span className="size-1.5 rounded-full" style={{ background: t.categoryColor ?? "#6366f1" }} />
+                        {t.categoryName}
+                      </span>
+                    )}
                   </p>
                 </button>
                 <select
                   value={t.progress}
                   onChange={(e) => changeProgress(t.id, Number(e.target.value))}
+                  disabled={progressPending === t.id}
                   title="Progres"
-                  className="hidden h-8 w-16 shrink-0 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-1 text-[11px] outline-none focus:border-brand sm:block"
+                  className="hidden h-8 w-16 shrink-0 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-1 text-[11px] outline-none focus:border-brand disabled:opacity-50 sm:block"
                 >
                   {PROGRESS.map((p) => <option key={p} value={p}>{p}%</option>)}
                 </select>
                 <select
                   value={t.status}
                   onChange={(e) => changeStatus(t.id, e.target.value as Status)}
-                  className="h-8 w-28 shrink-0 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 text-[11px] outline-none focus:border-brand"
+                  disabled={statusPending === t.id}
+                  className="h-8 w-28 shrink-0 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 text-[11px] outline-none focus:border-brand disabled:opacity-50"
                 >
                   {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
                 </select>
@@ -477,6 +502,7 @@ export default function TasksManager({
           users={users}
           teams={teams}
           projects={projects}
+          categories={categories}
           canCreateProject={canCreateProject}
           initialProjectId={initialProjectId}
           onClose={() => setCreateType(null)}
@@ -489,6 +515,7 @@ export default function TasksManager({
           users={users}
           teams={teams}
           projects={projects}
+          categories={categories}
           onClose={() => setEditTask(null)}
           onSaved={(updated) => {
             setTasks((cur) => cur.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
@@ -613,21 +640,75 @@ function Comments({
   );
 }
 
+function CategoryChips({
+  categories,
+  value,
+  onChange,
+}: {
+  categories: CategoryLite[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  if (categories.length === 0) return null;
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Categorie</label>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className={`h-7 rounded-full px-3 text-xs font-medium border transition-colors ${
+            !value
+              ? "border-brand bg-brand text-white"
+              : "border-[var(--color-line)] text-ink-soft hover:border-brand"
+          }`}
+        >
+          Fără
+        </button>
+        {categories.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => onChange(c.id)}
+            className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-medium border transition-colors ${
+              value === c.id
+                ? "border-brand bg-brand/10 text-brand"
+                : "border-[var(--color-line)] text-ink-soft hover:border-brand"
+            }`}
+          >
+            <span className="size-2 rounded-full" style={{ background: c.color }} />
+            {c.name}
+          </button>
+        ))}
+      </div>
+      <input type="hidden" name="categoryId" value={value} />
+    </div>
+  );
+}
+
 function EditDialog({
-  task, users, teams, projects, onClose, onSaved,
+  task, users, teams, projects, categories, onClose, onSaved,
 }: {
   task: Task;
   users: Opt[];
   teams: Opt[];
   projects: Opt[];
+  categories: CategoryLite[];
   onClose: () => void;
   onSaved: (updated: Partial<Task> & { id: string }) => void;
 }) {
   const toast = useToast();
   const [state, action, pending] = useActionState<TaskState, FormData>(updateTaskAction, undefined);
+  const [categoryId, setCategoryId] = useState(task.categoryId ?? "");
+  const [description, setDescription] = useState(task.description ?? "");
+  const [title, setTitle] = useState(task.title);
   useEffect(() => {
-    if (state?.ok) { toast.success("Salvat"); onSaved({ id: task.id }); }
-    else if (state?.error) toast.error(state.error);
+    if (state?.ok) {
+      toast.success("Salvat");
+      onSaved({ id: task.id, title, description: description || null });
+    } else if (state?.error) {
+      toast.error(state.error);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
@@ -647,8 +728,23 @@ function EditDialog({
         </div>
         <form action={action} className="flex flex-col gap-3">
           <input type="hidden" name="id" value={task.id} />
-          <input name="title" defaultValue={task.title} placeholder="Titlu *" required autoFocus className={dlgInput} />
-          <textarea name="description" defaultValue={task.description ?? ""} placeholder="Descriere" rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
+          <input
+            name="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Titlu *"
+            required
+            autoFocus
+            className={dlgInput}
+          />
+          <textarea
+            name="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Descriere"
+            rows={3}
+            className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand"
+          />
           <select name="priority" defaultValue={task.priority} className={dlgInput}>
             <option value="LOW">Prioritate scăzută</option>
             <option value="MEDIUM">Prioritate medie</option>
@@ -659,7 +755,7 @@ function EditDialog({
             <option value="">Fără proiect</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-2 sm:grid-cols-2">
             <select name="assigneeId" defaultValue={task.assigneeId ?? ""} className={dlgInput}>
               <option value="">Fără persoană</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -669,9 +765,10 @@ function EditDialog({
               {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
+          <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} />
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2 sm:grid-cols-2">
               <input type="date" name="dueDate" defaultValue={dueDate} className={dlgInput} />
               <input type="time" name="dueTime" defaultValue={dueTime} placeholder="Ora (opțional)" className={dlgInput} />
             </div>
@@ -699,12 +796,13 @@ function EditDialog({
 }
 
 function CreateDialog({
-  initialType, users, teams, projects, canCreateProject, initialProjectId, onClose, onCreated,
+  initialType, users, teams, projects, categories, canCreateProject, initialProjectId, onClose, onCreated,
 }: {
   initialType: "TASK" | "TICKET" | "WORK_ORDER";
   users: Opt[];
   teams: Opt[];
   projects: Opt[];
+  categories: CategoryLite[];
   canCreateProject: boolean;
   initialProjectId?: string;
   onClose: () => void;
@@ -712,6 +810,7 @@ function CreateDialog({
 }) {
   const toast = useToast();
   const [state, action, pending] = useActionState<TaskState, FormData>(createTaskAction, undefined);
+  const [categoryId, setCategoryId] = useState("");
   useEffect(() => {
     if (state?.ok) { toast.success("Creat"); onCreated(); onClose(); }
     else if (state?.error) toast.error(state.error);
@@ -732,7 +831,7 @@ function CreateDialog({
         <form action={action} className="flex flex-col gap-3">
           <input name="title" placeholder="Titlu *" required autoFocus className={dlgInput} />
           <textarea name="description" placeholder="Descriere" rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-2 sm:grid-cols-2">
             <select name="type" defaultValue={initialType} className={dlgInput}>
               <option value="TASK">Task</option>
               <option value="TICKET">Tichet</option>
@@ -755,7 +854,7 @@ function CreateDialog({
             onQuickCreate={quickCreateProject}
             defaultValue={initialProjectId ?? ""}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-2 sm:grid-cols-2">
             <select name="assigneeId" defaultValue="" className={dlgInput}>
               <option value="">Asignează persoană…</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -767,11 +866,12 @@ function CreateDialog({
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2 sm:grid-cols-2">
               <input type="date" name="dueDate" className={dlgInput} />
               <input type="time" name="dueTime" placeholder="Ora (opțional)" className={dlgInput} />
             </div>
           </div>
+          <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} />
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Reamintire periodică</label>
             <select name="reminderIntervalMinutes" defaultValue={0} className={dlgInput}>

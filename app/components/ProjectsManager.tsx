@@ -129,15 +129,15 @@ export default function ProjectsManager({
         <div className="flex flex-col gap-2.5">
           {rows.map((p) => (
             <div key={p.id} className="card flex items-center gap-3 p-3.5">
-              <div className="min-w-0 flex-1">
+              <Link href={`/tasks?scope=all&proj=${p.id}`} className="tap min-w-0 flex-1 hover:opacity-80">
                 <p className="truncate font-semibold">{p.name}</p>
                 <p className="truncate text-xs text-ink-soft">
                   {STATUS_RO[p.status]} · {p.taskCount} task-uri
-                  {p.clientId && ` · client ${nameOf(p.clientId, clients) ?? "?"}`}
+                  {p.clientId && ` · ${nameOf(p.clientId, clients) ?? "?"}`}
                   {p.assigneeId && ` · → ${nameOf(p.assigneeId, users) ?? "?"}`}
                   {p.teamId && ` · echipă ${nameOf(p.teamId, teams) ?? "?"}`}
                 </p>
-              </div>
+              </Link>
               <Link href={`/tasks?create=task&project=${p.id}`} className="tap inline-flex h-9 shrink-0 items-center gap-1 rounded-lg border border-[var(--color-line)] px-2.5 text-xs font-medium text-brand hover:bg-brand-soft" title="Adaugă task în proiect">
                 <IconPlus className="size-3.5" /> Task
               </Link>
@@ -235,7 +235,7 @@ function ProjectDialog({
             </select>
           </div>
           <p className="text-xs text-ink-soft">Asignarea proiectului se moștenește automat de task-urile noi:</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <select name="assigneeId" defaultValue={project?.assigneeId ?? ""} className={input}>
               <option value="">Persoană…</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}

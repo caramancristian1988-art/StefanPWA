@@ -32,22 +32,29 @@ const STATUS_RO: Record<AppointmentStatus, string> = {
   NO_SHOW: "Absent",
 };
 
-type LinkedUser = { userId: string; chatId: string; isAdmin: boolean };
+type LinkedUser = { userId: string; chatId: string; isAdmin: boolean; teamIds: string[] };
 
 /** Returnează meniul potrivit rolului: admin → meniu complet, lucrător → doar task-uri. */
 function menuFor(user: LinkedUser): InlineButton[][] {
   return user.isAdmin ? mainMenu() : workerMenu();
 }
 
+/** Clauza OR pentru a găsi task-urile unui worker (direct asignat SAU via echipă). */
+function workerTaskWhere(user: LinkedUser) {
+  const ors: object[] = [{ assigneeId: user.userId }];
+  if (user.teamIds.length > 0) ors.push({ teamId: { in: user.teamIds } });
+  return ors.length === 1 ? { assigneeId: user.userId } : { OR: ors };
+}
+
 /** Doar conturi APROBATE de admin (userId setat) — cele pending rămân fără acces la funcții. */
 async function resolveUser(telegramUserId: number | string): Promise<LinkedUser | null> {
   const acc = await prisma.telegramAccount.findUnique({
     where: { telegramUserId: String(telegramUserId) },
-    select: { userId: true, chatId: true, user: { select: { role: true } } },
+    select: { userId: true, chatId: true, user: { select: { role: true, teamIds: true } } },
   });
   if (!acc?.userId) return null;
   const isAdmin = acc.user?.role === "ADMIN";
-  return { userId: acc.userId, chatId: acc.chatId, isAdmin };
+  return { userId: acc.userId, chatId: acc.chatId, isAdmin, teamIds: acc.user?.teamIds ?? [] };
 }
 
 /** Mesaj contextual când userul nu e încă utilizabil (pending vs niciodată /start). */
@@ -62,10 +69,10 @@ async function notLinkedMessage(telegramUserId: number | string): Promise<string
   return "👋 Trimite /start ca să te înregistrezi.";
 }
 
-/** Task-urile active asignate lucrătorului (pentru meniul "Task-urile mele"). */
-async function myOpenTasks(userId: string) {
+/** Task-urile active ale lucrătorului (direct asignat + via echipă). */
+async function myOpenTasks(user: LinkedUser) {
   return prisma.task.findMany({
-    where: { assigneeId: userId, status: { notIn: ["DONE", "CANCELLED"] } },
+    where: { ...workerTaskWhere(user), status: { notIn: ["DONE", "CANCELLED"] } },
     select: { id: true, title: true, status: true, priority: true, progress: true, dueAt: true },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 15,
@@ -73,7 +80,7 @@ async function myOpenTasks(userId: string) {
 }
 
 async function renderMyTasks(chatId: string | number, user: LinkedUser) {
-  const tasks = await myOpenTasks(user.userId);
+  const tasks = await myOpenTasks(user);
   if (tasks.length === 0) {
     await sendMessage(chatId, "📋 Nu ai task-uri active momentan.", menuFor(user));
     return;
@@ -92,7 +99,7 @@ async function renderMyTasks(chatId: string | number, user: LinkedUser) {
 
 async function renderTaskDetail(chatId: string | number, user: LinkedUser, taskId: string) {
   const task = await prisma.task.findFirst({
-    where: { id: taskId, assigneeId: user.userId },
+    where: { id: taskId, ...workerTaskWhere(user) },
     select: {
       id: true,
       title: true,
@@ -174,7 +181,7 @@ async function renderWorkerDay(chatId: string | number, user: LinkedUser, dateKe
   const { start, end } = dayBoundsUtc(dateKey, tz);
   const tasks = await prisma.task.findMany({
     where: {
-      assigneeId: user.userId,
+      ...workerTaskWhere(user),
       status: { notIn: ["DONE", "CANCELLED"] },
       dueAt: { gte: start, lt: end },
     },
@@ -205,7 +212,7 @@ async function renderWorkerWeek(chatId: string | number, user: LinkedUser, tz: s
   const weekEnd = dayBoundsUtc(keys[keys.length - 1], tz).end;
   const tasks = await prisma.task.findMany({
     where: {
-      assigneeId: user.userId,
+      ...workerTaskWhere(user),
       status: { notIn: ["DONE", "CANCELLED"] },
       dueAt: { gte: weekStart, lt: weekEnd },
     },
@@ -545,7 +552,7 @@ async function confirmVoiceAppointment(
   // Mapează categoria (nume) la id
   let categoryId: string | undefined;
   if (typeof p.category === "string" && p.category) {
-    const cats = await listCategories(userId);
+    const cats = await listCategories();
     categoryId = cats.find((c) => c.name.toLowerCase() === String(p.category).toLowerCase())?.id;
   }
 

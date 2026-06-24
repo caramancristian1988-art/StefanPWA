@@ -31,6 +31,25 @@ export async function createCategory(
   return { ok: true };
 }
 
+export async function updateCategory(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const user = await requireUser();
+  if (DEMO) return { error: DEMO_MSG };
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { error: "ID lipsă." };
+  const parsed = categorySchema.safeParse({
+    name: formData.get("name"),
+    color: formData.get("color") || "#6366f1",
+    defaultDurationMinutes: formData.get("defaultDurationMinutes") || 30,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Date invalide." };
+  await prisma.category.updateMany({ where: { id, userId: user.id }, data: parsed.data });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 export async function deleteCategory(id: string): Promise<void> {
   const user = await requireUser();
   if (DEMO) return;

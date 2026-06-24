@@ -86,7 +86,7 @@ export default function CompanyDetailsForm({
         <input name="companyName" defaultValue={company.companyName} required className={input} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className={label}>Telefon</label>
           <input name="phone" defaultValue={company.phone ?? ""} className={input} />
@@ -102,7 +102,7 @@ export default function CompanyDetailsForm({
         <input name="address" defaultValue={company.address ?? ""} className={input} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className={label}>IDNO / Tax ID (opțional)</label>
           <input name="taxId" defaultValue={company.taxId ?? ""} className={input} />
@@ -118,7 +118,7 @@ export default function CompanyDetailsForm({
         <textarea name="bankDetails" defaultValue={company.bankDetails ?? ""} rows={2} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className={label}>Monedă</label>
           <input name="currency" defaultValue={company.currency} className={input} />

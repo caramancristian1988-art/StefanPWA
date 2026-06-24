@@ -146,7 +146,7 @@ export default function QuickAddDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Data</label>
               <div className="mb-2 flex gap-2">
@@ -172,26 +172,30 @@ export default function QuickAddDialog({
                 className="h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
               />
             </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Ora</label>
-              <input
-                type="time"
-                name="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-base outline-none focus:border-brand"
-              />
-              <label className="mt-2 mb-1 block text-xs font-semibold text-ink-soft">Durată (min)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                step="any"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                placeholder="ex. 30"
-                className="h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
-              />
+            <div className="grid grid-cols-2 gap-3 sm:block">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Ora</label>
+                <input
+                  type="time"
+                  name="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-base outline-none focus:border-brand"
+                />
+              </div>
+              <div>
+                <label className="mt-0 sm:mt-2 mb-1 block text-xs font-semibold text-ink-soft">Durată (min)</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="any"
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  placeholder="ex. 30"
+                  className="h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
+                />
+              </div>
             </div>
           </div>
 

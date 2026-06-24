@@ -126,18 +126,19 @@ export default function CalendarControls({
         </button>
       </div>
 
-      {/* Scope + types */}
+      {/* Scope */}
       <div className="flex flex-wrap gap-2">
         {([["all", "Toate"], ["mine", "Ale mele"], ["created", "Create de mine"]] as const).map(([k, lbl]) => (
           <button key={k} onClick={() => patch({ scope: k === "all" ? "" : k })} className={chip(scope === k)}>
             {lbl}
           </button>
         ))}
-        <div className="ml-auto flex flex-wrap gap-2">
-          <button onClick={() => patch({ showTasks: showTasks ? "0" : "1" })} className={chip(showTasks)}>Task-uri</button>
-          <button onClick={() => patch({ showTickets: showTickets ? "0" : "1" })} className={chip(showTickets)}>Tichete</button>
-          <button onClick={() => patch({ showAppts: showAppts ? "0" : "1" })} className={chip(showAppts)}>Programări</button>
-        </div>
+      </div>
+      {/* Type toggles */}
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => patch({ showTasks: showTasks ? "0" : "1" })} className={chip(showTasks)}>Task-uri</button>
+        <button onClick={() => patch({ showTickets: showTickets ? "0" : "1" })} className={chip(showTickets)}>Tichete</button>
+        <button onClick={() => patch({ showAppts: showAppts ? "0" : "1" })} className={chip(showAppts)}>Programări</button>
       </div>
 
       {/* Dimension filters */}

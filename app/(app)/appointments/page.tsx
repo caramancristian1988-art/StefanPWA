@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
-import { getUserTimezone } from "@/lib/queries/settings";
+import { getSettings } from "@/lib/queries/settings";
+import { listCategories } from "@/lib/queries/categories";
 import { listByDateKey, listByDateKeys } from "@/lib/queries/appointments";
 import {
   todayKey,
@@ -12,6 +13,7 @@ import {
 import { toVM } from "@/lib/view";
 import AppointmentItem from "@/app/components/AppointmentItem";
 import OpenQuickAddButton from "@/app/components/OpenQuickAddButton";
+import { QuickAddProvider } from "@/app/components/quick-add-context";
 import type { ApptVM } from "@/app/components/types";
 
 export const dynamic = "force-dynamic";
@@ -29,15 +31,20 @@ export default async function AppointmentsPage({
   searchParams: Promise<{ view?: string }>;
 }) {
   const user = await requirePermission("appointments.view");
-  const tz = await getUserTimezone(user.id);
+  const [settings, categories] = await Promise.all([
+    getSettings(user.id),
+    listCategories(),
+  ]);
+  const tz = settings.timezone;
   const { view = "azi" } = await searchParams;
 
   const today = todayKey(tz);
+  const tomorrow = tomorrowKey(tz);
   let items: ApptVM[] = [];
   let grouped = false;
 
   if (view === "maine") {
-    items = (await listByDateKey(user.id, tomorrowKey(tz))).map((a) => toVM(a, tz));
+    items = (await listByDateKey(user.id, tomorrow)).map((a) => toVM(a, tz));
   } else if (view === "saptamana") {
     items = (await listByDateKeys(user.id, weekKeys(today, tz))).map((a) => toVM(a, tz));
     grouped = true;
@@ -49,40 +56,50 @@ export default async function AppointmentsPage({
     items = (await listByDateKey(user.id, today)).map((a) => toVM(a, tz));
   }
 
+  const quickDefaults = {
+    today,
+    tomorrow,
+    slotMinutes: settings.slotMinutes,
+    reminderEmail: settings.defaultReminderEmail,
+    reminderTelegram: settings.defaultReminderTelegram,
+  };
+
   return (
-    <div className="w-full">
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-        {VIEWS.map((v) => (
-          <Link
-            key={v.key}
-            href={`/appointments?view=${v.key}`}
-            className={`tap shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
-              view === v.key
-                ? "bg-brand text-white"
-                : "card text-ink-soft"
-            }`}
-          >
-            {v.label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="mb-4">
-        <OpenQuickAddButton />
-      </div>
-
-      {items.length === 0 ? (
-        <Empty />
-      ) : grouped ? (
-        <GroupedList items={items} tz={tz} today={today} />
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          {items.map((a) => (
-            <AppointmentItem key={a.id} appt={a} />
+    <QuickAddProvider categories={categories} defaults={quickDefaults}>
+      <div className="w-full">
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+          {VIEWS.map((v) => (
+            <Link
+              key={v.key}
+              href={`/appointments?view=${v.key}`}
+              className={`tap shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
+                view === v.key
+                  ? "bg-brand text-white"
+                  : "card text-ink-soft"
+              }`}
+            >
+              {v.label}
+            </Link>
           ))}
         </div>
-      )}
-    </div>
+
+        <div className="mb-4">
+          <OpenQuickAddButton />
+        </div>
+
+        {items.length === 0 ? (
+          <Empty />
+        ) : grouped ? (
+          <GroupedList items={items} tz={tz} today={today} />
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {items.map((a) => (
+              <AppointmentItem key={a.id} appt={a} />
+            ))}
+          </div>
+        )}
+      </div>
+    </QuickAddProvider>
   );
 }
 

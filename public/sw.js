@@ -28,19 +28,27 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/dashboard";
+  const urlPath = (event.notification.data && event.notification.data.url) || "/dashboard";
+  const scope = self.registration.scope; // e.g. "https://example.com/"
+  const origin = new URL(scope).origin;
+  const targetUrl = urlPath.startsWith("http") ? urlPath : origin + urlPath;
+
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-      for (const client of list) {
-        if (client.url.includes(url) && "focus" in client) return client.focus();
+      // 1. A window is already showing the target URL → just focus it
+      const exact = list.find(function (c) { return c.url === targetUrl; });
+      if (exact) return exact.focus();
+
+      // 2. Navigate an existing PWA window (within our scope) to the target
+      const pwa = list.find(function (c) { return c.url.startsWith(scope); });
+      if (pwa) {
+        return pwa.navigate(targetUrl).then(function (c) {
+          return c ? c.focus() : self.clients.openWindow(targetUrl);
+        });
       }
-      for (const client of list) {
-        if ("focus" in client) {
-          client.navigate(url);
-          return client.focus();
-        }
-      }
-      return self.clients.openWindow(url);
+
+      // 3. No suitable window open — open a new one
+      return self.clients.openWindow(targetUrl);
     }),
   );
 });

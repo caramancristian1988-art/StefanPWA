@@ -1,7 +1,14 @@
 import "server-only";
 import { env } from "../env";
-import { voiceParsedSchema, type VoiceParsed } from "../validation";
+import { voiceParsedSchema, taskVoiceParsedSchema, type VoiceParsed, type TaskVoiceParsed } from "../validation";
 import { todayKey, tomorrowKey, addDaysToKey } from "../date";
+
+export type TaskContext = {
+  users: { id: string; name: string }[];
+  teams: { id: string; name: string }[];
+  projects: { id: string; name: string }[];
+  clients: { id: string; name: string }[];
+};
 
 const OPENAI = "https://api.openai.com/v1";
 
@@ -107,5 +114,67 @@ export async function transcribeAndParse(
 ): Promise<{ transcript: string; parsed: VoiceParsed }> {
   const transcript = await transcribeAudio(buffer, filename, mime);
   const parsed = await parseCommand(transcript, tz);
+  return { transcript, parsed };
+}
+
+/** Extrage câmpuri de task/tichet dintr-o comandă vocală, cu context pentru potrivire entități. */
+export async function parseTaskCommand(
+  transcript: string,
+  tz: string,
+  context: TaskContext,
+): Promise<TaskVoiceParsed> {
+  if (!env.ai.openaiApiKey) throw new VoiceError("AI nu este configurat (lipsește OPENAI_API_KEY).");
+  if (!transcript) return {};
+
+  const fmt = (list: { id: string; name: string }[]) =>
+    list.length ? list.map((x) => `${x.id}=${x.name}`).join(", ") : "—";
+
+  const system = [
+    "Ești un asistent care extrage un task/tichet din o frază în română.",
+    "Răspunde DOAR cu JSON valid, fără text suplimentar.",
+    "Câmpuri posibile:",
+    "  title: string — titlu scurt obligatoriu",
+    "  type: 'TASK'|'TICKET'|'WORK_ORDER' — tichet/ticket→TICKET, work order→WORK_ORDER, altfel TASK",
+    "  priority: 'LOW'|'MEDIUM'|'HIGH'|'URGENT' — scăzut→LOW, mediu→MEDIUM, ridicat/important→HIGH, urgent/critic→URGENT",
+    `  dueDate: 'YYYY-MM-DD' — azi=${todayKey(tz)}, mâine=${tomorrowKey(tz)}, zile: ${dateContext(tz)}`,
+    "  dueTime: 'HH:mm' (24h) — 'la 3' context business=15:00",
+    `  assigneeId: exact ID din: ${fmt(context.users)} — potrivire fuzzy după nume, ignoră diacritice`,
+    `  teamId: exact ID din: ${fmt(context.teams)}`,
+    `  projectId: exact ID din: ${fmt(context.projects)} — dacă proiectul menționat există`,
+    "  newProjectName: string — dacă proiectul menționat NU se găsește în lista de mai sus",
+    `  clientId: exact ID din: ${fmt(context.clients)} — dacă clientul menționat există`,
+    "  newClientName: string — dacă clientul menționat NU se găsește în lista de mai sus",
+    "Reguli: omite câmpurile nelipsite. Nu inventa ID-uri. Nu seta simultan projectId și newProjectName.",
+  ].join("\n");
+
+  const res = await fetch(`${OPENAI}/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.ai.openaiApiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: env.ai.parseModel,
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [{ role: "system", content: system }, { role: "user", content: transcript }],
+    }),
+  });
+  if (!res.ok) throw new VoiceError(`Procesare AI eșuată (${res.status}).`);
+
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const raw = data.choices?.[0]?.message?.content ?? "{}";
+  let obj: unknown;
+  try { obj = JSON.parse(raw); } catch { throw new VoiceError("Răspuns AI invalid."); }
+  const parsed = taskVoiceParsedSchema.safeParse(obj);
+  return parsed.success ? parsed.data : {};
+}
+
+export async function transcribeAndParseTask(
+  buffer: ArrayBuffer,
+  filename: string,
+  mime: string,
+  tz: string,
+  context: TaskContext,
+): Promise<{ transcript: string; parsed: TaskVoiceParsed }> {
+  const transcript = await transcribeAudio(buffer, filename, mime);
+  const parsed = await parseTaskCommand(transcript, tz, context);
   return { transcript, parsed };
 }

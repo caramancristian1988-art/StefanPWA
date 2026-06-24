@@ -10,12 +10,11 @@ export type CategoryLite = {
   defaultDurationMinutes: number;
 };
 
-/** Lista de categorii a userului (select minimal). Cache per-request. */
+/** Lista tuturor categoriilor din organizație (select minimal). Cache per-request. */
 export const listCategories = cache(
-  async (userId: string): Promise<CategoryLite[]> => {
+  async (): Promise<CategoryLite[]> => {
     if (DEMO) return demoCategories;
     return prisma.category.findMany({
-      where: { userId },
       select: {
         id: true,
         name: true,
@@ -28,10 +27,10 @@ export const listCategories = cache(
 );
 
 export const getCategory = cache(
-  async (userId: string, id: string): Promise<CategoryLite | null> => {
+  async (id: string): Promise<CategoryLite | null> => {
     if (DEMO) return demoCategories.find((c) => c.id === id) ?? null;
     return prisma.category.findFirst({
-      where: { id, userId },
+      where: { id },
       select: {
         id: true,
         name: true,
@@ -42,9 +41,9 @@ export const getCategory = cache(
   },
 );
 
-/** Seedează câteva categorii utile la prima utilizare (o singură dată). */
+/** Seedează câteva categorii utile la prima utilizare (o singură dată, global). */
 export async function ensureDefaultCategories(userId: string): Promise<void> {
-  const count = await prisma.category.count({ where: { userId } });
+  const count = await prisma.category.count();
   if (count > 0) return;
   await prisma.category.createMany({
     data: [

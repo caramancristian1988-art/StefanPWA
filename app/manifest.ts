@@ -5,6 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Programări",
     short_name: "Programări",
     description: "Programări și task-uri pentru clienți — rapid și simplu.",
+    id: "/",
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",

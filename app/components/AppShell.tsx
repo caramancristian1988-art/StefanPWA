@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { logout } from "@/app/actions/auth";
 import { ToastProvider } from "./toast";
 import CreateMenu from "./CreateMenu";
+import VoiceTaskButton from "./VoiceTaskButton";
 
 type NavItem = { href: string; label: string; icon: ReactNode; perm?: string };
 
@@ -138,6 +139,7 @@ export default function AppShell({
             </button>
             <h1 className="text-lg font-bold lg:text-xl">{current}</h1>
             <div className="ml-auto flex items-center gap-2">
+              <VoiceTaskButton />
               <Link
                 href="/notificari"
                 prefetch={false}

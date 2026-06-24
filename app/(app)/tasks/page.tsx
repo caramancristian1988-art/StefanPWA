@@ -6,6 +6,7 @@ import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { projectOptions } from "@/lib/queries/projects";
 import { invoiceClientOptions } from "@/lib/queries/invoices";
+import { listCategories } from "@/lib/queries/categories";
 import TasksManager from "@/app/components/TasksManager";
 import type { TaskStatus, TaskType, TaskPriority } from "@prisma/client";
 
@@ -54,7 +55,7 @@ export default async function TasksPage({
     : undefined;
   const sort = SORTS.has(sp.sort ?? "") ? (sp.sort as "dueAsc" | "dueDesc") : "default";
 
-  const [result, users, teams, projects, clients] = await Promise.all([
+  const [result, users, teams, projects, clients, categories] = await Promise.all([
     listTasks({
       scope,
       userId: user.id,
@@ -75,6 +76,7 @@ export default async function TasksPage({
     teamOptions(),
     projectOptions(),
     invoiceClientOptions(),
+    listCategories(),
   ]);
 
   return (
@@ -104,6 +106,7 @@ export default async function TasksPage({
         teams={teams}
         projects={projects}
         clients={clients}
+        categories={categories}
         filters={{
           q: sp.q ?? "",
           status: sp.status ?? "",

@@ -71,3 +71,34 @@ export async function listAuditLogs(
   const hasMore = rows.length > pageSize;
   return { items: rows.slice(0, pageSize), hasMore, page };
 }
+
+export async function exportAuditLogs(
+  filter: Omit<AuditFilter, "page" | "pageSize">,
+): Promise<AuditLogRow[]> {
+  if (DEMO) return [];
+
+  const where: Prisma.AuditLogWhereInput = {};
+  if (filter.userId) where.userId = filter.userId;
+  if (filter.role) where.userRole = { contains: filter.role, mode: "insensitive" };
+  if (filter.action) where.action = filter.action;
+  if (filter.module) where.module = filter.module;
+  if (filter.from || filter.to) {
+    where.createdAt = {
+      ...(filter.from ? { gte: filter.from } : {}),
+      ...(filter.to ? { lte: filter.to } : {}),
+    };
+  }
+  if (filter.search?.trim()) {
+    const s = filter.search.trim();
+    where.OR = [
+      { objectName: { contains: s, mode: "insensitive" } },
+      { userName: { contains: s, mode: "insensitive" } },
+    ];
+  }
+
+  return prisma.auditLog.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: 10_000,
+  });
+}

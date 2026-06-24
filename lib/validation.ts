@@ -116,7 +116,23 @@ export const voiceParsedSchema = z.object({
   reminderTelegram: z.boolean().optional(),
 });
 
+/** Structura extrasă de AI pentru task/tichet vocal. */
+export const taskVoiceParsedSchema = z.object({
+  title: z.string().trim().optional(),
+  type: z.enum(["TASK", "TICKET", "WORK_ORDER"]).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+  dueDate: z.string().regex(dateKeyRe).optional(),
+  dueTime: z.string().regex(timeRe).optional(),
+  assigneeId: z.string().trim().optional(),
+  teamId: z.string().trim().optional(),
+  projectId: z.string().trim().optional(),
+  newProjectName: z.string().trim().optional(),
+  clientId: z.string().trim().optional(),
+  newClientName: z.string().trim().optional(),
+});
+
 export type QuickAppointmentInput = z.infer<typeof quickAppointmentSchema>;
 export type ClientInput = z.infer<typeof clientSchema>;
 export type SettingsInput = z.infer<typeof settingsSchema>;
 export type VoiceParsed = z.infer<typeof voiceParsedSchema>;
+export type TaskVoiceParsed = z.infer<typeof taskVoiceParsedSchema>;

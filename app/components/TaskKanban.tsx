@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { setTaskStatus } from "@/app/actions/tasks";
 import { useToast } from "./toast";
 
@@ -304,8 +305,9 @@ export default function TaskKanban({
                 }`}
               >
                 {colItems.map((t) => (
-                  <div
+                  <Link
                     key={t.id}
+                    href={`/tasks/${t.id}`}
                     draggable
                     onDragStart={(e) => {
                       e.dataTransfer.setData("text/plain", t.id);
@@ -313,7 +315,7 @@ export default function TaskKanban({
                       setDragId(t.id);
                     }}
                     onDragEnd={() => { setDragId(null); setOverCol(null); }}
-                    className={`card cursor-grab p-2.5 active:cursor-grabbing ${dragId === t.id ? "opacity-50" : ""}`}
+                    className={`card block cursor-grab p-2.5 active:cursor-grabbing hover:opacity-90 ${dragId === t.id ? "opacity-50" : ""}`}
                   >
                     <div className="flex items-start gap-2">
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">{t.title}</span>
@@ -332,7 +334,7 @@ export default function TaskKanban({
                       {(t.assigneeName || t.teamName) && ` · ${t.assigneeName ?? t.teamName}`}
                       {t.progress > 0 && ` · ${t.progress}%`}
                     </p>
-                  </div>
+                  </Link>
                 ))}
                 {colItems.length === 0 && <p className="py-3 text-center text-xs text-ink-soft">—</p>}
               </div>
@@ -343,3 +345,4 @@ export default function TaskKanban({
     </>
   );
 }
+

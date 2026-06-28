@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createTeam,
@@ -103,14 +103,15 @@ export default function TeamsManager({ teams, users }: { teams: Team[]; users: O
 
 function TeamDialog({ team, users, onClose }: { team: Team | null; users: Opt[]; onClose: () => void }) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const action = team ? updateTeam : createTeam;
   const [state, formAction, pending] = useActionState<TeamState, FormData>(action, undefined);
   useEffect(() => {
     if (state?.ok) {
-      router.refresh();
       onClose();
+      startTransition(() => router.refresh());
     }
-  }, [state, router, onClose]);
+  }, [state, router, onClose, startTransition]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>

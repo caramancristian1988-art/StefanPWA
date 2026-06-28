@@ -11,8 +11,10 @@ export default async function KanbanPage() {
   const user = await requirePermission("tasks.view");
 
   const KANBAN_LIMIT = 100;
+  // STAFF vede doar task-urile proprii/echipei lui; ADMIN vede tot
+  const kanbanScope = user.role === "STAFF" ? "mine" : "all";
   const [result, users, teams, projects] = await Promise.all([
-    listTasks({ scope: "all", userId: user.id, teamIds: user.teamIds, page: 1, pageSize: KANBAN_LIMIT }),
+    listTasks({ scope: kanbanScope, userId: user.id, teamIds: user.teamIds, page: 1, pageSize: KANBAN_LIMIT }),
     userOptions(),
     teamOptions(),
     projectOptions(),

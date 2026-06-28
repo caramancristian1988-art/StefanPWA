@@ -41,9 +41,12 @@ export default async function TasksPage({
 }) {
   const user = await requirePermission("tasks.view");
   const sp = await searchParams;
-  const scope = (["mine", "all", "created"].includes(sp.scope ?? "")
-    ? sp.scope
-    : "mine") as "mine" | "all" | "created";
+  // STAFF vede mereu doar propriile task-uri; ADMIN poate comuta scope din URL
+  const scope = (
+    user.role === "STAFF"
+      ? "mine"
+      : ["mine", "all", "created"].includes(sp.scope ?? "") ? sp.scope : "mine"
+  ) as "mine" | "all" | "created";
   const page = Math.max(1, Number(sp.page) || 1);
   const initialCreate =
     sp.create === "ticket" ? "TICKET" : sp.create === "work_order" ? "WORK_ORDER" : sp.create === "task" ? "TASK" : undefined;
@@ -82,7 +85,7 @@ export default async function TasksPage({
   return (
     <div className="w-full">
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-        {SCOPES.map((s) => (
+        {SCOPES.filter((s) => user.role === "STAFF" ? s.key !== "all" : true).map((s) => (
           <Link
             key={s.key}
             href={`/tasks?scope=${s.key}`}

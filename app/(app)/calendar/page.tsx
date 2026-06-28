@@ -83,7 +83,12 @@ export default async function CalendarPage({
   const view = (["month", "week", "day"].includes(sp.view ?? "") ? sp.view : "month") as View;
   const anchor = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : todayKey(tz);
 
-  const scope = (["all", "mine", "created"].includes(sp.scope ?? "") ? sp.scope : "all") as "all" | "mine" | "created";
+  // STAFF vede mereu doar propriile task-uri; ADMIN poate schimba scope din URL
+  const scope = (
+    user.role === "STAFF"
+      ? "mine"
+      : ["all", "mine", "created"].includes(sp.scope ?? "") ? sp.scope : "all"
+  ) as "all" | "mine" | "created";
   const showTasks = sp.showTasks !== "0";
   const showTickets = sp.showTickets !== "0";
   const showAppts = sp.showAppts !== "0";

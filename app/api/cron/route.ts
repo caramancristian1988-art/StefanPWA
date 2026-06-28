@@ -4,6 +4,7 @@ import { processDueReminders } from "@/lib/services/reminders";
 import { checkOverdueTasks, checkTaskReminders } from "@/lib/services/tasks";
 import { notifyUsers, filteredAdminRecipients } from "@/lib/services/notifications";
 import { TASK_STATUS_RO, TASK_TYPE_RO } from "@/lib/telegram";
+import { formatTime, DEFAULT_TZ } from "@/lib/date";
 import type { TaskStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -29,18 +30,20 @@ async function run() {
   const since = ckpt.lastRunAt;
 
   // ── Toate job-urile în paralel ───────────────────────────────────────────
-  const [remindersR, , , statusR, newTasksR] = await Promise.allSettled([
+  const [remindersR, , , statusR, newTasksR, apptR] = await Promise.allSettled([
     processDueReminders(),
     checkTaskReminders(),
     checkOverdueTasks(),
     processStatusChanges(since, now),
     processNewAdminTasks(since, now),
+    processUpcomingAppointments(since, now),
   ]);
 
   const processed =
     (remindersR.status === "fulfilled" ? remindersR.value.processed : 0) +
     (statusR.status === "fulfilled" ? statusR.value : 0) +
-    (newTasksR.status === "fulfilled" ? newTasksR.value : 0);
+    (newTasksR.status === "fulfilled" ? newTasksR.value : 0) +
+    (apptR.status === "fulfilled" ? apptR.value : 0);
 
   // ── Actualizează checkpoint ──────────────────────────────────────────────
   await prisma.cronState.update({
@@ -165,6 +168,73 @@ async function processNewAdminTasks(since: Date, until: Date): Promise<number> {
     );
     count++;
   }
+  return count;
+}
+
+/**
+ * Notifică adminul (proprietarul programării) cu 24h și 1h înainte.
+ * Dedup: URL-ul notificării include ID-ul programării + fereastra de timp,
+ * deci un al doilea apel în aceeași fereastră nu retrimite.
+ */
+async function processUpcomingAppointments(since: Date, now: Date): Promise<number> {
+  // [leadMinutes, toleranțăMs] — fereastra în jurul momentului exact
+  const leads: { key: string; leadMs: number; toleranceMs: number }[] = [
+    { key: "24h", leadMs: 24 * 60 * 60_000, toleranceMs: 15 * 60_000 },
+    { key: "1h",  leadMs:      60 * 60_000, toleranceMs: 10 * 60_000 },
+  ];
+
+  let count = 0;
+
+  for (const lead of leads) {
+    const windowFrom = new Date(now.getTime() + lead.leadMs - lead.toleranceMs);
+    const windowTo   = new Date(now.getTime() + lead.leadMs + lead.toleranceMs);
+
+    const appts = await prisma.appointment.findMany({
+      where: {
+        startAt: { gte: windowFrom, lte: windowTo },
+        status: { notIn: ["CANCELLED", "NO_SHOW"] },
+      },
+      select: {
+        id: true,
+        startAt: true,
+        title: true,
+        categoryNameSnapshot: true,
+        clientNameSnapshot: true,
+        userId: true,
+      },
+    });
+
+    if (appts.length === 0) continue;
+
+    // Dedup: căutăm notificări cu același URL trimise după ultimul checkpoint
+    const dedupUrls = appts.map((a) => `/appointments?id=${a.id}&lead=${lead.key}`);
+    const existing = await prisma.notification.findMany({
+      where: { url: { in: dedupUrls }, createdAt: { gte: since } },
+      select: { url: true },
+    });
+    const alreadySent = new Set(existing.map((n) => n.url));
+
+    for (const appt of appts) {
+      const dedupUrl = `/appointments?id=${appt.id}&lead=${lead.key}`;
+      if (alreadySent.has(dedupUrl)) continue;
+
+      const service = appt.categoryNameSnapshot ?? appt.title;
+      const timeStr = formatTime(appt.startAt, DEFAULT_TZ);
+      const timeLabel = lead.key === "24h" ? "mâine" : "în 1 oră";
+
+      await notifyUsers(
+        [appt.userId],
+        {
+          title: `📅 ${appt.clientNameSnapshot} – ${timeLabel}`,
+          body: `${service} la ora ${timeStr}`,
+          url: dedupUrl,
+        },
+        { telegram: true },
+      );
+      count++;
+    }
+  }
+
   return count;
 }
 

@@ -849,7 +849,11 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
   for (const task of tasks) {
     try {
       const isOverdue = task.dueAt && task.dueAt < now;
-      const titleMsg = `${TASK_TYPE_RO[task.type]} ${isOverdue ? "în întârziere" : "neîncheiat"}: „${task.title}" (#${task.seq ?? "—"})`;
+      const lbl = taskLabel(task.seq, task.title);
+      const notifTitle = isOverdue ? `⏰ Întârziat: ${lbl}` : `🔔 Reamintire: ${lbl}`;
+      const notifBody = task.dueAt
+        ? `Deadline: ${formatDate(task.dueAt, DEFAULT_TZ)}`
+        : undefined;
 
       const admins = await filteredAdminRecipients({
         eventKeys: ["task.reminder"],
@@ -863,7 +867,7 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
       // In-app + PWA + Telegram
       await notifyUsers(
         recipientIds,
-        { title: isOverdue ? `⏰ ${titleMsg}` : `🔔 Reamintire: ${titleMsg}`, taskId: task.id, seq: task.seq, url: `/tasks/${task.id}` },
+        { title: notifTitle, body: notifBody, taskId: task.id, seq: task.seq, url: `/tasks/${task.id}` },
         { telegram: true },
       );
 

@@ -777,6 +777,7 @@ function EditDialog({
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Reamintire periodică</label>
             <select name="reminderIntervalMinutes" defaultValue={task.reminderIntervalMinutes ?? 0} className={dlgInput}>
               <option value={0}>Niciodată</option>
+              <option value={10}>La fiecare 10 min</option>
               <option value={30}>La fiecare 30 min</option>
               <option value={60}>La fiecare 1h</option>
               <option value={180}>La fiecare 3h</option>
@@ -876,6 +877,7 @@ function CreateDialog({
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Reamintire periodică</label>
             <select name="reminderIntervalMinutes" defaultValue={0} className={dlgInput}>
               <option value={0}>Niciodată</option>
+              <option value={10}>La fiecare 10 min</option>
               <option value={30}>La fiecare 30 min</option>
               <option value={60}>La fiecare 1h</option>
               <option value={180}>La fiecare 3h</option>

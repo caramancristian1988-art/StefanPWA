@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createTaskAction } from "@/app/actions/tasks";
 import { quickCreateProject } from "@/app/actions/projects";
@@ -102,10 +103,10 @@ function TaskVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => v
 
   return (
     <div
-      className="fixed inset-0 z-[60] bg-black/40"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="card absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-h-[85dvh] w-[calc(100vw-2rem)] max-w-lg overflow-auto rounded-2xl p-5 shadow-2xl">
+      <div className="card max-h-[90dvh] w-full max-w-lg overflow-auto rounded-2xl p-5 shadow-2xl">
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -317,14 +318,15 @@ export default function VoiceTaskButton() {
         )}
       </div>
 
-      {dialogData && (
+      {dialogData && typeof document !== "undefined" && createPortal(
         <TaskVoiceDialog
           data={dialogData}
           onClose={() => {
             setDialogData(null);
             setPhase("idle");
           }}
-        />
+        />,
+        document.body
       )}
     </>
   );

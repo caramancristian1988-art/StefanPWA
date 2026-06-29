@@ -103,10 +103,10 @@ function TaskVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => v
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+      style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", padding: "16px" }}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="card max-h-[90dvh] w-full max-w-lg overflow-auto rounded-2xl p-5 shadow-2xl">
+      <div className="card rounded-2xl p-5 shadow-2xl" style={{ width: "100%", maxWidth: "512px", maxHeight: "85vh", overflowY: "auto" }}>
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -244,9 +244,12 @@ function TaskVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => v
 }
 
 export default function VoiceTaskButton() {
+  const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [errMsg, setErrMsg] = useState("");
   const [dialogData, setDialogData] = useState<DialogData | null>(null);
+
+  useEffect(() => setMounted(true), []);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -318,7 +321,7 @@ export default function VoiceTaskButton() {
         )}
       </div>
 
-      {dialogData && typeof document !== "undefined" && createPortal(
+      {dialogData && mounted && createPortal(
         <TaskVoiceDialog
           data={dialogData}
           onClose={() => {

@@ -242,7 +242,32 @@ function TaskVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => v
   );
 }
 
+async function autoCreateTask(parsed: ParsedTask, context: DialogData["context"]) {
+  let resolvedProjectId = parsed.projectId ?? "";
+  if (!resolvedProjectId && parsed.newProjectName?.trim()) {
+    const res = await quickCreateProject(parsed.newProjectName.trim());
+    if (!res.ok) throw new Error(`Proiect: ${res.error}`);
+    resolvedProjectId = res.id;
+  }
+  if (parsed.newClientName?.trim()) {
+    await quickCreateClient(parsed.newClientName.trim());
+  }
+  const fd = new FormData();
+  fd.append("title", parsed.title!.trim());
+  fd.append("type", parsed.type ?? "TASK");
+  fd.append("priority", parsed.priority ?? "MEDIUM");
+  if (parsed.dueDate) fd.append("dueDate", parsed.dueDate);
+  if (parsed.dueTime) fd.append("dueTime", parsed.dueTime);
+  if (parsed.assigneeId) fd.append("assigneeId", parsed.assigneeId);
+  if (parsed.teamId) fd.append("teamId", parsed.teamId);
+  if (resolvedProjectId) fd.append("projectId", resolvedProjectId);
+  const result = await createTaskAction(undefined, fd);
+  if (result?.error) throw new Error(result.error);
+}
+
 export default function VoiceTaskButton() {
+  const router = useRouter();
+  const toast = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
   const [errMsg, setErrMsg] = useState("");
   const [dialogData, setDialogData] = useState<DialogData | null>(null);
@@ -281,8 +306,23 @@ export default function VoiceTaskButton() {
       const res = await fetch("/api/voice/task", { method: "POST", body: fd });
       const data = (await res.json()) as { error?: string } & Partial<DialogData>;
       if (!res.ok) throw new Error(data.error ?? "Eroare AI");
-      setPhase("idle");
-      setDialogData(data as DialogData);
+      const { parsed, context } = data as DialogData;
+      if (parsed?.title?.trim()) {
+        try {
+          await autoCreateTask(parsed, context);
+          toast.success(`Task creat: ${parsed.title.trim()}`);
+          router.refresh();
+          setPhase("idle");
+        } catch (e) {
+          // creation failed — open dialog so user can fix and retry
+          setPhase("idle");
+          setDialogData(data as DialogData);
+        }
+      } else {
+        // no title parsed — open dialog
+        setPhase("idle");
+        setDialogData(data as DialogData);
+      }
     } catch (e) {
       setPhase("err");
       setErrMsg(e instanceof Error ? e.message : "Eroare");

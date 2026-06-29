@@ -102,10 +102,10 @@ function TaskVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => v
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-b-none rounded-t-2xl p-5 shadow-2xl sm:rounded-2xl">
+      <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-2xl p-5 shadow-2xl">
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0">

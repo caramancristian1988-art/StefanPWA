@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { getTask } from "@/lib/queries/tasks";
 import { listTaskComments } from "@/lib/services/tasks";
-import { dateKeyOf, formatTime } from "@/lib/date";
+import { dateKeyOf, formatDate, formatTime } from "@/lib/date";
 import TaskCommentSection from "@/app/components/TaskCommentSection";
 import TaskAttachmentSection from "@/app/components/TaskAttachmentSection";
 import TaskStatusChanger from "@/app/components/TaskStatusChanger";
@@ -28,7 +28,8 @@ const PRIO_RO: Record<string, string> = { LOW: "Scăzută", MEDIUM: "Medie", HIG
 const TYPE_RO: Record<string, string>  = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Work order" };
 
 function fmtDateTime(d: Date | string) {
-  return new Date(d).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" });
+  const date = new Date(d);
+  return `${formatDate(date, TZ)}, ${formatTime(date, TZ)}`;
 }
 
 function fmtDue(d: Date | string): string {

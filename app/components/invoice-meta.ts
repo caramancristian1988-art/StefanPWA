@@ -27,5 +27,5 @@ export function money(n: number, currency = "MDL"): string {
 
 export function fmtDate(d: string | Date | null): string {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("ro-RO");
+  return new Date(d).toLocaleDateString("ro-RO", { timeZone: "Europe/Bucharest" });
 }

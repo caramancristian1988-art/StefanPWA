@@ -8,12 +8,17 @@ function toDate(s: string | null, end = false): Date | undefined {
 }
 
 function fmtDate(d: Date): string {
-  const day = String(d.getDate()).padStart(2, "0");
-  const mon = String(d.getMonth() + 1).padStart(2, "0");
-  const yr = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${day}.${mon}.${yr} ${hh}:${mm}`;
+  const p = new Intl.DateTimeFormat("ro-RO", {
+    timeZone: "Europe/Bucharest",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+  return `${get("day")}.${get("month")}.${get("year")} ${get("hour")}:${get("minute")}`;
 }
 
 function csvEscape(v: string): string {

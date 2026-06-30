@@ -93,7 +93,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 /** Pentru pagini/acțiuni: întoarce userul sau redirect la /login. */
 export const requireUser = cache(async (): Promise<CurrentUser> => {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  // Cookie-ul de sesiune poate fi prezent dar invalid (expirat/șters/user dezactivat) —
+  // proxy.ts verifică doar prezența lui, așa că redirectăm prin ruta care îl curăță
+  // pentru a evita bucla /login ↔ /dashboard.
+  if (!user) redirect("/api/auth/clear-session");
   return user;
 });
 

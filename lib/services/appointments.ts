@@ -31,6 +31,14 @@ export type CreateApptResult =
   | { ok: true; id: string; startAt: Date; clientName: string }
   | { ok: false; error: string };
 
+/** Calculează momentul de trimitere pentru un preset dat (vezi lib/reminder-presets.ts). */
+const PRESET_OFFSET: Record<ReminderPresetKey, (startAt: Date, dateKey: string, tz: string) => Date> = {
+  DAY_BEFORE_8AM: (_startAt, dateKey, tz) => zonedToUtc(addDaysToKey(dateKey, -1, tz), "08:00", tz),
+  H3: (startAt) => new Date(startAt.getTime() - 3 * 60 * 60_000),
+  M30: (startAt) => new Date(startAt.getTime() - 30 * 60_000),
+  M10: (startAt) => new Date(startAt.getTime() - 10 * 60_000),
+};
+
 /** Construiește momentele de trimitere a reminderelor (doar cele în viitor). */
 function presetSendTimes(
   dateKey: string,
@@ -39,23 +47,9 @@ function presetSendTimes(
   presets: ReminderPresetKey[],
 ): Date[] {
   const now = Date.now();
-  const times: Date[] = [];
-  for (const p of presets) {
-    let t: Date;
-    if (p === "DAY_BEFORE_8AM") {
-      t = zonedToUtc(addDaysToKey(dateKey, -1, tz), "08:00", tz);
-    } else if (p === "H3") {
-      t = new Date(startAt.getTime() - 3 * 60 * 60_000);
-    } else if (p === "M30") {
-      t = new Date(startAt.getTime() - 30 * 60_000);
-    } else if (p === "M10") {
-      t = new Date(startAt.getTime() - 10 * 60_000);
-    } else {
-      continue;
-    }
-    if (t.getTime() > now) times.push(t);
-  }
-  return times;
+  return presets
+    .map((p) => PRESET_OFFSET[p](startAt, dateKey, tz))
+    .filter((t) => t.getTime() > now);
 }
 
 async function createRemindersFor(args: {
@@ -106,8 +100,8 @@ export async function createAppointment(
   if (DEMO) {
     return { ok: false, error: "Mod demo: conectează o bază de date pentru a salva." };
   }
-  const settings = await getSettings(userId);
-  const tz = settings.timezone;
+  // Pornește în paralel — nu depinde de client/categorie, doar e nevoie de ea mai jos.
+  const settingsPromise = getSettings(userId);
 
   // 1. Client
   let client: { id: string; name: string; telegramChatId: string | null };
@@ -138,6 +132,8 @@ export async function createAppointment(
       select: { id: true, name: true, color: true, defaultDurationMinutes: true },
     });
   }
+  const settings = await settingsPromise;
+  const tz = settings.timezone;
   const duration =
     input.durationMinutes ?? category?.defaultDurationMinutes ?? settings.slotMinutes;
 
@@ -243,20 +239,22 @@ export async function reschedule(
   durationMinutes?: number,
 ) {
   if (DEMO) return { ok: false as const, error: "Mod demo: reprogramarea nu se salvează." };
-  const settings = await getSettings(userId);
+  const [settings, appt] = await Promise.all([
+    getSettings(userId),
+    prisma.appointment.findFirst({
+      where: { id, userId },
+      select: {
+        id: true,
+        startAt: true,
+        endAt: true,
+        reminderEmailEnabled: true,
+        reminderTelegramEnabled: true,
+        reminderOffsets: true,
+        client: { select: { telegramChatId: true } },
+      },
+    }),
+  ]);
   const tz = settings.timezone;
-  const appt = await prisma.appointment.findFirst({
-    where: { id, userId },
-    select: {
-      id: true,
-      startAt: true,
-      endAt: true,
-      reminderEmailEnabled: true,
-      reminderTelegramEnabled: true,
-      reminderOffsets: true,
-      client: { select: { telegramChatId: true } },
-    },
-  });
   if (!appt) return { ok: false as const, error: "Programare inexistentă." };
 
   const duration =

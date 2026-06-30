@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "../prisma";
 import { DEMO, demoSettings } from "../demo";
+import { DEFAULT_REMINDER_PRESETS } from "../reminder-presets";
 
 const SETTINGS_SELECT = {
   id: true,
@@ -40,7 +41,16 @@ export const getSettings = cache(async (userId: string): Promise<Settings> => {
     where: { userId },
     select: SETTINGS_SELECT,
   });
-  if (existing) return existing;
+  // Documente create înainte de câmpul reminderOffsets: Mongo/Prisma nu aplică
+  // @default retroactiv pe citire ⇒ vine [] în loc de standardul configurat.
+  if (existing) {
+    return {
+      ...existing,
+      reminderOffsets: existing.reminderOffsets.length
+        ? existing.reminderOffsets
+        : DEFAULT_REMINDER_PRESETS,
+    };
+  }
 
   return prisma.appSettings.create({
     data: { userId },

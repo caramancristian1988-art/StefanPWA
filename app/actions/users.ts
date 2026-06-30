@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser, isSuper, type CurrentUser } from "@/lib/dal";
 import { can, ALL_PERMISSION_KEYS } from "@/lib/permissions";
@@ -108,32 +109,42 @@ export async function updateUser(
   if (name.length < 2) return { error: "Nume prea scurt." };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "Email invalid." };
 
-  const emailOwner = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  const [emailOwner, before] = await Promise.all([
+    prisma.user.findUnique({ where: { email }, select: { id: true } }),
+    prisma.user.findUnique({
+      where: { id },
+      select: { name: true, role: true, isActive: true, permissions: true, notifyEvents: true },
+    }),
+  ]);
   if (emailOwner && emailOwner.id !== id) return { error: "Există deja un cont cu acest email." };
 
-  const before = await prisma.user.findUnique({
-    where: { id },
-    select: { name: true, role: true, isActive: true, permissions: true, notifyEvents: true },
-  });
   const newPerms = role === "ADMIN" ? [] : parsePerms(formData);
   const newNotify = parseNotifyEvents(formData);
 
-  await prisma.user.update({
-    where: { id },
-    data: {
-      name,
-      email,
-      role,
-      isActive,
-      permissions: newPerms,
-      notifyEvents: newNotify,
-      telegramChatId: String(formData.get("telegramChatId") ?? "").trim() || null,
-      notifyScope: parseNotifyScope(formData),
-      notifyTeamIds: parseIdList(formData, "notifyTeamIds"),
-      notifyMemberIds: parseIdList(formData, "notifyMemberIds"),
-      ...(newPassword.length >= 8 ? { passwordHash: await hashPassword(newPassword) } : {}),
-    },
-  });
+  try {
+    await prisma.user.update({
+      where: { id },
+      data: {
+        name,
+        email,
+        role,
+        isActive,
+        permissions: newPerms,
+        notifyEvents: newNotify,
+        telegramChatId: String(formData.get("telegramChatId") ?? "").trim() || null,
+        notifyScope: parseNotifyScope(formData),
+        notifyTeamIds: parseIdList(formData, "notifyTeamIds"),
+        notifyMemberIds: parseIdList(formData, "notifyMemberIds"),
+        ...(newPassword.length >= 8 ? { passwordHash: await hashPassword(newPassword) } : {}),
+      },
+    });
+  } catch (e) {
+    // Concurență: alt request a luat emailul între verificarea de mai sus și acest update.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: "Există deja un cont cu acest email." };
+    }
+    throw e;
+  }
 
   const a = actor(admin);
   await logAudit(a, {

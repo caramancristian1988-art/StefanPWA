@@ -247,7 +247,7 @@ function UserDialog({
         <form action={formAction} className="flex flex-col gap-3">
           {user && <input type="hidden" name="id" value={user.id} />}
           <input name="name" defaultValue={user?.name ?? ""} placeholder="Nume *" required className={input} />
-          {!user && <input name="email" type="email" placeholder="Email *" required className={input} />}
+          <input name="email" type="email" defaultValue={user?.email ?? ""} placeholder="Email *" required className={input} />
           <input
             name="password"
             type="password"

@@ -101,10 +101,15 @@ export async function updateUser(
 
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = formData.get("role") === "ADMIN" ? "ADMIN" : "STAFF";
   const isActive = formData.get("isActive") !== "off";
   const newPassword = String(formData.get("password") ?? "");
   if (name.length < 2) return { error: "Nume prea scurt." };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "Email invalid." };
+
+  const emailOwner = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (emailOwner && emailOwner.id !== id) return { error: "Există deja un cont cu acest email." };
 
   const before = await prisma.user.findUnique({
     where: { id },
@@ -117,6 +122,7 @@ export async function updateUser(
     where: { id },
     data: {
       name,
+      email,
       role,
       isActive,
       permissions: newPerms,

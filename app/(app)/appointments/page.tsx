@@ -13,6 +13,7 @@ import {
 import { toVM } from "@/lib/view";
 import AppointmentItem from "@/app/components/AppointmentItem";
 import OpenQuickAddButton from "@/app/components/OpenQuickAddButton";
+import AutoOpenQuickAdd from "@/app/components/AutoOpenQuickAdd";
 import { QuickAddProvider } from "@/app/components/quick-add-context";
 import type { ApptVM } from "@/app/components/types";
 
@@ -28,7 +29,7 @@ const VIEWS = [
 export default async function AppointmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; create?: string }>;
 }) {
   const user = await requirePermission("appointments.view");
   const [settings, categories] = await Promise.all([
@@ -36,7 +37,7 @@ export default async function AppointmentsPage({
     listCategories(),
   ]);
   const tz = settings.timezone;
-  const { view = "azi" } = await searchParams;
+  const { view = "azi", create } = await searchParams;
 
   const today = todayKey(tz);
   const tomorrow = tomorrowKey(tz);
@@ -66,6 +67,7 @@ export default async function AppointmentsPage({
 
   return (
     <QuickAddProvider categories={categories} defaults={quickDefaults}>
+      {create === "1" && <AutoOpenQuickAdd />}
       <div className="w-full">
         <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
           {VIEWS.map((v) => (

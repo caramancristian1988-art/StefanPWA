@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 const ITEMS = [
   { label: "Task nou", href: "/tasks?create=task" },
   { label: "Tichet nou", href: "/tasks?create=ticket" },
+  { label: "Programare nouă", href: "/appointments?create=1" },
   { label: "Proiect nou", href: "/projects?create=1" },
   { label: "Client nou", href: "/clients?create=1" },
 ];

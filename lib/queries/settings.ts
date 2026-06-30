@@ -13,7 +13,7 @@ const SETTINGS_SELECT = {
   slotMinutes: true,
   defaultReminderEmail: true,
   defaultReminderTelegram: true,
-  reminderLeadMinutes: true,
+  reminderOffsets: true,
   emailFromName: true,
   emailFromAddr: true,
 } as const;
@@ -28,7 +28,7 @@ export type Settings = {
   slotMinutes: number;
   defaultReminderEmail: boolean;
   defaultReminderTelegram: boolean;
-  reminderLeadMinutes: number[];
+  reminderOffsets: string[];
   emailFromName: string | null;
   emailFromAddr: string | null;
 };

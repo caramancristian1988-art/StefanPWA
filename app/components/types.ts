@@ -11,6 +11,7 @@ export type QuickDefaults = {
   slotMinutes: number;
   reminderEmail: boolean;
   reminderTelegram: boolean;
+  reminderOffsets: string[];
 };
 
 export type ApptStatus =
@@ -49,5 +50,6 @@ export type QuickPrefill = Partial<{
   message: string;
   reminderEmail: boolean;
   reminderTelegram: boolean;
+  reminderOffsets: string[];
   status: "NEW" | "CONFIRMED";
 }>;

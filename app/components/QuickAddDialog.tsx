@@ -9,6 +9,7 @@ import {
 import type { CategoryLite, QuickDefaults, QuickPrefill } from "./types";
 import ClientCombobox from "./ClientCombobox";
 import { IconCheck, IconMail, IconSend, IconX } from "./icons";
+import { REMINDER_PRESETS } from "@/lib/reminder-presets";
 
 function nextSlot(slot: number): string {
   const d = new Date();
@@ -57,9 +58,18 @@ export default function QuickAddDialog({
   const [remTelegram, setRemTelegram] = useState(
     prefill?.reminderTelegram ?? defaults.reminderTelegram,
   );
+  const [reminderOffsets, setReminderOffsets] = useState<string[]>(
+    prefill?.reminderOffsets ?? defaults.reminderOffsets,
+  );
   const [status, setStatus] = useState<"NEW" | "CONFIRMED">(
     prefill?.status ?? "NEW",
   );
+
+  function toggleOffset(key: string) {
+    setReminderOffsets((cur) =>
+      cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key],
+    );
+  }
 
   // La selectarea categoriei, preia durata default
   function pickCategory(c: CategoryLite) {
@@ -112,6 +122,9 @@ export default function QuickAddDialog({
           <input type="hidden" name="durationMinutes" value={duration} />
           <input type="hidden" name="reminderEmail" value={remEmail ? "true" : "false"} />
           <input type="hidden" name="reminderTelegram" value={remTelegram ? "true" : "false"} />
+          {reminderOffsets.map((p) => (
+            <input key={p} type="hidden" name="reminderOffsets" value={p} />
+          ))}
           <input type="hidden" name="status" value={status} />
 
           <div>
@@ -231,6 +244,26 @@ export default function QuickAddDialog({
               <IconSend className="size-3.5" /> Telegram
             </button>
           </div>
+
+          {(remEmail || remTelegram) && (
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-soft">
+                Remindere
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {REMINDER_PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => toggleOffset(p.key)}
+                    className={`${chip} ${reminderOffsets.includes(p.key) ? "bg-brand text-white" : ""}`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {state?.error && (
             <p className="rounded-lg bg-st-cancelled/10 px-3 py-2 text-sm text-st-cancelled">

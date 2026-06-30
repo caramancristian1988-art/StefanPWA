@@ -63,6 +63,7 @@ export default async function AppointmentsPage({
     slotMinutes: settings.slotMinutes,
     reminderEmail: settings.defaultReminderEmail,
     reminderTelegram: settings.defaultReminderTelegram,
+    reminderOffsets: settings.reminderOffsets,
   };
 
   return (

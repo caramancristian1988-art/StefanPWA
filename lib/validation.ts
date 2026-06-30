@@ -63,6 +63,7 @@ export const quickAppointmentSchema = z
     message: z.string().trim().max(2000).optional().or(z.literal("")),
     reminderEmail: z.coerce.boolean().default(false),
     reminderTelegram: z.coerce.boolean().default(false),
+    reminderOffsets: z.array(z.string()).default([]),
     status: z.enum(["NEW", "CONFIRMED"]).default("NEW"),
   })
   .refine((d) => Boolean(d.clientId) || Boolean(d.clientName), {
@@ -91,7 +92,7 @@ export const settingsSchema = z.object({
   slotMinutes: z.coerce.number().gt(0).max(100000).catch(30),
   defaultReminderEmail: z.coerce.boolean().default(false),
   defaultReminderTelegram: z.coerce.boolean().default(true),
-  reminderLeadMinutes: z.array(z.coerce.number().gt(0)).default([1440, 180]),
+  reminderOffsets: z.array(z.string()).default(["DAY_BEFORE_8AM", "H3"]),
   emailFromName: z.string().trim().max(80).optional().or(z.literal("")),
   emailFromAddr: z
     .string()

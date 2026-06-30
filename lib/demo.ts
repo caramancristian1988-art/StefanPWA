@@ -38,7 +38,7 @@ export const demoSettings: Settings = {
   slotMinutes: 30,
   defaultReminderEmail: false,
   defaultReminderTelegram: true,
-  reminderLeadMinutes: [1440, 180],
+  reminderOffsets: ["DAY_BEFORE_8AM", "H3"],
   emailFromName: null,
   emailFromAddr: null,
 };

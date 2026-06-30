@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
 import { settingsSchema, categorySchema } from "@/lib/validation";
 import { DEMO } from "@/lib/demo";
+import { sanitizeReminderPresets } from "@/lib/reminder-presets";
 
 export type SettingsState = { ok?: boolean; error?: string } | undefined;
 
@@ -64,11 +65,7 @@ export async function updateSettings(
   const user = await requireUser();
   if (DEMO) return { error: DEMO_MSG };
 
-  const leadRaw = String(formData.get("reminderLeadMinutes") ?? "1440,180");
-  const leadMinutes = leadRaw
-    .split(",")
-    .map((s) => parseFloat(s.trim()))
-    .filter((n) => Number.isFinite(n) && n > 0);
+  const offsets = sanitizeReminderPresets(formData.getAll("reminderOffsets").map(String));
 
   const parsed = settingsSchema.safeParse({
     timezone: formData.get("timezone") ?? "Europe/Bucharest",
@@ -79,7 +76,7 @@ export async function updateSettings(
     slotMinutes: formData.get("slotMinutes") ?? 30,
     defaultReminderEmail: formData.get("defaultReminderEmail") === "on",
     defaultReminderTelegram: formData.get("defaultReminderTelegram") === "on",
-    reminderLeadMinutes: leadMinutes.length ? leadMinutes : [1440, 180],
+    reminderOffsets: offsets.length ? offsets : ["DAY_BEFORE_8AM", "H3"],
     emailFromName: formData.get("emailFromName") ?? "",
     emailFromAddr: formData.get("emailFromAddr") ?? "",
   });
@@ -101,7 +98,7 @@ export async function updateSettings(
       slotMinutes: d.slotMinutes,
       defaultReminderEmail: d.defaultReminderEmail,
       defaultReminderTelegram: d.defaultReminderTelegram,
-      reminderLeadMinutes: d.reminderLeadMinutes,
+      reminderOffsets: d.reminderOffsets,
       emailFromName: d.emailFromName || null,
       emailFromAddr: d.emailFromAddr || null,
     },
@@ -114,7 +111,7 @@ export async function updateSettings(
       slotMinutes: d.slotMinutes,
       defaultReminderEmail: d.defaultReminderEmail,
       defaultReminderTelegram: d.defaultReminderTelegram,
-      reminderLeadMinutes: d.reminderLeadMinutes,
+      reminderOffsets: d.reminderOffsets,
       emailFromName: d.emailFromName || null,
       emailFromAddr: d.emailFromAddr || null,
     },

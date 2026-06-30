@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateSettings, type SettingsState } from "@/app/actions/settings";
 import type { Settings } from "@/lib/queries/settings";
+import { REMINDER_PRESETS } from "@/lib/reminder-presets";
 
 const input =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
@@ -15,6 +16,13 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
     updateSettings,
     undefined,
   );
+  const [reminderOffsets, setReminderOffsets] = useState<string[]>(settings.reminderOffsets);
+
+  function toggleOffset(key: string) {
+    setReminderOffsets((cur) =>
+      cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key],
+    );
+  }
 
   useEffect(() => {
     if (state?.ok) router.refresh();
@@ -55,14 +63,27 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
       </div>
 
       <div>
-        <label className={label}>Remindere înainte (minute, separate prin virgulă)</label>
-        <input
-          name="reminderLeadMinutes"
-          defaultValue={settings.reminderLeadMinutes.join(", ")}
-          placeholder="1440, 180"
-          className={input}
-        />
-        <p className="mt-1 text-xs text-ink-soft">Ex: 1440 = 24h, 180 = 3h înainte.</p>
+        <label className={label}>Remindere standard (la programări noi)</label>
+        {reminderOffsets.map((p) => (
+          <input key={p} type="hidden" name="reminderOffsets" value={p} />
+        ))}
+        <div className="flex flex-wrap gap-2">
+          {REMINDER_PRESETS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => toggleOffset(p.key)}
+              className={`tap rounded-full px-3.5 py-2 text-sm font-medium border border-[var(--color-line)] ${
+                reminderOffsets.includes(p.key) ? "bg-brand text-white" : ""
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-ink-soft">
+          Selecția implicit bifată la o programare nouă — ajustabilă per programare.
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-4">

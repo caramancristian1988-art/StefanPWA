@@ -532,6 +532,8 @@ model Appointment {
 
   reminderEmailEnabled    Boolean @default(false)
   reminderTelegramEnabled Boolean @default(false)
+  // Praguri selectate pt. această programare: ex. ["DAY_BEFORE_8AM","H3"] — vezi lib/reminder-presets.ts
+  reminderOffsets         String[] @default(["DAY_BEFORE_8AM", "H3"])
 
   createdFrom CreatedFrom @default(WEB)
 
@@ -633,10 +635,10 @@ model AppSettings {
   slotMinutes  Int    @default(30)
 
   // Default-uri pentru programări noi
-  defaultReminderEmail    Boolean @default(false)
-  defaultReminderTelegram Boolean @default(true)
-  // Minute înainte de programare la care se trimit reminderele (ex. 24h + 3h)
-  reminderLeadMinutes     Int[]   @default([1440, 180])
+  defaultReminderEmail    Boolean  @default(false)
+  defaultReminderTelegram Boolean  @default(true)
+  // "Standardul" — presetările bifate implicit la o programare nouă (ajustabile per programare)
+  reminderOffsets         String[] @default(["DAY_BEFORE_8AM", "H3"])
 
   // Email (override peste env, opțional)
   emailFromName  String?

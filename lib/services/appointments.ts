@@ -4,7 +4,8 @@ import { DEMO } from "../demo";
 import { getSettings } from "../queries/settings";
 import { findOrCreateClient } from "../queries/clients";
 import { findOverlapping } from "../queries/appointments";
-import { zonedToUtc, formatTime } from "../date";
+import { zonedToUtc, addDaysToKey, formatTime } from "../date";
+import { sanitizeReminderPresets, type ReminderPresetKey } from "../reminder-presets";
 import type { AppointmentStatus, CreatedFrom } from "@prisma/client";
 
 export type CreateApptInput = {
@@ -21,6 +22,8 @@ export type CreateApptInput = {
   message?: string;
   reminderEmail: boolean;
   reminderTelegram: boolean;
+  /** Praguri de remindere (vezi lib/reminder-presets.ts). Omis ⇒ se folosește standardul din Settings. */
+  reminderOffsets?: string[];
   status?: "NEW" | "CONFIRMED";
 };
 
@@ -29,23 +32,44 @@ export type CreateApptResult =
   | { ok: false; error: string };
 
 /** Construiește momentele de trimitere a reminderelor (doar cele în viitor). */
-function reminderSendTimes(startAt: Date, leadMinutes: number[]): Date[] {
+function presetSendTimes(
+  dateKey: string,
+  startAt: Date,
+  tz: string,
+  presets: ReminderPresetKey[],
+): Date[] {
   const now = Date.now();
-  return leadMinutes
-    .map((m) => new Date(startAt.getTime() - m * 60_000))
-    .filter((d) => d.getTime() > now);
+  const times: Date[] = [];
+  for (const p of presets) {
+    let t: Date;
+    if (p === "DAY_BEFORE_8AM") {
+      t = zonedToUtc(addDaysToKey(dateKey, -1, tz), "08:00", tz);
+    } else if (p === "H3") {
+      t = new Date(startAt.getTime() - 3 * 60 * 60_000);
+    } else if (p === "M30") {
+      t = new Date(startAt.getTime() - 30 * 60_000);
+    } else if (p === "M10") {
+      t = new Date(startAt.getTime() - 10 * 60_000);
+    } else {
+      continue;
+    }
+    if (t.getTime() > now) times.push(t);
+  }
+  return times;
 }
 
 async function createRemindersFor(args: {
   userId: string;
   appointmentId: string;
+  dateKey: string;
   startAt: Date;
+  tz: string;
   email: boolean;
   telegram: boolean;
   hasClientTelegram: boolean;
-  leadMinutes: number[];
+  offsets: ReminderPresetKey[];
 }) {
-  const times = reminderSendTimes(args.startAt, args.leadMinutes);
+  const times = presetSendTimes(args.dateKey, args.startAt, args.tz, args.offsets);
   if (times.length === 0) return;
 
   const data: {
@@ -132,6 +156,9 @@ export async function createAppointment(
 
   // 5. Creare cu snapshot-uri
   const title = input.title?.trim() || category?.name || "Programare";
+  const offsets = sanitizeReminderPresets(
+    input.reminderOffsets ?? (settings.reminderOffsets as string[]),
+  );
   const appt = await prisma.appointment.create({
     data: {
       userId,
@@ -148,6 +175,7 @@ export async function createAppointment(
       categoryColorSnapshot: category?.color ?? null,
       reminderEmailEnabled: input.reminderEmail,
       reminderTelegramEnabled: input.reminderTelegram,
+      reminderOffsets: offsets,
       createdFrom: source,
     },
     select: { id: true, startAt: true },
@@ -157,11 +185,13 @@ export async function createAppointment(
   await createRemindersFor({
     userId,
     appointmentId: appt.id,
+    dateKey: input.dateKey,
     startAt,
+    tz,
     email: input.reminderEmail,
     telegram: input.reminderTelegram,
     hasClientTelegram: Boolean(client.telegramChatId),
-    leadMinutes: settings.reminderLeadMinutes,
+    offsets,
   });
 
   // 7. Actualizează ultima programare a clientului
@@ -223,6 +253,7 @@ export async function reschedule(
       endAt: true,
       reminderEmailEnabled: true,
       reminderTelegramEnabled: true,
+      reminderOffsets: true,
       client: { select: { telegramChatId: true } },
     },
   });
@@ -255,11 +286,13 @@ export async function reschedule(
   await createRemindersFor({
     userId,
     appointmentId: id,
+    dateKey,
     startAt,
+    tz,
     email: appt.reminderEmailEnabled,
     telegram: appt.reminderTelegramEnabled,
     hasClientTelegram: Boolean(appt.client.telegramChatId),
-    leadMinutes: settings.reminderLeadMinutes,
+    offsets: sanitizeReminderPresets(appt.reminderOffsets as string[]),
   });
 
   return { ok: true as const, startAt };

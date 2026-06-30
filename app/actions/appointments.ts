@@ -15,6 +15,7 @@ import {
   reschedule,
 } from "@/lib/services/appointments";
 import { DEMO } from "@/lib/demo";
+import { sanitizeReminderPresets } from "@/lib/reminder-presets";
 
 export type ApptState =
   | { ok?: boolean; error?: string; id?: string }
@@ -46,6 +47,7 @@ export async function createQuickAppointment(
     reminderEmail: formData.get("reminderEmail") === "on" || formData.get("reminderEmail") === "true",
     reminderTelegram:
       formData.get("reminderTelegram") === "on" || formData.get("reminderTelegram") === "true",
+    reminderOffsets: formData.getAll("reminderOffsets").map(String),
     status: (formData.get("status") as string) || "NEW",
   });
 
@@ -69,6 +71,7 @@ export async function createQuickAppointment(
       message: d.message || undefined,
       reminderEmail: d.reminderEmail,
       reminderTelegram: d.reminderTelegram,
+      reminderOffsets: sanitizeReminderPresets(d.reminderOffsets),
       status: d.status,
     },
     "WEB",

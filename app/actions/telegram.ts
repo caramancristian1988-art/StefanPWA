@@ -67,13 +67,11 @@ export async function approveTelegramContact(
   if (!contact) return { error: "Cererea nu mai există." };
   if (contact.userId) return { error: "Acest contact e deja atribuit unui cont." };
 
-  const emailInput = String(formData.get("email") ?? "").trim().toLowerCase();
-  const email = emailInput || `tg-${contact.telegramUserId}@telegram.local`;
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email) return { error: "Emailul este obligatoriu." };
 
-  if (emailInput) {
-    const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-    if (taken) return { error: "Există deja un cont cu acest email." };
-  }
+  const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (taken) return { error: "Există deja un cont cu acest email." };
 
   const passwordInput = String(formData.get("password") ?? "").trim();
   const rawPassword = passwordInput.length >= 6 ? passwordInput : randomBytes(24).toString("base64url");

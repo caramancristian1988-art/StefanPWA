@@ -204,7 +204,7 @@ function ApproveDialog({
                 className={input}
               />
             </div>
-            <input name="email" type="email" placeholder="Email (opțional)" className={input} />
+            <input name="email" type="email" placeholder="Email *" required className={input} />
             <input name="password" type="password" placeholder="Parolă (min. 6 caractere, opțional)" className={input} />
             <input name="phone" placeholder="Telefon (opțional)" className={input} />
 

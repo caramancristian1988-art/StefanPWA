@@ -373,7 +373,7 @@ export default function TasksManager({
                   onClick={() => toggleHistory(t.id)}
                   className="min-w-0 flex-1 text-left"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     {t.seq != null && (
                       <Link
                         href={`/tasks/${t.id}`}
@@ -383,7 +383,7 @@ export default function TasksManager({
                         #{t.seq}
                       </Link>
                     )}
-                    <span className="truncate text-sm font-medium">{t.title}</span>
+                    <span className="min-w-0 truncate text-sm font-medium">{t.title}</span>
                     <span className="hidden shrink-0 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] text-ink-soft sm:inline">
                       {TYPE_RO[t.type]}
                     </span>

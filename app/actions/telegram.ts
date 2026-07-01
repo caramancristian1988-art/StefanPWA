@@ -121,6 +121,35 @@ export async function approveTelegramContact(
   return { ok: true };
 }
 
+/** Generează un token nou de invitație publică Telegram și îl salvează în CompanySettings. */
+export async function createInviteLink(): Promise<{ ok: boolean; token?: string; error?: string }> {
+  const admin = await requireUser();
+  if (!can(admin, "users.manage")) return { ok: false, error: "Fără permisiune." };
+  if (DEMO) return { ok: false, error: "Mod demo: conectează o bază de date." };
+  const { randomBytes } = await import("node:crypto");
+  const token = `inv_${randomBytes(16).toString("base64url")}`;
+  await prisma.companySettings.upsert({
+    where: { singleton: "main" },
+    create: { telegramInviteToken: token },
+    update: { telegramInviteToken: token },
+  });
+  revalidatePath("/telegram");
+  return { ok: true, token };
+}
+
+/** Revocă link-ul public de invitație Telegram (șterge token-ul). */
+export async function deleteInviteLink(): Promise<{ ok: boolean; error?: string }> {
+  const admin = await requireUser();
+  if (!can(admin, "users.manage")) return { ok: false, error: "Fără permisiune." };
+  if (DEMO) return { ok: false, error: "Mod demo: conectează o bază de date." };
+  await prisma.companySettings.updateMany({
+    where: { singleton: "main" },
+    data: { telegramInviteToken: null },
+  });
+  revalidatePath("/telegram");
+  return { ok: true };
+}
+
 /** Respinge / șterge o cerere de conectare Telegram neatribuită. */
 export async function rejectTelegramContact(contactId: string): Promise<void> {
   const admin = await requireUser();

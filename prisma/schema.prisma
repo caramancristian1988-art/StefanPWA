@@ -384,6 +384,8 @@ model CompanySettings {
   bankDetails String? // IBAN / detalii bancare
   currency    String  @default("MDL")
   invoicePrefix String @default("INV")
+  // Token pentru link public de invitație Telegram (null = link dezactivat)
+  telegramInviteToken String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

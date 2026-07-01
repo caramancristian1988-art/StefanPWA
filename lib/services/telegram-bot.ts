@@ -269,6 +269,7 @@ async function handleMessage(msg: Msg) {
   if (text.startsWith("/start")) {
     const token = text.split(/\s+/)[1];
     if (token) {
+      // 1) Token admin semnat (userId.HMAC)
       const userId = verifyLinkToken(token);
       if (userId) {
         await prisma.telegramAccount.upsert({
@@ -286,6 +287,52 @@ async function handleMessage(msg: Msg) {
         await sendMessage(chatId, "✅ Cont conectat! Alege o opțiune:", mainMenu());
         return;
       }
+
+      // 2) Token de invitație publică (inv_...)
+      if (token.startsWith("inv_")) {
+        const settings = await prisma.companySettings.findFirst({
+          where: { singleton: "main" },
+          select: { telegramInviteToken: true },
+        });
+        if (settings?.telegramInviteToken && settings.telegramInviteToken === token) {
+          // Token valid → înregistrăm ca pending (același flux ca /start fără token)
+          await prisma.telegramAccount
+            .upsert({
+              where: { telegramUserId: String(msg.from.id) },
+              create: {
+                telegramUserId: String(msg.from.id),
+                chatId: String(chatId),
+                username: msg.from.username ?? null,
+                firstName: msg.from.first_name ?? null,
+                lastName: msg.from.last_name ?? null,
+              },
+              update: {
+                chatId: String(chatId),
+                username: msg.from.username ?? null,
+                firstName: msg.from.first_name ?? null,
+                lastName: msg.from.last_name ?? null,
+              },
+            })
+            .catch((e) => console.error("[telegram-bot] /start invite: upsert eșuat", e));
+          const existing = await prisma.telegramAccount.findUnique({
+            where: { telegramUserId: String(msg.from.id) },
+            select: { userId: true },
+          });
+          if (existing?.userId) {
+            const linkedUser = await resolveUser(msg.from.id);
+            await sendMessage(chatId, "✅ Cont conectat! Alege o opțiune:", linkedUser ? menuFor(linkedUser) : workerMenu());
+          } else {
+            await sendMessage(
+              chatId,
+              "👋 Salut! Cererea ta a fost înregistrată.\nUn administrator trebuie să-ți activeze contul — vei primi un mesaj aici imediat ce ești activat.",
+            );
+          }
+          return;
+        }
+        await sendMessage(chatId, "❌ Link-ul de invitație este invalid sau a fost revocat.");
+        return;
+      }
+
       await sendMessage(chatId, "❌ Cod de conectare invalid sau expirat.");
       return;
     }

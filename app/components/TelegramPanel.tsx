@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { setWebhookAction, unlinkTelegram } from "@/app/actions/telegram";
+import { setWebhookAction, unlinkTelegram, createInviteLink, deleteInviteLink } from "@/app/actions/telegram";
 import { IconSend } from "./icons";
 
 export default function TelegramPanel({
@@ -11,16 +11,22 @@ export default function TelegramPanel({
   startToken,
   botUsername,
   hasAccount,
+  canManageUsers = false,
+  inviteToken: initialInviteToken = null,
 }: {
   enabled: boolean;
   deepLink: string | null;
   startToken: string;
   botUsername: string | null;
   hasAccount: boolean;
+  canManageUsers?: boolean;
+  inviteToken?: string | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string>("");
+  const [inviteToken, setInviteToken] = useState<string | null>(initialInviteToken);
+  const [copied, setCopied] = useState(false);
 
   function doWebhook() {
     start(async () => {
@@ -37,6 +43,35 @@ export default function TelegramPanel({
       router.refresh();
     });
   }
+
+  function doCreateInvite() {
+    start(async () => {
+      const res = await createInviteLink();
+      if (res.ok && res.token) {
+        setInviteToken(res.token);
+      }
+    });
+  }
+
+  function doDeleteInvite() {
+    if (!confirm("Revoci link-ul? Toate link-urile existente vor deveni invalide.")) return;
+    start(async () => {
+      await deleteInviteLink();
+      setInviteToken(null);
+    });
+  }
+
+  function copyInviteLink() {
+    if (!inviteLink) return;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const inviteLink = inviteToken && botUsername
+    ? `https://t.me/${botUsername}?start=${inviteToken}`
+    : null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -78,6 +113,56 @@ export default function TelegramPanel({
         >
           Deconectează Telegram
         </button>
+      )}
+
+      {enabled && canManageUsers && (
+        <div className="card p-5">
+          <h2 className="mb-1 text-base font-bold">Link public de invitație</h2>
+          <p className="mb-3 text-sm text-ink-soft">
+            Distribuie acest link lucrătorilor. Când îl accesează în Telegram, apar în lista
+            „Utilizatori neatribuiți" și îi poți activa de acolo.
+          </p>
+          {inviteLink ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5">
+                <span className="min-w-0 flex-1 break-all text-xs font-mono text-ink-soft">{inviteLink}</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={copyInviteLink}
+                  disabled={pending}
+                  className="tap h-10 flex-1 rounded-xl bg-brand text-sm font-semibold text-white hover:bg-brand-strong disabled:opacity-60"
+                >
+                  {copied ? "Copiat!" : "Copiază link-ul"}
+                </button>
+                <button
+                  onClick={doCreateInvite}
+                  disabled={pending}
+                  className="tap h-10 rounded-xl border border-[var(--color-line)] px-4 text-sm font-medium hover:bg-[var(--color-surface-2)] disabled:opacity-60"
+                  title="Generează un link nou (revocă cel vechi)"
+                >
+                  Regenerează
+                </button>
+                <button
+                  onClick={doDeleteInvite}
+                  disabled={pending}
+                  className="tap h-10 rounded-xl border border-st-cancelled/40 px-4 text-sm font-medium text-st-cancelled hover:bg-st-cancelled/10 disabled:opacity-60"
+                  title="Revocă link-ul"
+                >
+                  Șterge
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={doCreateInvite}
+              disabled={pending}
+              className="tap h-11 rounded-xl bg-[var(--color-surface-2)] px-4 font-medium hover:bg-brand-soft disabled:opacity-60"
+            >
+              {pending ? "Se generează…" : "Creează link de invitație"}
+            </button>
+          )}
+        </div>
       )}
 
       {enabled && (

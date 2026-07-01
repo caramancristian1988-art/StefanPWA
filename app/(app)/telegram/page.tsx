@@ -19,7 +19,7 @@ export default async function TelegramPage() {
   const enabled = env.telegram.enabled;
   const canManageUsers = can(user, "users.manage");
 
-  const [botInfo, account, userRecord, tz, pending, teams] = await Promise.all([
+  const [botInfo, account, userRecord, tz, pending, teams, companySettings] = await Promise.all([
     enabled ? getMe() : Promise.resolve(null),
     DEMO
       ? Promise.resolve(null)
@@ -33,6 +33,9 @@ export default async function TelegramPage() {
     getUserTimezone(user.id),
     canManageUsers ? pendingTelegramContacts() : Promise.resolve([]),
     canManageUsers ? teamOptions() : Promise.resolve([]),
+    canManageUsers && !DEMO
+      ? prisma.companySettings.findFirst({ where: { singleton: "main" }, select: { telegramInviteToken: true } })
+      : Promise.resolve(null),
   ]);
 
   const telegramChatId = userRecord?.telegramChatId ?? null;
@@ -74,6 +77,8 @@ export default async function TelegramPage() {
         startToken={token}
         botUsername={botUsername}
         hasAccount={isConnected}
+        canManageUsers={canManageUsers}
+        inviteToken={companySettings?.telegramInviteToken ?? null}
       />
 
       <div className="card mt-5 p-5 text-sm text-ink-soft">

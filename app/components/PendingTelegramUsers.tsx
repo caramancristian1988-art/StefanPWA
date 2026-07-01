@@ -252,7 +252,7 @@ function ApproveDialog({
                               type="checkbox"
                               name="permissions"
                               value={it.key}
-                              defaultChecked={it.key === "tasks.view"}
+                              defaultChecked={it.key === "tasks.view" || it.key === "tasks.create"}
                               className="size-4 accent-[var(--color-brand)]"
                             />
                             {it.label}

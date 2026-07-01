@@ -592,6 +592,7 @@ function StatusDropdown({
         ref={btnRef}
         type="button"
         disabled={pending}
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={handleOpen}
         className={`h-7 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition-opacity disabled:opacity-50 ${ST[status].badge}`}
       >

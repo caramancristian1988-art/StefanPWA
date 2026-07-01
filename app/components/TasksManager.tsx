@@ -66,16 +66,27 @@ type Task = {
   description: string | null;
 };
 
-const ST: Record<Status, { label: string; dot: string }> = {
-  NEW: { label: "Nou", dot: "bg-st-new" },
-  ASSIGNED: { label: "Asignat", dot: "bg-st-new" },
-  READ: { label: "Citit", dot: "bg-st-confirmed" },
-  IN_PROGRESS: { label: "În lucru", dot: "bg-st-progress" },
-  ON_HOLD: { label: "În așteptare", dot: "bg-st-noshow" },
-  REVIEW: { label: "În verificare", dot: "bg-st-confirmed" },
-  DONE: { label: "Finalizat", dot: "bg-st-done" },
-  CANCELLED: { label: "Anulat", dot: "bg-st-cancelled" },
+const ST: Record<Status, { label: string; dot: string; badge: string }> = {
+  NEW:         { label: "Nou",            dot: "bg-st-new",       badge: "bg-st-new/15 text-st-new" },
+  ASSIGNED:    { label: "Asignat",        dot: "bg-st-new",       badge: "bg-st-new/15 text-st-new" },
+  READ:        { label: "Citit",          dot: "bg-st-confirmed", badge: "bg-st-confirmed/15 text-st-confirmed" },
+  IN_PROGRESS: { label: "În lucru",       dot: "bg-st-progress",  badge: "bg-st-progress/15 text-st-progress" },
+  ON_HOLD:     { label: "În așteptare",   dot: "bg-st-noshow",    badge: "bg-st-noshow/15 text-st-noshow" },
+  REVIEW:      { label: "În verificare",  dot: "bg-st-confirmed", badge: "bg-st-confirmed/15 text-st-confirmed" },
+  DONE:        { label: "Finalizat",      dot: "bg-st-done",      badge: "bg-st-done/15 text-st-done" },
+  CANCELLED:   { label: "Anulat",         dot: "bg-st-cancelled", badge: "bg-st-cancelled/15 text-st-cancelled" },
 };
+
+/** Grupează task-urile după status, păstrând ordinea în care apar primele. */
+function groupByStatus(tasks: Task[]): [Status, Task[]][] {
+  const order: Status[] = [];
+  const map = new Map<Status, Task[]>();
+  for (const t of tasks) {
+    if (!map.has(t.status)) { map.set(t.status, []); order.push(t.status); }
+    map.get(t.status)!.push(t);
+  }
+  return order.map((s) => [s, map.get(s)!]);
+}
 const TYPE_RO = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Work order" };
 const PRIO_RO = { LOW: "Scăzută", MEDIUM: "Medie", HIGH: "Ridicată", URGENT: "Urgentă" };
 const STATUSES: Status[] = ["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED"];
@@ -363,11 +374,21 @@ export default function TasksManager({
           {activeFilters ? "Niciun rezultat pentru filtrele selectate." : "Niciun task."}
         </div>
       ) : (
-        <div className={`flex flex-col gap-1.5 transition-opacity duration-200 ${navPending ? "pointer-events-none opacity-50" : ""}`}>
-          {tasks.map((t) => (
+        <div className={`flex flex-col gap-0 transition-opacity duration-200 ${navPending ? "pointer-events-none opacity-50" : ""}`}>
+          {groupByStatus(tasks).map(([status, group]) => (
+            <div key={status} className="mb-3">
+              {/* ── Header grup status ─────────────────────── */}
+              <div className="mb-1.5 flex items-center gap-2 px-1">
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${ST[status].badge}`}>
+                  <span className={`size-2 rounded-full ${ST[status].dot}`} />
+                  {ST[status].label.toUpperCase()}
+                </span>
+                <span className="text-xs text-ink-soft">{group.length}</span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+          {group.map((t) => (
             <div key={t.id} className="card overflow-hidden">
               <div className="flex items-center gap-2.5 px-3 py-2">
-                <span className={`size-2.5 shrink-0 rounded-full ${ST[t.status].dot}`} title={ST[t.status].label} />
                 <button
                   type="button"
                   onClick={() => toggleHistory(t.id)}
@@ -415,14 +436,21 @@ export default function TasksManager({
                 >
                   {PROGRESS.map((p) => <option key={p} value={p}>{p}%</option>)}
                 </select>
-                <select
-                  value={t.status}
-                  onChange={(e) => changeStatus(t.id, e.target.value as Status)}
-                  disabled={statusPending === t.id}
-                  className="h-8 w-28 shrink-0 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 text-[11px] outline-none focus:border-brand disabled:opacity-50"
-                >
-                  {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
-                </select>
+                <div className="relative shrink-0">
+                  <span className={`pointer-events-none inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${ST[t.status].badge} ${statusPending === t.id ? "opacity-50" : ""}`}>
+                    <span className={`size-1.5 rounded-full ${ST[t.status].dot}`} />
+                    {ST[t.status].label}
+                  </span>
+                  <select
+                    value={t.status}
+                    onChange={(e) => changeStatus(t.id, e.target.value as Status)}
+                    disabled={statusPending === t.id}
+                    title="Schimbă statusul"
+                    className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                  >
+                    {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
+                  </select>
+                </div>
                 {canEdit && (
                   <button onClick={() => setEditTask(t)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title="Editează">
                     <IconPencil className="size-3.5" />
@@ -452,6 +480,9 @@ export default function TasksManager({
                   />
                 </>
               )}
+            </div>
+          ))}
+              </div>
             </div>
           ))}
         </div>

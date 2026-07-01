@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/date";
 import { getUserTimezone } from "@/lib/queries/settings";
 import { pendingTelegramContacts } from "@/lib/queries/telegram";
 import { teamOptions } from "@/lib/queries/teams";
+import { userOptions } from "@/lib/queries/users";
 import { DEMO } from "@/lib/demo";
 import TelegramPanel from "@/app/components/TelegramPanel";
 import PendingTelegramUsers from "@/app/components/PendingTelegramUsers";
@@ -19,7 +20,7 @@ export default async function TelegramPage() {
   const enabled = env.telegram.enabled;
   const canManageUsers = can(user, "users.manage");
 
-  const [botInfo, account, userRecord, tz, pending, teams, companySettings] = await Promise.all([
+  const [botInfo, account, userRecord, tz, pending, teams, existingUsers, companySettings] = await Promise.all([
     enabled ? getMe() : Promise.resolve(null),
     DEMO
       ? Promise.resolve(null)
@@ -33,6 +34,7 @@ export default async function TelegramPage() {
     getUserTimezone(user.id),
     canManageUsers ? pendingTelegramContacts() : Promise.resolve([]),
     canManageUsers ? teamOptions() : Promise.resolve([]),
+    canManageUsers ? userOptions() : Promise.resolve([]),
     canManageUsers && !DEMO
       ? prisma.companySettings.findFirst({ where: { singleton: "main" }, select: { telegramInviteToken: true } })
       : Promise.resolve(null),
@@ -68,7 +70,7 @@ export default async function TelegramPage() {
       </div>
 
       {canManageUsers && pending.length > 0 && (
-        <PendingTelegramUsers contacts={pending} teams={teams} />
+        <PendingTelegramUsers contacts={pending} teams={teams} users={existingUsers} />
       )}
 
       <TelegramPanel

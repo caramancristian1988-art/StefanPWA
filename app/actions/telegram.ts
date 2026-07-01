@@ -67,20 +67,27 @@ export async function approveTelegramContact(
   if (!contact) return { error: "Cererea nu mai există." };
   if (contact.userId) return { error: "Acest contact e deja atribuit unui cont." };
 
-  const email = `tg-${contact.telegramUserId}@telegram.local`;
-  const generatedPassword = randomBytes(24).toString("base64url");
+  const emailInput = String(formData.get("email") ?? "").trim().toLowerCase();
+  const email = emailInput || `tg-${contact.telegramUserId}@telegram.local`;
+
+  if (emailInput) {
+    const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    if (taken) return { error: "Există deja un cont cu acest email." };
+  }
+
+  const passwordInput = String(formData.get("password") ?? "").trim();
+  const rawPassword = passwordInput.length >= 6 ? passwordInput : randomBytes(24).toString("base64url");
 
   const user = await prisma.user.create({
     data: {
       name,
       email,
       phone: phone || null,
-      passwordHash: await hashPassword(generatedPassword),
+      passwordHash: await hashPassword(rawPassword),
       role,
       isActive,
       permissions: role === "ADMIN" ? [] : permissions,
       teamIds: teamId ? [teamId] : [],
-      // chat-ul e deja confirmat prin /start — notificările directe funcționează imediat
       telegramChatId: contact.chatId,
     },
     select: { id: true },
@@ -114,6 +121,72 @@ export async function approveTelegramContact(
     await sendMessage(contact.chatId, "Alege o opțiune:", role === "ADMIN" ? mainMenu() : workerMenu());
   } catch (e) {
     console.error(`[telegram] approveTelegramContact: mesaj de bun venit eșuat pentru ${contact.chatId}`, e);
+  }
+
+  revalidatePath("/telegram");
+  revalidatePath("/users");
+  return { ok: true };
+}
+
+/**
+ * Leagă un contact Telegram „pending" la un utilizator CRM existent (evită duplicate).
+ * Setează chatId-ul pe utilizator și trimite mesaj de bun-venit.
+ */
+export async function linkTelegramToExistingUser(
+  _prev: ApproveState,
+  formData: FormData,
+): Promise<ApproveState> {
+  const admin = await requireUser();
+  if (!can(admin, "users.manage")) return { error: "Fără permisiune." };
+  if (DEMO) return { error: "Mod demo: conectează o bază de date." };
+
+  const contactId = String(formData.get("contactId") ?? "");
+  const userId = String(formData.get("userId") ?? "").trim();
+  if (!contactId) return { error: "Cerere Telegram invalidă." };
+  if (!userId) return { error: "Alege un utilizator." };
+
+  const contact = await prisma.telegramAccount.findUnique({ where: { id: contactId } });
+  if (!contact) return { error: "Cererea nu mai există." };
+  if (contact.userId) return { error: "Acest contact e deja atribuit unui cont." };
+
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, role: true },
+  });
+  if (!existingUser) return { error: "Utilizatorul selectat nu există." };
+
+  await prisma.telegramAccount.update({
+    where: { id: contactId },
+    data: { userId: existingUser.id },
+  });
+  await prisma.user.update({
+    where: { id: existingUser.id },
+    data: { telegramChatId: contact.chatId },
+  });
+
+  await logAudit(
+    { id: admin.id, name: admin.name, role: admin.role, isSuperAdmin: admin.isSuperAdmin },
+    {
+      action: "user.update",
+      module: "Users",
+      objectId: existingUser.id,
+      objectName: existingUser.name,
+      newValue: "cont Telegram atribuit",
+    },
+  );
+
+  try {
+    await sendMessage(
+      contact.chatId,
+      "✅ <b>Contul tău a fost activat de administrator!</b>\nDe acum primești task-uri și notificări direct aici.",
+    );
+    await sendMessage(
+      contact.chatId,
+      "Alege o opțiune:",
+      existingUser.role === "ADMIN" ? mainMenu() : workerMenu(),
+    );
+  } catch (e) {
+    console.error(`[telegram] linkTelegramToExistingUser: mesaj eșuat pentru ${contact.chatId}`, e);
   }
 
   revalidatePath("/telegram");

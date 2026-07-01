@@ -5,9 +5,14 @@ import { can } from "@/lib/permissions";
 import { getTask } from "@/lib/queries/tasks";
 import { listTaskComments } from "@/lib/services/tasks";
 import { dateKeyOf, formatDate, formatTime } from "@/lib/date";
+import { userOptions } from "@/lib/queries/users";
+import { teamOptions } from "@/lib/queries/teams";
+import { projectOptions } from "@/lib/queries/projects";
+import { listCategories } from "@/lib/queries/categories";
 import TaskCommentSection from "@/app/components/TaskCommentSection";
 import TaskAttachmentSection from "@/app/components/TaskAttachmentSection";
 import TaskStatusChanger from "@/app/components/TaskStatusChanger";
+import TaskDetailActions from "@/app/components/TaskDetailActions";
 import type { TaskStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -83,14 +88,19 @@ export default async function TaskDetailPage({
 
   const { env } = await import("@/lib/env");
 
-  const [task, comments] = await Promise.all([
+  const [task, comments, users, teams, projects, categories] = await Promise.all([
     getTask(id),
     listTaskComments(id),
+    userOptions(),
+    teamOptions(),
+    projectOptions(),
+    listCategories(),
   ]);
 
   if (!task) notFound();
 
   const canDelete = can(user, "tasks.delete");
+  const canEdit = can(user, "tasks.edit");
 
   const attachments = (task.attachments ?? []).map((a) => ({
     id: a.id,
@@ -207,12 +217,35 @@ export default async function TaskDetailPage({
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <Link
-        href="/tasks"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink"
-      >
-        ← Înapoi la task-uri
-      </Link>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <Link
+          href="/tasks"
+          className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink"
+        >
+          ← Înapoi la task-uri
+        </Link>
+        <TaskDetailActions
+          task={{
+            id: task.id,
+            seq: task.seq ?? null,
+            title: task.title,
+            description: task.description ?? null,
+            priority: task.priority,
+            dueAt: task.dueAt ? task.dueAt.toISOString() : null,
+            reminderIntervalMinutes: task.reminderIntervalMinutes ?? null,
+            assigneeId: task.assigneeId ?? null,
+            teamId: task.teamId ?? null,
+            projectId: task.projectId ?? null,
+            categoryId: task.categoryId ?? null,
+          }}
+          users={users}
+          teams={teams}
+          projects={projects}
+          categories={categories}
+          canEdit={canEdit}
+          canDelete={canDelete}
+        />
+      </div>
 
       {/* ── Header ────────────────────────────────────────── */}
       <div className="card mb-3 p-4">

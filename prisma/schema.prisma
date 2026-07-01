@@ -386,6 +386,13 @@ model CompanySettings {
   invoicePrefix String @default("INV")
   // Token pentru link public de invitație Telegram (null = link dezactivat)
   telegramInviteToken String?
+
+  // Ore de somn — botul nu răspunde și reminderele sunt suspendate în acest interval
+  quietHoursEnabled Boolean @default(false)
+  quietHoursStart   String  @default("22:00")
+  quietHoursEnd     String  @default("07:00")
+  quietHoursTz      String  @default("Europe/Bucharest")
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

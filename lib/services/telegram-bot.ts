@@ -21,6 +21,8 @@ import { createAppointment, changeStatus } from "./appointments";
 import { createTask, changeTaskStatus, changeTaskProgress, addTaskComment, notifyNewTask } from "./tasks";
 import { transcribeAudio } from "./voice";
 import { todayKey, tomorrowKey, weekKeys, formatTime, formatDate, humanDay, dayBoundsUtc, dateKeyOf } from "../date";
+import { getQuietHoursSettings } from "../queries/company";
+import { isQuietTime } from "../quiet-hours";
 import type { AppointmentStatus, TaskStatus } from "@prisma/client";
 
 const STATUS_RO: Record<AppointmentStatus, string> = {
@@ -376,6 +378,16 @@ async function handleMessage(msg: Msg) {
     return;
   }
 
+  // Ore de somn — blocăm toate comenzile (excepție: /start tratat mai sus)
+  const qhConfig = await getQuietHoursSettings();
+  if (isQuietTime(new Date(), qhConfig)) {
+    await sendMessage(
+      chatId,
+      `😴 Botul este în modul somn (${qhConfig.quietHoursStart} – ${qhConfig.quietHoursEnd}). Revin la ora ${qhConfig.quietHoursEnd}.`,
+    );
+    return;
+  }
+
   const user = await resolveUser(msg.from.id);
 
   // Mesaj vocal → programare (doar admin)
@@ -442,6 +454,16 @@ async function handleCallback(cb: Cb) {
   const chatId = cb.message?.chat.id;
   const data = cb.data ?? "";
   if (!chatId) return;
+
+  // Ore de somn — blocăm callback-urile
+  const qhConfigCb = await getQuietHoursSettings();
+  if (isQuietTime(new Date(), qhConfigCb)) {
+    await sendMessage(
+      chatId,
+      `😴 Botul este în modul somn (${qhConfigCb.quietHoursStart} – ${qhConfigCb.quietHoursEnd}). Revin la ora ${qhConfigCb.quietHoursEnd}.`,
+    );
+    return;
+  }
 
   const user = await resolveUser(cb.from.id);
   if (!user) {

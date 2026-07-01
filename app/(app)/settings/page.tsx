@@ -3,10 +3,11 @@ import { requireUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { getSettings } from "@/lib/queries/settings";
 import { listCategories } from "@/lib/queries/categories";
-import { getCompanySettings } from "@/lib/queries/company";
+import { getCompanySettings, getQuietHoursSettings } from "@/lib/queries/company";
 import SettingsForm from "@/app/components/SettingsForm";
 import CategoriesManager from "@/app/components/CategoriesManager";
 import CompanyDetailsForm from "@/app/components/CompanyDetailsForm";
+import QuietHoursForm from "@/app/components/QuietHoursForm";
 import PushToggle from "@/app/components/PushToggle";
 import { IconChevronRight } from "@/app/components/icons";
 
@@ -14,10 +15,11 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [settings, categories, company] = await Promise.all([
+  const [settings, categories, company, quietHours] = await Promise.all([
     getSettings(user.id),
     listCategories(),
     getCompanySettings(),
+    getQuietHoursSettings(),
   ]);
 
   return (
@@ -25,6 +27,7 @@ export default async function SettingsPage() {
       <CompanyDetailsForm company={company} canEdit={can(user, "admin")} />
       <SettingsForm settings={settings} />
       <CategoriesManager categories={categories} canManage={user.role === "ADMIN"} />
+      <QuietHoursForm config={quietHours} canEdit={user.isSuperAdmin} />
       <PushToggle />
 
       <Link

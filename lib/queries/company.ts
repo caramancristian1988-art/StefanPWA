@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "../prisma";
 import { DEMO } from "../demo";
+import type { QuietHoursConfig } from "../quiet-hours";
 
 export type Company = {
   companyName: string;
@@ -41,6 +42,36 @@ const SELECT = {
   currency: true,
   invoicePrefix: true,
 } as const;
+
+const QH_DEFAULTS: QuietHoursConfig = {
+  quietHoursEnabled: false,
+  quietHoursStart: "22:00",
+  quietHoursEnd: "07:00",
+  quietHoursTz: "Europe/Bucharest",
+};
+
+export { type QuietHoursConfig };
+
+/** Orele de somn (singleton). */
+export async function getQuietHoursSettings(): Promise<QuietHoursConfig> {
+  if (DEMO) return QH_DEFAULTS;
+  const row = await prisma.companySettings.findUnique({
+    where: { singleton: "main" },
+    select: {
+      quietHoursEnabled: true,
+      quietHoursStart: true,
+      quietHoursEnd: true,
+      quietHoursTz: true,
+    },
+  });
+  if (!row) return QH_DEFAULTS;
+  return {
+    quietHoursEnabled: row.quietHoursEnabled,
+    quietHoursStart: row.quietHoursStart,
+    quietHoursEnd: row.quietHoursEnd,
+    quietHoursTz: row.quietHoursTz,
+  };
+}
 
 /** Datele companiei (singleton). Cache cross-request. */
 export const getCompanySettings = unstable_cache(

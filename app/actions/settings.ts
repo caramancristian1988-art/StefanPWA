@@ -60,6 +60,42 @@ export async function deleteCategory(id: string): Promise<void> {
   revalidatePath("/settings");
 }
 
+export async function updateQuietHours(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const user = await requireUser();
+  if (!user.isSuperAdmin) return { error: "Doar super-administratorii pot modifica orele de somn." };
+  if (DEMO) return { error: DEMO_MSG };
+
+  const enabled = formData.get("quietHoursEnabled") === "on";
+  const start = String(formData.get("quietHoursStart") ?? "22:00").trim();
+  const end = String(formData.get("quietHoursEnd") ?? "07:00").trim();
+  const tz = String(formData.get("quietHoursTz") ?? "Europe/Bucharest").trim();
+
+  if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) {
+    return { error: "Format orar invalid (HH:MM)." };
+  }
+
+  await prisma.companySettings.upsert({
+    where: { singleton: "main" },
+    create: {
+      quietHoursEnabled: enabled,
+      quietHoursStart: start,
+      quietHoursEnd: end,
+      quietHoursTz: tz || "Europe/Bucharest",
+    },
+    update: {
+      quietHoursEnabled: enabled,
+      quietHoursStart: start,
+      quietHoursEnd: end,
+      quietHoursTz: tz || "Europe/Bucharest",
+    },
+  });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 export async function updateSettings(
   _prev: SettingsState,
   formData: FormData,

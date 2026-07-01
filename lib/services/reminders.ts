@@ -3,6 +3,8 @@ import { prisma } from "../prisma";
 import { sendReminderEmail } from "../email";
 import { sendMessage } from "../telegram";
 import { getSettings } from "../queries/settings";
+import { getQuietHoursSettings } from "../queries/company";
+import { isQuietTime } from "../quiet-hours";
 import { formatDate, formatTime } from "../date";
 
 const MAX_ATTEMPTS = 3;
@@ -39,8 +41,13 @@ export async function processDueReminders(limit = 50) {
   let sent = 0;
   let failed = 0;
 
+  const qhConfig = await getQuietHoursSettings();
+
   for (const r of due) {
     const appt = r.appointment;
+
+    // Ore de somn activ → sari, va fi procesat la următoarea rulare cron
+    if (isQuietTime(now, qhConfig)) continue;
 
     // Programare anulată / absentă / finalizată → reminder fără rost
     if (!appt || ["CANCELLED", "NO_SHOW", "DONE"].includes(appt.status)) {

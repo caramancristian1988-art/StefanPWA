@@ -46,7 +46,8 @@ export async function updateCategory(
     defaultDurationMinutes: formData.get("defaultDurationMinutes") || 30,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Date invalide." };
-  await prisma.category.updateMany({ where: { id, userId: user.id }, data: parsed.data });
+  const where = user.role === "ADMIN" ? { id } : { id, userId: user.id };
+  await prisma.category.updateMany({ where, data: parsed.data });
   revalidatePath("/settings");
   return { ok: true };
 }
@@ -54,7 +55,8 @@ export async function updateCategory(
 export async function deleteCategory(id: string): Promise<void> {
   const user = await requireUser();
   if (DEMO) return;
-  await prisma.category.deleteMany({ where: { id, userId: user.id } });
+  const where = user.role === "ADMIN" ? { id } : { id, userId: user.id };
+  await prisma.category.deleteMany({ where });
   revalidatePath("/settings");
 }
 

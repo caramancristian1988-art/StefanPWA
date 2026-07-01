@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { listTasks } from "@/lib/queries/tasks";
@@ -44,7 +43,7 @@ export default async function TasksPage({
   // STAFF vede mereu doar propriile task-uri; ADMIN poate comuta scope din URL
   const scope = (
     user.role === "STAFF"
-      ? (sp.scope === "created" ? "created" : "mine")
+      ? "mine"
       : ["mine", "all", "created"].includes(sp.scope ?? "") ? sp.scope : "mine"
   ) as "mine" | "all" | "created";
   const page = Math.max(1, Number(sp.page) || 1);
@@ -82,23 +81,10 @@ export default async function TasksPage({
     listCategories(),
   ]);
 
+  const scopeOptions = SCOPES.filter((s) => user.role === "STAFF" ? s.key !== "all" : true);
+
   return (
     <div className="w-full">
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-        {SCOPES.filter((s) => user.role === "STAFF" ? s.key !== "all" : true).map((s) => (
-          <Link
-            key={s.key}
-            href={`/tasks?scope=${s.key}`}
-            prefetch={false}
-            className={`tap shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
-              scope === s.key ? "bg-brand text-white" : "card text-ink-soft"
-            }`}
-          >
-            {s.label}
-          </Link>
-        ))}
-      </div>
-
       <TasksManager
         items={result.items}
         hasMore={result.hasMore}
@@ -129,6 +115,7 @@ export default async function TasksPage({
         initialCreate={can(user, "tasks.create") ? initialCreate : undefined}
         initialProjectId={can(user, "tasks.create") ? initialProjectId : undefined}
         initialOpenId={initialOpenId}
+        scopeOptions={scopeOptions}
       />
     </div>
   );

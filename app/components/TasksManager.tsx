@@ -138,6 +138,7 @@ export default function TasksManager({
   initialCreate,
   initialProjectId,
   initialOpenId,
+  scopeOptions,
 }: {
   items: Task[];
   hasMore: boolean;
@@ -157,6 +158,7 @@ export default function TasksManager({
   initialCreate?: "TASK" | "TICKET" | "WORK_ORDER";
   initialProjectId?: string;
   initialOpenId?: string;
+  scopeOptions?: { key: string; label: string }[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -224,6 +226,13 @@ export default function TasksManager({
   const [searchInput, setSearchInput] = useState(filters.q);
   useEffect(() => setSearchInput(filters.q), [filters.q]);
 
+  function setScope(newScope: string) {
+    const usp = new URLSearchParams();
+    if (newScope !== "mine") usp.set("scope", newScope);
+    const qs = usp.toString();
+    startNav(() => router.push(`/tasks${qs ? `?${qs}` : ""}`));
+  }
+
   function buildUrl(patch: Partial<TaskFilters & { page: number }>) {
     const merged = { ...filters, ...patch } as Record<string, string | number | undefined>;
     const usp = new URLSearchParams();
@@ -283,6 +292,23 @@ export default function TasksManager({
 
   return (
     <>
+      {scopeOptions && scopeOptions.length > 0 && (
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+          {scopeOptions.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setScope(s.key)}
+              className={`tap shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
+                scope === s.key ? "bg-brand text-white" : "card text-ink-soft"
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Filtre ─────────────────────────────────────────── */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <form

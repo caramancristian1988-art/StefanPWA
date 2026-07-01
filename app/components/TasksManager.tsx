@@ -436,21 +436,15 @@ export default function TasksManager({
                 >
                   {PROGRESS.map((p) => <option key={p} value={p}>{p}%</option>)}
                 </select>
-                <div className="relative shrink-0">
-                  <span className={`pointer-events-none inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${ST[t.status].badge} ${statusPending === t.id ? "opacity-50" : ""}`}>
-                    <span className={`size-1.5 rounded-full ${ST[t.status].dot}`} />
-                    {ST[t.status].label}
-                  </span>
-                  <select
-                    value={t.status}
-                    onChange={(e) => changeStatus(t.id, e.target.value as Status)}
-                    disabled={statusPending === t.id}
-                    title="Schimbă statusul"
-                    className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                  >
-                    {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
-                  </select>
-                </div>
+                <select
+                  value={t.status}
+                  onChange={(e) => changeStatus(t.id, e.target.value as Status)}
+                  disabled={statusPending === t.id}
+                  title="Schimbă statusul"
+                  className={`h-7 shrink-0 cursor-pointer rounded-full border-none px-2.5 text-[11px] font-semibold outline-none [appearance:none] disabled:opacity-50 ${ST[t.status].badge}`}
+                >
+                  {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
+                </select>
                 {canEdit && (
                   <button onClick={() => setEditTask(t)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title="Editează">
                     <IconPencil className="size-3.5" />

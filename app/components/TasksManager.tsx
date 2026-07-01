@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -436,15 +437,11 @@ export default function TasksManager({
                 >
                   {PROGRESS.map((p) => <option key={p} value={p}>{p}%</option>)}
                 </select>
-                <select
-                  value={t.status}
-                  onChange={(e) => changeStatus(t.id, e.target.value as Status)}
-                  disabled={statusPending === t.id}
-                  title="Schimbă statusul"
-                  className={`h-7 shrink-0 cursor-pointer rounded-full border-none px-2.5 text-[11px] font-semibold outline-none [appearance:none] disabled:opacity-50 ${ST[t.status].badge}`}
-                >
-                  {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
-                </select>
+                <StatusDropdown
+                  status={t.status}
+                  pending={statusPending === t.id}
+                  onChange={(s) => changeStatus(t.id, s)}
+                />
                 {canEdit && (
                   <button onClick={() => setEditTask(t)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title="Editează">
                     <IconPencil className="size-3.5" />
@@ -548,6 +545,78 @@ export default function TasksManager({
             router.refresh();
           }}
         />
+      )}
+    </>
+  );
+}
+
+function StatusDropdown({
+  status,
+  pending,
+  onChange,
+}: {
+  status: Status;
+  pending: boolean;
+  onChange: (s: Status) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, minWidth: 0 });
+  const [mounted, setMounted] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function close() { setOpen(false); }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  function handleOpen(e: React.MouseEvent) {
+    e.stopPropagation();
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (rect) {
+      setPos({
+        top: rect.bottom + 4,
+        left: rect.left,
+        minWidth: Math.max(rect.width, 144),
+      });
+    }
+    setOpen((o) => !o);
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        disabled={pending}
+        onClick={handleOpen}
+        className={`h-7 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition-opacity disabled:opacity-50 ${ST[status].badge}`}
+      >
+        {ST[status].label}
+      </button>
+      {open && mounted && createPortal(
+        <div
+          style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: pos.minWidth, zIndex: 9999 }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-1 shadow-xl"
+        >
+          {STATUSES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onChange(s); setOpen(false); }}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12px] font-medium hover:bg-[var(--color-surface-2)] ${s === status ? "font-bold" : ""}`}
+            >
+              <span className={`size-2 shrink-0 rounded-full ${ST[s].dot}`} />
+              <span className={s === status ? "text-ink" : "text-ink-soft"}>{ST[s].label}</span>
+              {s === status && <span className="ml-auto text-[10px] text-brand">✓</span>}
+            </button>
+          ))}
+        </div>,
+        document.body,
       )}
     </>
   );

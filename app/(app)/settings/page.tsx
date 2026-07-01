@@ -24,7 +24,7 @@ export default async function SettingsPage() {
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
       <CompanyDetailsForm company={company} canEdit={can(user, "admin")} />
       <SettingsForm settings={settings} />
-      <CategoriesManager categories={categories} />
+      <CategoriesManager categories={categories} canManage={user.role === "ADMIN"} />
       <PushToggle />
 
       <Link

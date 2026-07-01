@@ -15,7 +15,13 @@ import { IconPencil, IconTrash, IconX, IconCheck } from "./icons";
 const inp =
   "h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
 
-export default function CategoriesManager({ categories }: { categories: CategoryLite[] }) {
+export default function CategoriesManager({
+  categories,
+  canManage = false,
+}: {
+  categories: CategoryLite[];
+  canManage?: boolean;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [rows, setRows] = useState(categories);
@@ -125,27 +131,32 @@ export default function CategoriesManager({ categories }: { categories: Category
               <span className="size-2.5 shrink-0 rounded-full" style={{ background: c.color }} />
               <span className="flex-1 text-sm font-medium">{c.name}</span>
               <span className="text-xs text-ink-soft">{c.defaultDurationMinutes} min</span>
-              <button
-                onClick={() => startEdit(c)}
-                title="Editează"
-                className="tap grid size-7 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]"
-              >
-                <IconPencil className="size-3.5" />
-              </button>
-              <button
-                onClick={() => remove(c.id)}
-                title="Șterge"
-                className="tap grid size-7 place-items-center rounded-lg text-st-cancelled hover:bg-[var(--color-surface-2)]"
-              >
-                <IconTrash className="size-3.5" />
-              </button>
+              {canManage && (
+                <>
+                  <button
+                    onClick={() => startEdit(c)}
+                    title="Editează"
+                    className="tap grid size-7 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]"
+                  >
+                    <IconPencil className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={() => remove(c.id)}
+                    title="Șterge"
+                    className="tap grid size-7 place-items-center rounded-lg text-st-cancelled hover:bg-[var(--color-surface-2)]"
+                  >
+                    <IconTrash className="size-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           ),
         )}
       </div>
 
-      {/* Add form */}
-      <form action={createAction} className="flex flex-col gap-2 border-t border-[var(--color-line)] pt-4">
+      {/* Add form — doar admin */}
+      {!canManage && <p className="text-xs text-ink-soft">Doar administratorii pot gestiona categoriile.</p>}
+      {canManage && <form action={createAction} className="flex flex-col gap-2 border-t border-[var(--color-line)] pt-4">
         <div className="flex items-center gap-2">
           <span className="size-2.5 shrink-0 rounded-full" style={{ background: newColor }} />
           <input
@@ -180,8 +191,8 @@ export default function CategoriesManager({ categories }: { categories: Category
             Adaugă
           </button>
         </div>
-      </form>
-      {createState?.error && <p className="text-sm text-st-cancelled">{createState.error}</p>}
+      </form>}
+      {canManage && createState?.error && <p className="text-sm text-st-cancelled">{createState.error}</p>}
     </div>
   );
 }

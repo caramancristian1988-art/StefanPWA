@@ -37,6 +37,7 @@ export async function updateCategory(
   formData: FormData,
 ): Promise<SettingsState> {
   const user = await requireUser();
+  if (user.role !== "ADMIN") return { error: "Doar administratorii pot edita categorii." };
   if (DEMO) return { error: DEMO_MSG };
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return { error: "ID lipsă." };
@@ -46,17 +47,16 @@ export async function updateCategory(
     defaultDurationMinutes: formData.get("defaultDurationMinutes") || 30,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Date invalide." };
-  const where = user.role === "ADMIN" ? { id } : { id, userId: user.id };
-  await prisma.category.updateMany({ where, data: parsed.data });
+  await prisma.category.updateMany({ where: { id }, data: parsed.data });
   revalidatePath("/settings");
   return { ok: true };
 }
 
 export async function deleteCategory(id: string): Promise<void> {
   const user = await requireUser();
+  if (user.role !== "ADMIN") return;
   if (DEMO) return;
-  const where = user.role === "ADMIN" ? { id } : { id, userId: user.id };
-  await prisma.category.deleteMany({ where });
+  await prisma.category.deleteMany({ where: { id } });
   revalidatePath("/settings");
 }
 

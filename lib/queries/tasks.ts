@@ -81,7 +81,7 @@ function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRo
     teamName: t.team?.name ?? null,
     projectName: t.project?.name ?? null,
     clientName: null,
-    creatorName: t.creator.name,
+    creatorName: t.creator?.name ?? "Necunoscut",
     createdAt: t.createdAt,
   };
 }

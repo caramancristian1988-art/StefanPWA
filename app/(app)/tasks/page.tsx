@@ -44,7 +44,7 @@ export default async function TasksPage({
   // STAFF vede mereu doar propriile task-uri; ADMIN poate comuta scope din URL
   const scope = (
     user.role === "STAFF"
-      ? "mine"
+      ? (sp.scope === "created" ? "created" : "mine")
       : ["mine", "all", "created"].includes(sp.scope ?? "") ? sp.scope : "mine"
   ) as "mine" | "all" | "created";
   const page = Math.max(1, Number(sp.page) || 1);

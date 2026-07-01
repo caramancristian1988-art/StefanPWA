@@ -570,7 +570,11 @@ function StatusDropdown({
     if (!open) return;
     function close() { setOpen(false); }
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      window.removeEventListener("scroll", close, true);
+    };
   }, [open]);
 
   function handleOpen(e: React.MouseEvent) {

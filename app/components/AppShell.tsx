@@ -18,6 +18,7 @@ const NAV: NavItem[] = [
   { href: "/calendar", label: "Calendar", icon: calIcon(), perm: "tasks.view" },
   { href: "/appointments", label: "Programări", icon: apptIcon(), perm: "appointments.view" },
   { href: "/projects", label: "Proiecte", icon: folderIcon(), perm: "projects.view" },
+  { href: "/harta", label: "Hartă", icon: mapIcon(), perm: "projects.view" },
   { href: "/team", label: "Echipă", icon: usersIcon(), perm: "teams.view" },
   { href: "/invoices", label: "Facturi", icon: invoiceIcon(), perm: "invoices.view" },
   { href: "/clients", label: "Clienți", icon: usersIcon(), perm: "clients.view" },
@@ -262,6 +263,9 @@ function userIcon() {
 }
 function checklistIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12M3.5 6 4.5 7 6 5M3.5 12l1 1L6 11M3.5 18l1 1L6 17"/></svg>;
+}
+function mapIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>;
 }
 function ticketIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-2a2 2 0 0 0 0-4Z"/><path d="M9 3v3M9 18v3M15 3v3M15 18v3"/></svg>;

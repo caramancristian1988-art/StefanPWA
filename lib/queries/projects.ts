@@ -102,6 +102,44 @@ export const projectOptions = unstable_cache(
   { tags: ["projects"], revalidate: 300 },
 );
 
+export type ProjectPin = {
+  id: string;
+  name: string;
+  status: ProjectStatus;
+  address: string | null;
+  taskCount: number;
+  lat: number;
+  lng: number;
+};
+
+export async function listProjectsWithLocation(): Promise<ProjectPin[]> {
+  if (DEMO) return [];
+  const rows = await prisma.project.findMany({
+    where: { lat: { not: null }, lng: { not: null } },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      address: true,
+      lat: true,
+      lng: true,
+      _count: { select: { tasks: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+  return rows
+    .filter((r) => r.lat != null && r.lng != null)
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      status: r.status,
+      address: r.address ?? null,
+      taskCount: r._count.tasks,
+      lat: r.lat!,
+      lng: r.lng!,
+    }));
+}
+
 export async function getProject(id: string) {
   if (DEMO) return null;
   return prisma.project.findUnique({

@@ -267,7 +267,7 @@ export async function notifyNewTask(taskId: string): Promise<void> {
         extraTeamIds: true,
         assignmentSettingsJson: true,
         assignee: { select: { name: true, teamIds: true } },
-        project: { select: { name: true } },
+        project: { select: { name: true, lat: true, lng: true, address: true } },
       },
     });
     if (!task) return;
@@ -305,6 +305,15 @@ export async function notifyNewTask(taskId: string): Promise<void> {
     if (task.assignee?.name) lines.push(`👤 Asignat: ${escapeHtml(task.assignee.name)}`);
     if (task.project?.name) lines.push(`📁 Proiect: ${escapeHtml(task.project.name)}`);
     lines.push(`Status: <b>${TASK_STATUS_RO[task.status]}</b>`);
+
+    // Link invizibil spre hartă (zero-width space ca anchor text — Telegram afișează preview hartă)
+    const proj = task.project as { name: string; lat: number | null; lng: number | null; address: string | null } | null;
+    if (proj?.lat != null && proj?.lng != null) {
+      lines.push(`​<a href="https://maps.google.com/maps?q=${proj.lat},${proj.lng}">​</a>`);
+    } else if (proj?.address) {
+      lines.push(`​<a href="https://maps.google.com/maps?q=${encodeURIComponent(proj.address)}">​</a>`);
+    }
+
     const text = lines.join("\n");
 
     let stored = false;
@@ -408,6 +417,7 @@ export async function changeTaskStatus(
       telegramChatId: true,
       telegramMessageId: true,
       assignee: { select: { teamIds: true } },
+      project: { select: { lat: true, lng: true, address: true } },
     },
   });
   if (!task) {
@@ -531,6 +541,12 @@ export async function changeTaskStatus(
         editLines.push("", escapeHtml(task.description.trim()));
       }
       editLines.push("", `Status: <b>${TASK_STATUS_RO[newStatus]}</b>`);
+      const tp = task.project as { lat: number | null; lng: number | null; address: string | null } | null;
+      if (tp?.lat != null && tp?.lng != null) {
+        editLines.push(`​<a href="https://maps.google.com/maps?q=${tp.lat},${tp.lng}">​</a>`);
+      } else if (tp?.address) {
+        editLines.push(`​<a href="https://maps.google.com/maps?q=${encodeURIComponent(tp.address)}">​</a>`);
+      }
       await editMessageText(
         task.telegramChatId,
         task.telegramMessageId,

@@ -144,15 +144,19 @@ export async function POST(req: Request) {
 
       let projectId: string | undefined;
       if (r["Proiect"]) {
-        const id = projectByName.get(r["Proiect"].trim().toLowerCase());
-        if (!id) {
-          result.failed.push({
-            row: rowNum,
-            error: `Proiectul '${r["Proiect"]}' nu există în baza de date.`,
+        const key = r["Proiect"].trim().toLowerCase();
+        const existing = projectByName.get(key);
+        if (existing) {
+          projectId = existing;
+        } else {
+          // Creează proiect rapid doar cu denumirea
+          const newProj = await prisma.project.create({
+            data: { name: r["Proiect"].trim(), ownerId: user.id },
+            select: { id: true },
           });
-          continue;
+          projectByName.set(key, newProj.id);
+          projectId = newProj.id;
         }
-        projectId = id;
       }
 
       let categoryId: string | undefined;

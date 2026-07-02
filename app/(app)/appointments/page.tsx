@@ -14,6 +14,7 @@ import AppointmentItem from "@/app/components/AppointmentItem";
 import AppointmentsControls from "@/app/components/AppointmentsControls";
 import OpenQuickAddButton from "@/app/components/OpenQuickAddButton";
 import ExportButton from "@/app/components/ExportButton";
+import ImportButton from "@/app/components/ImportButton";
 import AutoOpenQuickAdd from "@/app/components/AutoOpenQuickAdd";
 import { QuickAddProvider } from "@/app/components/quick-add-context";
 import type { ApptVM } from "@/app/components/types";
@@ -85,6 +86,10 @@ export default async function AppointmentsPage({
               status: status || undefined,
               category: category || undefined,
             }}
+            className="tap h-10 shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
+          />
+          <ImportButton
+            entity="appointments"
             className="tap h-10 shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
           />
         </div>

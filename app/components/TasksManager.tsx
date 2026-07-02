@@ -21,6 +21,7 @@ import { IconTrash, IconX, IconChevronLeft, IconChevronRight, IconPencil } from 
 import QuickSelect from "./QuickSelect";
 import MultiAssignPicker from "./MultiAssignPicker";
 import ExportButton from "./ExportButton";
+import ImportButton from "./ImportButton";
 import { quickCreateProject } from "@/app/actions/projects";
 import type { CategoryLite } from "./types";
 import type { AssignmentSetting } from "@/lib/services/tasks";
@@ -411,6 +412,10 @@ export default function TasksManager({
             sort: filters.sort || undefined,
             category: filters.category || undefined,
           }}
+          className="tap h-9 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+        />
+        <ImportButton
+          entity={basePath === "/tickets" ? "tickets" : "tasks"}
           className="tap h-9 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
         />
       </div>

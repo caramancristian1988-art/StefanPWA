@@ -4,6 +4,7 @@ import { listClients } from "@/lib/queries/clients";
 import ClientSearch from "@/app/components/ClientSearch";
 import ClientsList, { type ClientRow } from "@/app/components/ClientsList";
 import ExportButton from "@/app/components/ExportButton";
+import ImportButton from "@/app/components/ImportButton";
 import { IconChevronLeft, IconChevronRight } from "@/app/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ export default async function ClientsPage({
           <ClientSearch initial={q} />
         </div>
         <ExportButton entity="clients" params={{ q: q || undefined }} className="tap mb-4 h-12 shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]" />
+        <ImportButton entity="clients" className="tap mb-4 h-12 shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]" />
       </div>
       <p className="mb-3 text-xs text-ink-soft">{total} clienți</p>
       <ClientsList items={rows} openCreate={create === "1"} />

@@ -134,7 +134,7 @@ export async function parseTaskCommand(
     "Răspunde DOAR cu JSON valid, fără text suplimentar.",
     "Câmpuri posibile:",
     "  title: string — titlu scurt obligatoriu",
-    "  type: 'TASK'|'TICKET'|'WORK_ORDER' — tichet/ticket→TICKET, work order→WORK_ORDER, altfel TASK",
+    "  type: 'TASK'|'TICKET' — tichet/ticket→TICKET, altfel TASK",
     "  priority: 'LOW'|'MEDIUM'|'HIGH'|'URGENT' — scăzut→LOW, mediu→MEDIUM, ridicat/important→HIGH, urgent/critic→URGENT",
     `  dueDate: 'YYYY-MM-DD' — azi=${todayKey(tz)}, mâine=${tomorrowKey(tz)}, zile: ${dateContext(tz)}`,
     "  dueTime: 'HH:mm' (24h) — 'la 3' context business=15:00",

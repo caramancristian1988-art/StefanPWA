@@ -120,7 +120,7 @@ export const voiceParsedSchema = z.object({
 /** Structura extrasă de AI pentru task/tichet vocal. */
 export const taskVoiceParsedSchema = z.object({
   title: z.string().trim().optional(),
-  type: z.enum(["TASK", "TICKET", "WORK_ORDER"]).optional(),
+  type: z.enum(["TASK", "TICKET"]).optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
   dueDate: z.string().regex(dateKeyRe).optional(),
   dueTime: z.string().regex(timeRe).optional(),

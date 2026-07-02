@@ -26,7 +26,7 @@ export type TaskState = { ok?: boolean; error?: string; id?: string } | undefine
 const moduleForType = (t: TaskType) => (t === "TICKET" ? "Tickets" : "Tasks");
 const prefixForType = (t: TaskType) => (t === "TICKET" ? "ticket" : "task");
 
-const TYPES: TaskType[] = ["TASK", "TICKET", "WORK_ORDER"];
+const TYPES: TaskType[] = ["TASK", "TICKET"];
 const PRIORITIES: TaskPriority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 const STATUSES: TaskStatus[] = [
   "NEW",

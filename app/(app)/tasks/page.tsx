@@ -18,7 +18,7 @@ const SCOPES = [
 ] as const;
 
 const STATUS_SET = new Set(["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED"]);
-const TYPE_SET = new Set(["TASK", "TICKET", "WORK_ORDER"]);
+const TYPE_SET = new Set(["TASK", "TICKET"]);
 const PRIO_SET = new Set(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 
 function pick<T extends string>(v: string | undefined, set: Set<string>): T | undefined {
@@ -48,7 +48,7 @@ export default async function TasksPage({
   ) as "mine" | "all" | "created";
   const page = Math.max(1, Number(sp.page) || 1);
   const initialCreate =
-    sp.create === "work_order" ? "WORK_ORDER" : sp.create === "task" ? "TASK" : undefined;
+    sp.create === "task" ? "TASK" : undefined;
   const initialProjectId = typeof sp.project === "string" ? sp.project : undefined;
   const initialOpenId = typeof sp.open === "string" && sp.open ? sp.open : undefined;
 
@@ -62,7 +62,7 @@ export default async function TasksPage({
       scope,
       userId: user.id,
       teamIds: user.teamIds,
-      types: ["TASK", "WORK_ORDER"],
+      types: ["TASK"],
       status: pick<TaskStatus>(sp.status, STATUS_SET),
       priority: pick<TaskPriority>(sp.prio, PRIO_SET),
       assigneeId: sp.assignee || undefined,
@@ -121,7 +121,6 @@ export default async function TasksPage({
         basePath="/tasks"
         createButtons={can(user, "tasks.create") ? [
           { label: "+ Task nou", type: "TASK" },
-          { label: "+ Work Order", type: "WORK_ORDER" },
         ] : []}
       />
     </div>

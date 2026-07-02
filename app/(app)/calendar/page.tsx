@@ -19,7 +19,7 @@ type View = "month" | "week" | "day";
 
 type CalItem = {
   id: string;
-  kind: "TASK" | "TICKET" | "WORK_ORDER" | "APPT";
+  kind: "TASK" | "TICKET" | "APPT";
   title: string;
   dateAt: Date;
   status: string;
@@ -44,7 +44,7 @@ const TASK_ST_RO: Record<string, string> = {
   ON_HOLD: "În așteptare", REVIEW: "În verificare", DONE: "Finalizat", CANCELLED: "Anulat",
 };
 const TYPE_BADGE: Record<string, string> = {
-  TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Comandă", APPT: "Programare",
+  TASK: "Task", TICKET: "Tichet", APPT: "Programare",
 };
 
 function dot(item: CalItem) {
@@ -127,7 +127,7 @@ export default async function CalendarPage({
 
   // Build task types filter
   const taskTypes: TaskType[] = [];
-  if (showTasks) taskTypes.push("TASK", "WORK_ORDER");
+  if (showTasks) taskTypes.push("TASK");
   if (showTickets) taskTypes.push("TICKET");
 
   const needTasks = taskTypes.length > 0;

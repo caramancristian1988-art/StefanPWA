@@ -88,7 +88,7 @@ function groupByStatus(tasks: Task[]): [Status, Task[]][] {
   }
   return order.map((s) => [s, map.get(s)!]);
 }
-const TYPE_RO = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Work order" };
+const TYPE_RO: Record<string, string> = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Task" };
 const PRIO_RO = { LOW: "Scăzută", MEDIUM: "Medie", HIGH: "Ridicată", URGENT: "Urgentă" };
 const STATUSES: Status[] = ["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED"];
 const PROGRESS = [0, 25, 50, 75, 100];
@@ -961,7 +961,7 @@ function CreateDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  const title = initialType === "TICKET" ? "Tichet nou" : initialType === "WORK_ORDER" ? "Work order nou" : "Task nou";
+  const title = initialType === "TICKET" ? "Tichet nou" : "Task nou";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -979,7 +979,6 @@ function CreateDialog({
             <select name="type" defaultValue={initialType} className={dlgInput}>
               <option value="TASK">Task</option>
               <option value="TICKET">Tichet</option>
-              <option value="WORK_ORDER">Work order</option>
             </select>
             <select name="priority" defaultValue="MEDIUM" className={dlgInput}>
               <option value="LOW">Prioritate scăzută</option>

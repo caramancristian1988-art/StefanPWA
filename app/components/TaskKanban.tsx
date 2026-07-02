@@ -47,7 +47,7 @@ const LABEL: Record<Status, string> = Object.fromEntries(
   COLUMNS.map((c) => [c.status, c.label]),
 ) as Record<Status, string>;
 
-const TYPE_RO: Record<TaskType, string> = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Comandă" };
+const TYPE_RO: Record<TaskType, string> = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Task" };
 const PRIO_RO: Record<Priority, string> = { LOW: "Scăzută", MEDIUM: "Medie", HIGH: "Ridicată", URGENT: "Urgentă" };
 const PRIO_CLR: Record<Priority, string> = {
   LOW: "text-ink-soft",
@@ -233,7 +233,6 @@ export default function TaskKanban({
           <option value="">Tip: toate</option>
           <option value="TASK">Task</option>
           <option value="TICKET">Tichet</option>
-          <option value="WORK_ORDER">Comandă</option>
         </select>
         <select value={fPriority} onChange={(e) => setFPriority(e.target.value)} className={fld}>
           <option value="">Prioritate: orice</option>

@@ -181,7 +181,6 @@ export const TASK_STATUS_RO: Record<string, string> = {
 export const TASK_TYPE_RO: Record<string, string> = {
   TASK: "Task",
   TICKET: "Tichet",
-  WORK_ORDER: "Work order",
 };
 
 export const TASK_PRIORITY_RO: Record<string, string> = {

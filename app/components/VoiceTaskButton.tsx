@@ -14,7 +14,7 @@ type Opt = { id: string; name: string };
 
 type ParsedTask = {
   title?: string;
-  type?: "TASK" | "TICKET" | "WORK_ORDER";
+  type?: "TASK" | "TICKET";
   priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   dueDate?: string;
   dueTime?: string;
@@ -41,7 +41,7 @@ function TaskVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => v
   const { parsed, context } = data;
 
   const [title, setTitle] = useState(parsed.title ?? "");
-  const [type, setType] = useState<"TASK" | "TICKET" | "WORK_ORDER">(parsed.type ?? "TASK");
+  const [type, setType] = useState<"TASK" | "TICKET">(parsed.type ?? "TASK");
   const [priority, setPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "URGENT">(parsed.priority ?? "MEDIUM");
   const [dueDate, setDueDate] = useState(parsed.dueDate ?? "");
   const [dueTime, setDueTime] = useState(parsed.dueTime ?? "");
@@ -140,9 +140,9 @@ function TaskVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => v
 
           {/* Type */}
           <div className="flex flex-wrap gap-2">
-            {(["TASK", "TICKET", "WORK_ORDER"] as const).map((t) => (
+            {(["TASK", "TICKET"] as const).map((t) => (
               <button key={t} type="button" onClick={() => setType(t)} className={chip(type === t)}>
-                {t === "TASK" ? "Task" : t === "TICKET" ? "Tichet" : "Work order"}
+                {t === "TASK" ? "Task" : "Tichet"}
               </button>
             ))}
           </div>

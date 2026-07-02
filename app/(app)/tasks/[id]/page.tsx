@@ -30,7 +30,7 @@ const ST: Record<string, { label: string; dot: string; badge: string }> = {
   CANCELLED:   { label: "Anulat",         dot: "bg-st-cancelled", badge: "bg-st-cancelled/15 text-st-cancelled" },
 };
 const PRIO_RO: Record<string, string> = { LOW: "Scăzută", MEDIUM: "Medie", HIGH: "Ridicată", URGENT: "Urgentă" };
-const TYPE_RO: Record<string, string>  = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Work order" };
+const TYPE_RO: Record<string, string>  = { TASK: "Task", TICKET: "Tichet" };
 
 function fmtDateTime(d: Date | string) {
   const date = new Date(d);

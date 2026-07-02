@@ -238,14 +238,29 @@ export async function POST(req: Request) {
 
   // ─── PROJECTS ─────────────────────────────────────────────────────────────
   if (entity === "projects") {
-    const [allUsers, allTeams, allClients] = await Promise.all([
+    const [allUsers, allTeams, allClients, existingProjects] = await Promise.all([
       prisma.user.findMany({ select: { id: true, name: true } }),
       prisma.team.findMany({ select: { id: true, name: true } }),
       prisma.client.findMany({ select: { id: true, name: true } }),
+      prisma.project.findMany({ select: { id: true, name: true } }),
     ]);
     const userByName = new Map(allUsers.map((u) => [u.name.trim().toLowerCase(), u.id]));
     const teamByName = new Map(allTeams.map((t) => [t.name.trim().toLowerCase(), t.id]));
     const clientByName = new Map(allClients.map((c) => [c.name.trim().toLowerCase(), c.id]));
+    const projectByName = new Map(existingProjects.map((p) => [p.name.trim().toLowerCase(), p.id]));
+
+    // Mapare flexibilă coloane — suportă formatul nostru și formate externe
+    const STATUS_MAP: Record<string, string> = {
+      ...RO_TO_PROJECT_STATUS,
+      "Active": "ACTIVE", "In Progress": "ACTIVE", "Not Started": "ACTIVE",
+      "On Hold": "ON_HOLD", "Completed": "DONE", "Done": "DONE",
+      "Finished": "DONE", "Cancelled": "ARCHIVED", "Archived": "ARCHIVED",
+    };
+
+    function col(r: Record<string, string>, ...keys: string[]): string {
+      for (const k of keys) if (r[k]?.trim()) return r[k].trim();
+      return "";
+    }
 
     const result: ImportResult = { imported: 0, total: rows.length, failed: [] };
 
@@ -253,77 +268,63 @@ export async function POST(req: Request) {
       const r = rows[i];
       const rowNum = i + 2;
 
-      const name = r["Nume"]?.trim();
+      // Acceptă "Nume", "Project", "Name"
+      const name = col(r, "Nume", "Project", "Name");
       if (!name) {
-        result.failed.push({ row: rowNum, error: "Câmpul 'Nume' este obligatoriu." });
+        result.failed.push({ row: rowNum, error: "Lipsește numele proiectului (coloana 'Nume' sau 'Project')." });
         continue;
       }
 
-      let statusVal: import("@prisma/client").ProjectStatus = "ACTIVE";
-      if (r["Status"]) {
-        const mapped = RO_TO_PROJECT_STATUS[r["Status"]];
-        if (!mapped) {
-          result.failed.push({
-            row: rowNum,
-            error: `Statusul '${r["Status"]}' nu este recunoscut. Valori acceptate: Activ, În așteptare, Finalizat, Arhivat.`,
-          });
-          continue;
-        }
-        statusVal = mapped as import("@prisma/client").ProjectStatus;
-      }
+      // Skip duplicate
+      if (projectByName.has(name.toLowerCase())) continue;
 
+      // Status
+      const statusRaw = col(r, "Status", "Project Status", "ProjectStatus");
+      const statusVal = (STATUS_MAP[statusRaw] ?? "ACTIVE") as import("@prisma/client").ProjectStatus;
+
+      // Client — creat automat dacă nu există
       let clientId: string | undefined;
-      if (r["Client"]) {
-        const id = clientByName.get(r["Client"].trim().toLowerCase());
+      const clientName = col(r, "Client", "Customers", "Customer", "Client Name");
+      if (clientName && clientName !== "-") {
+        const key = clientName.toLowerCase();
+        let id = clientByName.get(key);
         if (!id) {
-          result.failed.push({
-            row: rowNum,
-            error: `Clientul '${r["Client"]}' nu există. Creați clientul mai întâi.`,
+          const nc = await prisma.client.create({
+            data: { userId: user.id, name: clientName },
+            select: { id: true },
           });
-          continue;
+          clientByName.set(key, nc.id);
+          id = nc.id;
         }
         clientId = id;
       }
 
-      let teamId: string | undefined;
-      if (r["Echipă"]) {
-        const id = teamByName.get(r["Echipă"].trim().toLowerCase());
-        if (!id) {
-          result.failed.push({
-            row: rowNum,
-            error: `Echipa '${r["Echipă"]}' nu există în baza de date.`,
-          });
-          continue;
-        }
-        teamId = id;
-      }
+      // Echipă — skip dacă nu există, fără eroare
+      const teamName = col(r, "Echipă", "Team", "Department");
+      const teamId = teamName ? (teamByName.get(teamName.toLowerCase()) ?? undefined) : undefined;
 
-      let assigneeId: string | undefined;
-      if (r["Asignat"]) {
-        const id = userByName.get(r["Asignat"].trim().toLowerCase());
-        if (!id) {
-          result.failed.push({
-            row: rowNum,
-            error: `Asignatul '${r["Asignat"]}' nu există în baza de date.`,
-          });
-          continue;
-        }
-        assigneeId = id;
-      }
+      // Asignat — poate fi "Prenume Nume, Prenume Nume", luăm primul
+      const assigneeRaw = col(r, "Asignat", "Project Members", "Assigned To", "Assignee").split(/[,;]/)[0].trim();
+      const assigneeId = assigneeRaw ? (userByName.get(assigneeRaw.toLowerCase()) ?? undefined) : undefined;
+
+      const description = col(r, "Descriere", "Description");
+      const address = col(r, "Adresă", "Address");
 
       try {
-        await prisma.project.create({
+        const proj = await prisma.project.create({
           data: {
             name,
-            description: r["Descriere"] || null,
+            description: description || null,
             status: statusVal,
-            address: r["Adresă"] || null,
+            address: address || null,
             ownerId: user.id,
             clientId: clientId ?? null,
             teamId: teamId ?? null,
             assigneeId: assigneeId ?? null,
           },
+          select: { id: true },
         });
+        projectByName.set(name.toLowerCase(), proj.id);
         result.imported++;
       } catch (e) {
         result.failed.push({

@@ -1,33 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { createPortal } from "react-dom";
+import { useState, useEffect, useRef } from "react";
 import { setStatus as setStatusAction, deleteAppointment } from "@/app/actions/appointments";
 import { STATUS_META } from "./status";
 import { useToast } from "./toast";
-import { IconCheck, IconCheckCircle, IconDots, IconMail, IconSend } from "./icons";
+import { IconMail, IconSend, IconTrash, IconChevronRight } from "./icons";
 import type { ApptStatus, ApptVM } from "./types";
 
-const actionBtn =
-  "tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-sm hover:bg-[var(--color-surface-2)] disabled:opacity-50";
+const APPT_STATUSES: ApptStatus[] = [
+  "NEW", "CONFIRMED", "IN_PROGRESS", "DONE", "CANCELLED", "NO_SHOW",
+];
 
 export default function AppointmentItem({ appt }: { appt: ApptVM }) {
   const toast = useToast();
   const [status, setStatus] = useState<ApptStatus>(appt.status);
   const [removed, setRemoved] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [menu, setMenu] = useState(false);
-  const meta = STATUS_META[status];
+  const [open, setOpen] = useState(false);
 
   async function change(next: ApptStatus) {
-    setMenu(false);
     if (next === status) return;
     const prev = status;
-    setStatus(next); // optimistic
+    setStatus(next);
     setBusy(true);
     const res = await setStatusAction(appt.id, next);
     setBusy(false);
     if (res?.error) {
-      setStatus(prev); // rollback
+      setStatus(prev);
       toast.error(res.error);
     } else {
       toast.success(`Status: ${STATUS_META[next].label}`);
@@ -36,7 +36,7 @@ export default function AppointmentItem({ appt }: { appt: ApptVM }) {
 
   async function remove() {
     if (!confirm("Ștergi programarea?")) return;
-    setRemoved(true); // optimistic
+    setRemoved(true);
     try {
       await deleteAppointment(appt.id);
       toast.success("Programare ștearsă");
@@ -49,80 +49,134 @@ export default function AppointmentItem({ appt }: { appt: ApptVM }) {
   if (removed) return null;
 
   return (
-    <div className={`card flex items-center gap-3 p-3 ${busy ? "opacity-60" : ""}`}>
-      <div className="flex w-14 shrink-0 flex-col items-center">
-        <span className="text-base font-bold tabular-nums">{appt.time}</span>
-        <span className="text-[11px] text-ink-soft tabular-nums">{appt.endTime}</span>
-      </div>
-
-      <div
-        className="h-10 w-1 shrink-0 rounded-full"
-        style={{ background: appt.categoryColor ?? "var(--color-line)" }}
-      />
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-semibold">{appt.clientName}</span>
-          {(appt.remEmail || appt.remTelegram) && (
-            <span className="flex items-center gap-1 text-ink-soft">
-              {appt.remEmail && <IconMail className="size-3.5" />}
-              {appt.remTelegram && <IconSend className="size-3.5" />}
+    <div className={`card overflow-hidden ${busy ? "opacity-60" : ""}`}>
+      <div className="flex items-center gap-2.5 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="min-w-0 flex-1 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-brand">
+              {appt.time}
             </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 text-xs text-ink-soft">
-          {appt.categoryName && <span className="truncate">{appt.categoryName}</span>}
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${meta.badge}`}>
-            {meta.label}
-          </span>
-        </div>
+            <span className="min-w-0 truncate text-sm font-medium">{appt.clientName}</span>
+            {appt.categoryName && (
+              <span className="hidden shrink-0 items-center gap-1 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] text-ink-soft sm:inline-flex">
+                <span
+                  className="size-1.5 rounded-full"
+                  style={{ background: appt.categoryColor ?? "#6366f1" }}
+                />
+                {appt.categoryName}
+              </span>
+            )}
+            <IconChevronRight
+              className={`size-3.5 shrink-0 text-ink-soft transition-transform ${open ? "rotate-90" : ""}`}
+            />
+          </div>
+          <p className="flex items-center gap-1 text-[11px] text-ink-soft">
+            <span>{appt.time}–{appt.endTime}</span>
+            {appt.title && <span>· {appt.title}</span>}
+            {(appt.remEmail || appt.remTelegram) && (
+              <span className="inline-flex items-center gap-0.5">
+                {appt.remEmail && <IconMail className="size-3" />}
+                {appt.remTelegram && <IconSend className="size-3" />}
+              </span>
+            )}
+          </p>
+        </button>
+
+        <ApptStatusDropdown status={status} pending={busy} onChange={change} />
+
+        <button
+          onClick={remove}
+          disabled={busy}
+          className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)] disabled:opacity-50"
+          title="Șterge"
+        >
+          <IconTrash className="size-3.5" />
+        </button>
       </div>
 
-      <div className="relative flex items-center gap-1.5">
-        {status !== "CONFIRMED" && status !== "DONE" && (
-          <button title="Confirmă" disabled={busy} onClick={() => change("CONFIRMED")} className={actionBtn}>
-            <IconCheck className="size-4" />
-          </button>
-        )}
-        {status !== "DONE" && (
-          <button title="Finalizat" disabled={busy} onClick={() => change("DONE")} className={`${actionBtn} text-st-done`}>
-            <IconCheckCircle className="size-4" />
-          </button>
-        )}
-        <button onClick={() => setMenu((m) => !m)} disabled={busy} className={actionBtn} title="Mai mult">
-          <IconDots className="size-4" />
-        </button>
-        {menu && (
-          <div className="absolute right-0 top-11 z-20 w-44 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-1 shadow-lg">
-            <MenuItem onClick={() => change("IN_PROGRESS")}>În lucru</MenuItem>
-            <MenuItem onClick={() => change("CANCELLED")}>Anulează</MenuItem>
-            <MenuItem onClick={() => change("NO_SHOW")}>Nu a venit</MenuItem>
-            <div className="my-1 h-px bg-[var(--color-line)]" />
-            <MenuItem danger onClick={remove}>Șterge</MenuItem>
-          </div>
-        )}
-      </div>
+      {open && appt.title && (
+        <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-3 py-2.5">
+          <p className="whitespace-pre-wrap text-[12px]">{appt.title}</p>
+        </div>
+      )}
     </div>
   );
 }
 
-function MenuItem({
-  children,
-  onClick,
-  danger,
+function ApptStatusDropdown({
+  status,
+  pending,
+  onChange,
 }: {
-  children: React.ReactNode;
-  onClick: () => void;
-  danger?: boolean;
+  status: ApptStatus;
+  pending: boolean;
+  onChange: (s: ApptStatus) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, minWidth: 0 });
+  const [mounted, setMounted] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const meta = STATUS_META[status];
+
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function close() { setOpen(false); }
+    document.addEventListener("mousedown", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open]);
+
+  function handleOpen(e: React.MouseEvent) {
+    e.stopPropagation();
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (rect) {
+      setPos({ top: rect.bottom + 4, left: rect.left, minWidth: Math.max(rect.width, 144) });
+    }
+    setOpen((o) => !o);
+  }
+
   return (
-    <button
-      onClick={onClick}
-      className={`block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-2)] ${
-        danger ? "text-st-cancelled" : ""
-      }`}
-    >
-      {children}
-    </button>
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        disabled={pending}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={handleOpen}
+        className={`h-7 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition-opacity disabled:opacity-50 ${meta.badge}`}
+      >
+        {meta.label}
+      </button>
+      {open && mounted && createPortal(
+        <div
+          style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: pos.minWidth, zIndex: 9999 }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-1 shadow-xl"
+        >
+          {APPT_STATUSES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onChange(s); setOpen(false); }}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12px] font-medium hover:bg-[var(--color-surface-2)] ${s === status ? "font-bold" : ""}`}
+            >
+              <span className={`size-2 shrink-0 rounded-full ${STATUS_META[s].dot}`} />
+              <span className={s === status ? "text-ink" : "text-ink-soft"}>{STATUS_META[s].label}</span>
+              {s === status && <span className="ml-auto text-[10px] text-brand">✓</span>}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

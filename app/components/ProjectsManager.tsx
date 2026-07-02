@@ -22,6 +22,9 @@ type Project = {
   assigneeId: string | null;
   teamId: string | null;
   taskCount: number;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 const STATUS_RO = { ACTIVE: "Activ", ON_HOLD: "În așteptare", DONE: "Finalizat", ARCHIVED: "Arhivat" };
@@ -129,14 +132,18 @@ export default function ProjectsManager({
         <div className="flex flex-col gap-2.5">
           {rows.map((p) => (
             <div key={p.id} className="card flex items-center gap-3 p-3.5">
-              <Link href={`/tasks?scope=all&proj=${p.id}`} className="tap min-w-0 flex-1 hover:opacity-80">
+              <Link href={`/tasks?scope=all&proj=${p.id}&project=${p.id}`} className="tap min-w-0 flex-1 hover:opacity-80">
                 <p className="truncate font-semibold">{p.name}</p>
                 <p className="truncate text-xs text-ink-soft">
                   {STATUS_RO[p.status]} · {p.taskCount} task-uri
                   {p.clientId && ` · ${nameOf(p.clientId, clients) ?? "?"}`}
                   {p.assigneeId && ` · → ${nameOf(p.assigneeId, users) ?? "?"}`}
                   {p.teamId && ` · echipă ${nameOf(p.teamId, teams) ?? "?"}`}
+                  {p.lat != null && ` · 📍`}
                 </p>
+              </Link>
+              <Link href={`/projects/${p.id}`} className="tap grid size-9 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]" title="Detalii proiect">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8Z"/></svg>
               </Link>
               <Link href={`/tasks?create=task&project=${p.id}`} className="tap inline-flex h-9 shrink-0 items-center gap-1 rounded-lg border border-[var(--color-line)] px-2.5 text-xs font-medium text-brand hover:bg-brand-soft" title="Adaugă task în proiect">
                 <IconPlus className="size-3.5" /> Task
@@ -182,6 +189,19 @@ export default function ProjectsManager({
         />
       )}
     </>
+  );
+}
+
+function CoordInput({ name, defaultValue, placeholder }: { name: string; defaultValue?: number | null; placeholder: string }) {
+  return (
+    <input
+      name={name}
+      type="number"
+      step="any"
+      defaultValue={defaultValue ?? ""}
+      placeholder={placeholder}
+      className="h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
+    />
   );
 }
 
@@ -244,6 +264,19 @@ function ProjectDialog({
               <option value="">…sau echipă</option>
               {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">Locație (opțional)</label>
+            <input
+              name="address"
+              defaultValue={project?.address ?? ""}
+              placeholder="Adresă"
+              className={input}
+            />
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <CoordInput name="lat" defaultValue={project?.lat} placeholder="Latitudine (ex: 44.4268)" />
+              <CoordInput name="lng" defaultValue={project?.lng} placeholder="Longitudine (ex: 26.1025)" />
+            </div>
           </div>
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">

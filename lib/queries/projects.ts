@@ -14,6 +14,9 @@ export type ProjectRow = {
   assigneeId: string | null;
   teamId: string | null;
   taskCount: number;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 export type ProjectFilter = {
@@ -53,6 +56,9 @@ export async function listProjects(
       clientId: true,
       assigneeId: true,
       teamId: true,
+      address: true,
+      lat: true,
+      lng: true,
       _count: { select: { tasks: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -72,6 +78,9 @@ export async function listProjects(
       assigneeId: r.assigneeId,
       teamId: r.teamId,
       taskCount: r._count.tasks,
+      address: r.address ?? null,
+      lat: r.lat ?? null,
+      lng: r.lng ?? null,
     })),
     hasMore,
     page,
@@ -103,8 +112,12 @@ export async function getProject(id: string) {
       description: true,
       status: true,
       ownerId: true,
+      clientId: true,
       assigneeId: true,
       teamId: true,
+      address: true,
+      lat: true,
+      lng: true,
     },
   });
 }

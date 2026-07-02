@@ -39,7 +39,12 @@ function parse(formData: FormData) {
   const status = STATUSES.includes(formData.get("status") as ProjectStatus)
     ? (formData.get("status") as ProjectStatus)
     : "ACTIVE";
-  return { name, description, clientId, assigneeId, teamId, status };
+  const address = String(formData.get("address") ?? "").trim() || null;
+  const latRaw = parseFloat(String(formData.get("lat") ?? ""));
+  const lngRaw = parseFloat(String(formData.get("lng") ?? ""));
+  const lat = isNaN(latRaw) ? null : latRaw;
+  const lng = isNaN(lngRaw) ? null : lngRaw;
+  return { name, description, clientId, assigneeId, teamId, status, address, lat, lng };
 }
 
 export async function createProject(
@@ -60,6 +65,9 @@ export async function createProject(
       clientId: d.clientId,
       assigneeId: d.assigneeId,
       teamId: d.teamId,
+      address: d.address,
+      lat: d.lat,
+      lng: d.lng,
     },
     select: { id: true },
   });
@@ -112,6 +120,9 @@ export async function updateProject(
       clientId: d.clientId,
       assigneeId: d.assigneeId,
       teamId: d.teamId,
+      address: d.address,
+      lat: d.lat,
+      lng: d.lng,
     },
   });
   await logAudit(actor(user), {

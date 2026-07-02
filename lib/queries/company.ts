@@ -15,6 +15,7 @@ export type Company = {
   bankDetails: string | null;
   currency: string;
   invoicePrefix: string;
+  appointmentsLabel: string;
 };
 
 const DEFAULTS: Company = {
@@ -28,6 +29,7 @@ const DEFAULTS: Company = {
   bankDetails: null,
   currency: "MDL",
   invoicePrefix: "INV",
+  appointmentsLabel: "Programări",
 };
 
 const SELECT = {
@@ -41,6 +43,7 @@ const SELECT = {
   bankDetails: true,
   currency: true,
   invoicePrefix: true,
+  appointmentsLabel: true,
 } as const;
 
 const QH_DEFAULTS: QuietHoursConfig = {

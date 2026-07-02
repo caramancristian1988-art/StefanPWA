@@ -397,6 +397,8 @@ model CompanySettings {
   bankDetails String? // IBAN / detalii bancare
   currency    String  @default("MDL")
   invoicePrefix String @default("INV")
+  // Etichetă personalizată pentru modulul de programări (afișată în meniu și header)
+  appointmentsLabel String @default("Programări")
   // Token pentru link public de invitație Telegram (null = link dezactivat)
   telegramInviteToken String?
 

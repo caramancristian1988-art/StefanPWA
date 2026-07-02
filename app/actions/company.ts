@@ -42,6 +42,7 @@ export async function updateCompanySettings(
     bankDetails: s(formData, "bankDetails"),
     currency: String(formData.get("currency") ?? "MDL").trim() || "MDL",
     invoicePrefix: String(formData.get("invoicePrefix") ?? "INV").trim() || "INV",
+    appointmentsLabel: String(formData.get("appointmentsLabel") ?? "").trim() || "Programări",
   };
 
   await prisma.companySettings.upsert({

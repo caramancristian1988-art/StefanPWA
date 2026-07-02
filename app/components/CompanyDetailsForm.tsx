@@ -129,6 +129,17 @@ export default function CompanyDetailsForm({
         </div>
       </div>
 
+      <div>
+        <label className={label}>Denumire modul programări</label>
+        <input
+          name="appointmentsLabel"
+          defaultValue={company.appointmentsLabel}
+          placeholder="Programări"
+          className={input}
+        />
+        <p className="mt-1 text-xs text-ink-soft">Apare în meniu și în header (ex: „Rezervări", „Consultații").</p>
+      </div>
+
       {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
       {state?.ok && <p className="text-sm text-st-done">Salvat.</p>}
 

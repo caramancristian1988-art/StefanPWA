@@ -2,6 +2,7 @@ import { requireUser, isSuper } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { DEMO } from "@/lib/demo";
 import { unreadCount } from "@/lib/queries/notifications";
+import { getCompanySettings } from "@/lib/queries/company";
 import AppShell from "@/app/components/AppShell";
 import PWARegister from "@/app/components/PWARegister";
 import OpenInApp from "@/app/components/OpenInApp";
@@ -14,7 +15,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const unread = await unreadCount(user.id);
+  const [unread, company] = await Promise.all([
+    unreadCount(user.id),
+    getCompanySettings(),
+  ]);
 
   // Permisiuni pentru filtrarea meniului (ascundem ce userul nu poate accesa)
   const perms: Record<string, boolean> = {
@@ -29,7 +33,7 @@ export default async function AppLayout({
   };
 
   return (
-    <AppShell userName={user.name} demo={DEMO} perms={perms} unread={unread}>
+    <AppShell userName={user.name} demo={DEMO} perms={perms} unread={unread} appointmentsLabel={company.appointmentsLabel}>
       {children}
       <PWARegister />
       <OpenInApp />

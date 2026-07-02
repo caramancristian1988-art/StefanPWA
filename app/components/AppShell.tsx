@@ -28,21 +28,23 @@ const NAV: NavItem[] = [
   { href: "/settings", label: "Setări", icon: gearIcon() },
 ];
 
-function visibleNav(perms?: Record<string, boolean>): NavItem[] {
-  return NAV.filter((n) => !n.perm || perms?.[n.perm] !== false);
+function visibleNav(items: NavItem[], perms?: Record<string, boolean>): NavItem[] {
+  return items.filter((n) => !n.perm || perms?.[n.perm] !== false);
 }
 
 function NavList({
   onNavigate,
   perms,
+  items = NAV,
 }: {
   onNavigate?: () => void;
   perms?: Record<string, boolean>;
+  items?: NavItem[];
 }) {
   const path = usePathname();
   return (
     <nav className="flex flex-col gap-1">
-      {visibleNav(perms).map((item) => {
+      {visibleNav(items, perms).map((item) => {
         const active = path === item.href || path.startsWith(`${item.href}/`);
         return (
           <Link
@@ -90,26 +92,31 @@ export default function AppShell({
   demo = false,
   perms,
   unread = 0,
+  appointmentsLabel = "Programări",
   children,
 }: {
   userName: string;
   demo?: boolean;
   perms?: Record<string, boolean>;
   unread?: number;
+  appointmentsLabel?: string;
   children: ReactNode;
 }) {
   const [drawer, setDrawer] = useState(false);
   const path = usePathname();
-  const current = NAV.find((n) => path.startsWith(n.href))?.label ?? "Dashboard";
+  const nav = NAV.map((n) =>
+    n.href === "/appointments" ? { ...n, label: appointmentsLabel } : n,
+  );
+  const current = nav.find((n) => path.startsWith(n.href))?.label ?? "Dashboard";
 
   return (
     <ToastProvider>
       <div className="lg:grid lg:grid-cols-[260px_1fr]">
         {/* Sidebar desktop */}
         <aside className="sticky top-0 hidden h-dvh flex-col border-r border-[var(--color-line)] bg-[var(--color-surface)] p-4 lg:flex">
-          <Brand />
+          <Brand label={appointmentsLabel} />
           <div className="mt-6 flex-1">
-            <NavList perms={perms} />
+            <NavList perms={perms} items={nav} />
           </div>
           <Account userName={userName} />
         </aside>
@@ -119,9 +126,9 @@ export default function AppShell({
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-black/40" onClick={() => setDrawer(false)} />
             <aside className="absolute left-0 top-0 flex h-full w-72 flex-col bg-[var(--color-surface)] p-4">
-              <Brand />
+              <Brand label={appointmentsLabel} />
               <div className="mt-6 flex-1">
-                <NavList onNavigate={() => setDrawer(false)} perms={perms} />
+                <NavList onNavigate={() => setDrawer(false)} perms={perms} items={nav} />
               </div>
               <Account userName={userName} />
             </aside>
@@ -174,14 +181,14 @@ export default function AppShell({
       <CreateMenu />
 
       {/* Bottom nav mobil */}
-      <BottomNav perms={perms} />
+      <BottomNav perms={perms} nav={nav} />
     </ToastProvider>
   );
 }
 
-function BottomNav({ perms }: { perms?: Record<string, boolean> }) {
+function BottomNav({ perms, nav = NAV }: { perms?: Record<string, boolean>; nav?: NavItem[] }) {
   const path = usePathname();
-  const items = visibleNav(perms).slice(0, 5);
+  const items = visibleNav(nav, perms).slice(0, 5);
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch border-t border-[var(--color-line)] bg-[var(--color-surface)] pb-[env(safe-area-inset-bottom)] lg:hidden">
       {items.map((item) => {
@@ -204,7 +211,7 @@ function BottomNav({ perms }: { perms?: Record<string, boolean> }) {
   );
 }
 
-function Brand() {
+function Brand({ label = "Programări" }: { label?: string }) {
   return (
     <div className="flex items-center gap-2.5 px-1">
       <div className="grid size-9 place-items-center rounded-xl bg-brand text-white">
@@ -213,7 +220,7 @@ function Brand() {
           <path d="M3 9h18M8 2.5v4M16 2.5v4" />
         </svg>
       </div>
-      <span className="text-base font-bold">Programări</span>
+      <span className="text-base font-bold">{label}</span>
     </div>
   );
 }

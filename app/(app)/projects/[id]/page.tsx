@@ -5,11 +5,9 @@ import { getProject } from "@/lib/queries/projects";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { invoiceClientOptions } from "@/lib/queries/invoices";
-import nextDynamic from "next/dynamic";
+import ProjectMap from "@/app/components/ProjectMapDynamic";
 
 export const dynamic = "force-dynamic";
-
-const ProjectMap = nextDynamic(() => import("@/app/components/ProjectMap"), { ssr: false });
 
 const STATUS_RO = { ACTIVE: "Activ", ON_HOLD: "În așteptare", DONE: "Finalizat", ARCHIVED: "Arhivat" };
 

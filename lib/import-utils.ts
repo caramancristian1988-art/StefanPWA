@@ -19,7 +19,9 @@ export function parseWorkbook(buffer: ArrayBuffer): ParsedRow[] {
   return raw.map((row) => {
     const cleaned: ParsedRow = {};
     for (const [k, v] of Object.entries(row)) {
-      cleaned[String(k).trim()] = String(v ?? "").trim();
+      // Strip BOM (﻿) that gets prepended to the first column in BOM-prefixed CSV files
+      const key = String(k).trim().replace(/^﻿/, "");
+      cleaned[key] = String(v ?? "").trim();
     }
     return cleaned;
   });

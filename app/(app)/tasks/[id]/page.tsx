@@ -295,6 +295,32 @@ export default async function TaskDetailPage({
           )}
           {task.project?.name && <MetaRow label="Proiect" value={task.project.name} />}
           {task.project?.client?.name && <MetaRow label="Client" value={task.project.client.name} />}
+          {(task.project as { lat?: number | null; lng?: number | null; address?: string | null } | null)?.lat != null && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-soft">Locație</p>
+              <a
+                href={`https://maps.google.com/maps?q=${(task.project as { lat: number; lng: number }).lat},${(task.project as { lat: number; lng: number }).lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
+              >
+                📍 {(task.project as { address?: string | null }).address || "Vezi pe hartă"}
+              </a>
+            </div>
+          )}
+          {!(task.project as { lat?: number | null } | null)?.lat && (task.project as { address?: string | null } | null)?.address && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-soft">Locație</p>
+              <a
+                href={`https://maps.google.com/maps?q=${encodeURIComponent((task.project as { address: string }).address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
+              >
+                📍 {(task.project as { address: string }).address}
+              </a>
+            </div>
+          )}
           {task.progress > 0 && <MetaRow label="Progres" value={`${task.progress}%`} />}
           {task.dueAt && (
             <MetaRow label="Scadent" value={fmtDue(task.dueAt)} alert={!!isOverdue} />

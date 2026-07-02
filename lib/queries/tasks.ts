@@ -310,7 +310,7 @@ export async function getTask(id: string) {
     select: {
       ...TASK_SELECT,
       // Detail view needs client name via project (not stored in list TASK_SELECT)
-      project: { select: { name: true, clientId: true, client: { select: { name: true } } } },
+      project: { select: { name: true, clientId: true, lat: true, lng: true, address: true, client: { select: { name: true } } } },
       description: true,
       createdFrom: true,
       activities: {

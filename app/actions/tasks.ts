@@ -99,6 +99,7 @@ export async function createTaskAction(
         projectId: (formData.get("projectId") as string) || null,
         categoryId: (formData.get("categoryId") as string) || null,
         reminderIntervalMinutes,
+        bypassQuietHours: formData.get("bypassQuietHours") === "on",
       },
       "WEB",
     );
@@ -269,6 +270,7 @@ export async function updateTaskAction(
       priority,
       dueAt,
       reminderIntervalMinutes,
+      bypassQuietHours: formData.get("bypassQuietHours") === "on",
     });
     if (!res.ok) return { error: res.error };
 

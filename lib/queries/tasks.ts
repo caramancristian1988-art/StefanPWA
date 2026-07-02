@@ -26,6 +26,7 @@ export type TaskRow = {
   extraAssigneeIds: string[];
   extraTeamIds: string[];
   assignmentSettingsJson: string | null;
+  bypassQuietHours: boolean;
   assigneeName: string | null;
   teamName: string | null;
   projectName: string | null;
@@ -55,6 +56,7 @@ const TASK_SELECT = {
   extraAssigneeIds: true,
   extraTeamIds: true,
   assignmentSettingsJson: true,
+  bypassQuietHours: true,
   assignee: { select: { name: true } },
   team: { select: { name: true } },
   // project.client NOT selected — clientName not displayed in list; clientId is denormalized
@@ -86,6 +88,7 @@ function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRo
     extraAssigneeIds: t.extraAssigneeIds ?? [],
     extraTeamIds: t.extraTeamIds ?? [],
     assignmentSettingsJson: t.assignmentSettingsJson ?? null,
+    bypassQuietHours: t.bypassQuietHours ?? false,
     assigneeName: t.assignee?.name ?? null,
     teamName: t.team?.name ?? null,
     projectName: t.project?.name ?? null,

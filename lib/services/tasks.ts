@@ -61,6 +61,7 @@ export type CreateTaskInput = {
   projectId?: string | null;
   categoryId?: string | null;
   reminderIntervalMinutes?: number | null;
+  bypassQuietHours?: boolean;
 };
 
 /** Chat Telegram al unui user: întâi cel setat manual, apoi contul linkat prin bot. */
@@ -240,6 +241,7 @@ export async function createTask(
       status,
       reminderIntervalMinutes: intervalMin,
       nextReminderAt,
+      bypassQuietHours: input.bypassQuietHours ?? false,
     },
     select: { id: true, title: true, seq: true },
   });
@@ -808,6 +810,7 @@ export type UpdateTaskInput = {
   priority?: TaskPriority;
   dueAt?: Date | null;
   reminderIntervalMinutes?: number | null;
+  bypassQuietHours?: boolean;
 };
 
 const EDIT_PRIO_RO: Record<string, string> = { LOW: "Scăzută", MEDIUM: "Medie", HIGH: "Ridicată", URGENT: "Urgentă" };
@@ -864,6 +867,7 @@ export async function updateTask(taskId: string, actorId: string, input: UpdateT
     data.reminderIntervalMinutes = intervalMin;
     data.nextReminderAt = intervalMin ? new Date(Date.now() + intervalMin * 60_000) : null;
   }
+  if ("bypassQuietHours" in input) data.bypassQuietHours = input.bypassQuietHours ?? false;
 
   await prisma.task.update({ where: { id: taskId }, data });
 

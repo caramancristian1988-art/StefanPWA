@@ -6,6 +6,7 @@ import { teamOptions } from "@/lib/queries/teams";
 import { projectOptions } from "@/lib/queries/projects";
 import { invoiceClientOptions } from "@/lib/queries/invoices";
 import { listCategories } from "@/lib/queries/categories";
+import { getQuietHoursSettings } from "@/lib/queries/company";
 import TasksManager from "@/app/components/TasksManager";
 import type { TaskStatus, TaskType, TaskPriority } from "@prisma/client";
 
@@ -57,7 +58,7 @@ export default async function TasksPage({
     : undefined;
   const sort = SORTS.has(sp.sort ?? "") ? (sp.sort as "dueAsc" | "dueDesc") : "default";
 
-  const [result, users, teams, projects, clients, categories] = await Promise.all([
+  const [result, users, teams, projects, clients, categories, quietHoursSettings] = await Promise.all([
     listTasks({
       scope,
       userId: user.id,
@@ -80,6 +81,7 @@ export default async function TasksPage({
     projectOptions(),
     invoiceClientOptions(),
     listCategories(),
+    getQuietHoursSettings(),
   ]);
 
   const scopeOptions = SCOPES.filter((s) => user.role === "STAFF" ? s.key !== "all" : true);
@@ -113,6 +115,7 @@ export default async function TasksPage({
         canCreate={can(user, "tasks.create")}
         canDelete={can(user, "tasks.delete")}
         canEdit={can(user, "tasks.edit")}
+        quietHoursEnabled={quietHoursSettings.quietHoursEnabled}
         canCreateProject={can(user, "projects.create")}
         initialCreate={can(user, "tasks.create") ? initialCreate : undefined}
         initialProjectId={can(user, "tasks.create") ? initialProjectId : undefined}

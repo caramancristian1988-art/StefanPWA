@@ -461,14 +461,26 @@ async function handleCallback(cb: Cb) {
   const data = cb.data ?? "";
   if (!chatId) return;
 
-  // Ore de somn — blocăm callback-urile
+  // Ore de somn — blocăm callback-urile (cu excepția task-urilor cu bypassQuietHours)
   const qhConfigCb = await getQuietHoursSettings();
   if (isQuietTime(new Date(), qhConfigCb)) {
-    await sendMessage(
-      chatId,
-      `😴 Botul este în modul somn (${qhConfigCb.quietHoursStart} – ${qhConfigCb.quietHoursEnd}). Revin la ora ${qhConfigCb.quietHoursEnd}.`,
-    );
-    return;
+    // Verificăm dacă este callback de schimbare status task cu bypass activ
+    const tstBypassMatch = data.match(/^TST:\w+:(.+)$/);
+    let bypassAllowed = false;
+    if (tstBypassMatch) {
+      const taskForBypass = await prisma.task.findUnique({
+        where: { id: tstBypassMatch[1] },
+        select: { bypassQuietHours: true },
+      });
+      bypassAllowed = taskForBypass?.bypassQuietHours === true;
+    }
+    if (!bypassAllowed) {
+      await sendMessage(
+        chatId,
+        `😴 Botul este în modul somn (${qhConfigCb.quietHoursStart} – ${qhConfigCb.quietHoursEnd}). Revin la ora ${qhConfigCb.quietHoursEnd}.`,
+      );
+      return;
+    }
   }
 
   const user = await resolveUser(cb.from.id);

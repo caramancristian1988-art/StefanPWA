@@ -60,6 +60,7 @@ type Task = {
   extraAssigneeIds: string[];
   extraTeamIds: string[];
   assignmentSettingsJson: string | null;
+  bypassQuietHours: boolean;
   projectId: string | null;
   clientId: string | null;
   categoryId: string | null;
@@ -142,6 +143,7 @@ export default function TasksManager({
   canDelete,
   canEdit = false,
   canCreateProject = false,
+  quietHoursEnabled = false,
   initialCreate,
   initialProjectId,
   initialOpenId,
@@ -164,6 +166,7 @@ export default function TasksManager({
   canDelete: boolean;
   canEdit?: boolean;
   canCreateProject?: boolean;
+  quietHoursEnabled?: boolean;
   initialCreate?: "TASK" | "TICKET" | "WORK_ORDER";
   initialProjectId?: string;
   initialOpenId?: string;
@@ -598,6 +601,7 @@ export default function TasksManager({
           projects={projects}
           categories={categories}
           canCreateProject={canCreateProject}
+          quietHoursEnabled={quietHoursEnabled}
           initialProjectId={initialProjectId}
           onClose={() => setCreateType(null)}
           onCreated={() => router.refresh()}
@@ -610,6 +614,7 @@ export default function TasksManager({
           teams={teams}
           projects={projects}
           categories={categories}
+          quietHoursEnabled={quietHoursEnabled}
           onClose={() => setEditTask(null)}
           onSaved={(updated) => {
             setTasks((cur) => cur.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
@@ -858,13 +863,14 @@ function CategoryChips({
 }
 
 function EditDialog({
-  task, users, teams, projects, categories, onClose, onSaved,
+  task, users, teams, projects, categories, quietHoursEnabled, onClose, onSaved,
 }: {
   task: Task;
   users: Opt[];
   teams: Opt[];
   projects: Opt[];
   categories: CategoryLite[];
+  quietHoursEnabled?: boolean;
   onClose: () => void;
   onSaved: (updated: Partial<Task> & { id: string }) => void;
 }) {
@@ -960,6 +966,12 @@ function EditDialog({
               <option value={1440}>La fiecare 24h</option>
             </select>
           </div>
+          {quietHoursEnabled && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" name="bypassQuietHours" defaultChecked={task.bypassQuietHours} className="size-4 accent-brand" />
+              <span>Trimite notificări și în orele de somn</span>
+            </label>
+          )}
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
             {pending ? "Se salvează…" : "Salvează"}
@@ -971,7 +983,7 @@ function EditDialog({
 }
 
 function CreateDialog({
-  initialType, users, teams, projects, categories, canCreateProject, initialProjectId, onClose, onCreated,
+  initialType, users, teams, projects, categories, canCreateProject, quietHoursEnabled, initialProjectId, onClose, onCreated,
 }: {
   initialType: "TASK" | "TICKET" | "WORK_ORDER";
   users: Opt[];
@@ -979,6 +991,7 @@ function CreateDialog({
   projects: Opt[];
   categories: CategoryLite[];
   canCreateProject: boolean;
+  quietHoursEnabled?: boolean;
   initialProjectId?: string;
   onClose: () => void;
   onCreated: () => void;
@@ -1050,6 +1063,12 @@ function CreateDialog({
               <option value={1440}>La fiecare 24h</option>
             </select>
           </div>
+          {quietHoursEnabled && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" name="bypassQuietHours" defaultChecked className="size-4 accent-brand" />
+              <span>Trimite notificări și în orele de somn</span>
+            </label>
+          )}
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
             {pending ? "Se salvează…" : "Creează"}

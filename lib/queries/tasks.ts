@@ -93,6 +93,7 @@ export type TaskFilter = {
   priority?: TaskPriority;
   projectId?: string;
   clientId?: string;
+  categoryId?: string;
   assigneeId?: string;
   teamId?: string;
   dueBefore?: Date;
@@ -126,6 +127,7 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
   if (filter.priority) where.priority = filter.priority;
   if (filter.projectId) where.projectId = filter.projectId;
   if (filter.clientId) where.clientId = filter.clientId;
+  if (filter.categoryId) where.categoryId = filter.categoryId;
 
   if (filter.dueRange) {
     const TZ = "Europe/Bucharest";
@@ -234,6 +236,7 @@ export async function tasksDueBetween(opts: {
   teamId?: string;
   projectId?: string;
   clientId?: string;
+  categoryId?: string;
   types?: TaskType[];
 }): Promise<CalendarTask[]> {
   if (DEMO) return [];
@@ -245,6 +248,7 @@ export async function tasksDueBetween(opts: {
     teamId: opts.teamId,
     projectId: opts.projectId,
     clientId: opts.clientId,
+    categoryId: opts.categoryId,
   });
   if (opts.types?.length) where.type = { in: opts.types };
   where.dueAt = { gte: opts.from, lte: opts.to };

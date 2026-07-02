@@ -27,6 +27,9 @@ type Task = {
   projectName: string | null;
   clientId: string | null;
   clientName: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  categoryColor: string | null;
 };
 
 const COLUMNS: { status: Status; label: string; dot: string }[] = [
@@ -109,11 +112,13 @@ export default function TaskKanban({
   users,
   teams,
   projects,
+  categories = [],
 }: {
   items: Task[];
   users: Opt[];
   teams: Opt[];
   projects: Opt[];
+  categories?: Opt[];
 }) {
   const toast = useToast();
   const [tasks, setTasks] = useState(items);
@@ -131,12 +136,13 @@ export default function TaskKanban({
   const [fProject, setFProject] = useState("");
   const [fClient, setFClient] = useState("");
   const [fDeadline, setFDeadline] = useState("");
+  const [fCategory, setFCategory] = useState("");
 
-  const hasFilters = !!(fSearch || fStatus || fType || fPriority || fAssignee || fTeam || fProject || fClient || fDeadline);
+  const hasFilters = !!(fSearch || fStatus || fType || fPriority || fAssignee || fTeam || fProject || fClient || fDeadline || fCategory);
 
   function resetAll() {
     setFSearch(""); setFStatus(""); setFType(""); setFPriority("");
-    setFAssignee(""); setFTeam(""); setFProject(""); setFClient(""); setFDeadline("");
+    setFAssignee(""); setFTeam(""); setFProject(""); setFClient(""); setFDeadline(""); setFCategory("");
   }
 
   const clients = useMemo(() => {
@@ -159,11 +165,12 @@ export default function TaskKanban({
       if (fTeam && t.teamId !== fTeam) return false;
       if (fProject && t.projectId !== fProject) return false;
       if (fClient && t.clientId !== fClient) return false;
+      if (fCategory && t.categoryId !== fCategory) return false;
       if (!matchesDue(t.dueAt, fDeadline)) return false;
       if (term && !t.title.toLowerCase().includes(term)) return false;
       return true;
     });
-  }, [tasks, fSearch, fStatus, fType, fPriority, fAssignee, fTeam, fProject, fClient, fDeadline]);
+  }, [tasks, fSearch, fStatus, fType, fPriority, fAssignee, fTeam, fProject, fClient, fDeadline, fCategory]);
 
   const byStatus = useMemo(() => {
     const m = new Map<Status, Task[]>();
@@ -257,6 +264,14 @@ export default function TaskKanban({
           <select value={fClient} onChange={(e) => setFClient(e.target.value)} className={fld}>
             <option value="">Client: toți</option>
             {clients.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
+        {categories.length > 0 && (
+          <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} className={fld}>
+            <option value="">Categorie: toate</option>
+            {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>

@@ -8,6 +8,7 @@ import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { projectOptions } from "@/lib/queries/projects";
 import { clientOptions } from "@/lib/queries/clients";
+import { listCategories } from "@/lib/queries/categories";
 import { todayKey, addDaysToKey, dayBoundsUtc, dateKeyOf } from "@/lib/date";
 import CalendarControls from "@/app/components/CalendarControls";
 import type { TaskType } from "@prisma/client";
@@ -96,6 +97,7 @@ export default async function CalendarPage({
   const teamId = sp.teamId || undefined;
   const projectId = sp.projectId || undefined;
   const clientId = sp.clientId || undefined;
+  const categoryId = sp.categoryId || undefined;
 
   // Date range for the current view
   let from: Date;
@@ -133,7 +135,7 @@ export default async function CalendarPage({
   // Appointment user filter
   const apptUserId = assigneeId ?? (scope === "mine" || scope === "created" ? user.id : undefined);
 
-  const [tasks, appts, users, teams, projects, clients] = await Promise.all([
+  const [tasks, appts, users, teams, projects, clients, categories] = await Promise.all([
     needTasks
       ? tasksDueBetween({
           scope,
@@ -145,6 +147,7 @@ export default async function CalendarPage({
           teamId,
           projectId,
           clientId,
+          categoryId,
           types: taskTypes,
         })
       : [],
@@ -153,6 +156,7 @@ export default async function CalendarPage({
     teamOptions(),
     projectOptions(),
     clientOptions(user.id),
+    listCategories(),
   ]);
 
   // Merge into CalItem[]
@@ -192,6 +196,7 @@ export default async function CalendarPage({
           teams={teams}
           projects={projects}
           clients={clients}
+          categories={categories}
         />
       </Suspense>
 

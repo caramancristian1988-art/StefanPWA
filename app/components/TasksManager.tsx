@@ -111,7 +111,7 @@ function fmtDue(dueAt: string | Date): string {
 type TaskFilters = {
   q: string; status: string; type: string; assignee: string;
   team: string; proj: string; client: string; prio: string;
-  due: string; sort: string;
+  due: string; sort: string; category: string;
 };
 
 const fld =
@@ -237,7 +237,7 @@ export default function TasksManager({
     const merged = { ...filters, ...patch } as Record<string, string | number | undefined>;
     const usp = new URLSearchParams();
     if (scope !== "mine") usp.set("scope", scope);
-    for (const k of ["q", "status", "type", "assignee", "team", "proj", "client", "prio", "due", "sort"] as const) {
+    for (const k of ["q", "status", "type", "assignee", "team", "proj", "client", "prio", "due", "sort", "category"] as const) {
       const v = merged[k];
       if (v) usp.set(k, String(v));
     }
@@ -284,7 +284,7 @@ export default function TasksManager({
 
   const activeFilters = Boolean(
     filters.status || filters.type || filters.assignee || filters.team ||
-    filters.proj || filters.client || filters.prio || filters.due || filters.q,
+    filters.proj || filters.client || filters.prio || filters.due || filters.q || filters.category,
   );
 
   // Paginare: afișăm maxim 7 pagini vizibile în jurul paginii curente
@@ -347,6 +347,13 @@ export default function TasksManager({
           <option value="">Client: toți</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+
+        {categories && categories.length > 0 && (
+          <select value={filters.category} onChange={(e) => setFilter({ category: e.target.value })} className={fld}>
+            <option value="">Categorie: toate</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
 
         <select value={filters.prio} onChange={(e) => setFilter({ prio: e.target.value })} className={fld}>
           <option value="">Prioritate: toate</option>

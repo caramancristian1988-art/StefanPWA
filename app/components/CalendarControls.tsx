@@ -58,6 +58,7 @@ export default function CalendarControls({
   teams,
   projects,
   clients,
+  categories = [],
 }: {
   anchor: string;
   view: string;
@@ -66,6 +67,7 @@ export default function CalendarControls({
   teams: Opt[];
   projects: Opt[];
   clients: Opt[];
+  categories?: Opt[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -91,6 +93,7 @@ export default function CalendarControls({
   const teamId = sp.get("teamId") ?? "";
   const projectId = sp.get("projectId") ?? "";
   const clientId = sp.get("clientId") ?? "";
+  const categoryId = sp.get("categoryId") ?? "";
 
   const chip = (active: boolean) =>
     `tap rounded-full px-3.5 py-1.5 text-sm font-medium ${active ? "bg-brand text-white" : "card text-ink-soft"}`;
@@ -159,6 +162,12 @@ export default function CalendarControls({
           <select value={clientId} onChange={(e) => patch({ clientId: e.target.value })} className={fld}>
             <option value="">Client: toți</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        {categories.length > 0 && (
+          <select value={categoryId} onChange={(e) => patch({ categoryId: e.target.value })} className={fld}>
+            <option value="">Categorie: toate</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
       </div>

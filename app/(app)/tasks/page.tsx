@@ -35,7 +35,7 @@ export default async function TasksPage({
     scope?: string; page?: string; create?: string; project?: string;
     q?: string; status?: string; type?: string; assignee?: string;
     team?: string; proj?: string; client?: string; prio?: string;
-    due?: string; sort?: string; open?: string;
+    due?: string; sort?: string; open?: string; category?: string;
   }>;
 }) {
   const user = await requirePermission("tasks.view");
@@ -69,6 +69,7 @@ export default async function TasksPage({
       teamId: sp.team || undefined,
       projectId: sp.proj || undefined,
       clientId: sp.client || undefined,
+      categoryId: sp.category || undefined,
       dueRange,
       sort,
       search: sp.q || undefined,
@@ -107,6 +108,7 @@ export default async function TasksPage({
           prio: sp.prio ?? "",
           due: sp.due ?? "",
           sort: sp.sort ?? "",
+          category: sp.category ?? "",
         }}
         canCreate={can(user, "tasks.create")}
         canDelete={can(user, "tasks.delete")}

@@ -71,7 +71,14 @@ export async function GET(req: Request) {
       pageSize: 5000,
     });
 
-    const HEADERS = ["#", "Titlu", "Tip", "Status", "Prioritate", "Asignat", "Echipă", "Proiect", "Categorie", "Scadent", "Progres (%)", "Creat la", "Creat de", "Descriere"];
+    // Batch-resolve client names (clientId is denormalized on task)
+    const clientIds = [...new Set(items.map((t) => t.clientId).filter(Boolean) as string[])];
+    const clientUsers = clientIds.length
+      ? await prisma.client.findMany({ where: { id: { in: clientIds } }, select: { id: true, name: true } })
+      : [];
+    const clientNameMap = new Map(clientUsers.map((c) => [c.id, c.name]));
+
+    const HEADERS = ["#", "Titlu", "Tip", "Status", "Prioritate", "Asignat", "Echipă", "Proiect", "Client", "Categorie", "Scadent", "Progres (%)", "Creat la", "Creat de", "Descriere"];
     const rows = items.map((t) => ({
       "#": t.seq ?? "",
       "Titlu": t.title,
@@ -81,6 +88,7 @@ export async function GET(req: Request) {
       "Asignat": t.assigneeName ?? "",
       "Echipă": t.teamName ?? "",
       "Proiect": t.projectName ?? "",
+      "Client": t.clientId ? (clientNameMap.get(t.clientId) ?? "") : "",
       "Categorie": t.categoryName ?? "",
       "Scadent": fmtDate(t.dueAt),
       "Progres (%)": t.progress,

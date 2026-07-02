@@ -53,17 +53,19 @@ export async function POST(req: Request) {
   // ─── TASKS / TICHETE ──────────────────────────────────────────────────────
   if (entity === "tasks" || entity === "tickets") {
     // Pre-fetch lookup tables
-    const [allUsers, allTeams, allProjects, allCategories] = await Promise.all([
+    const [allUsers, allTeams, allProjects, allCategories, allClients] = await Promise.all([
       prisma.user.findMany({ select: { id: true, name: true } }),
       prisma.team.findMany({ select: { id: true, name: true } }),
       prisma.project.findMany({ select: { id: true, name: true } }),
       prisma.category.findMany({ select: { id: true, name: true } }),
+      prisma.client.findMany({ where: { userId: user.id }, select: { id: true, name: true } }),
     ]);
 
     const userByName = new Map(allUsers.map((u) => [u.name.trim().toLowerCase(), u.id]));
     const teamByName = new Map(allTeams.map((t) => [t.name.trim().toLowerCase(), t.id]));
     const projectByName = new Map(allProjects.map((p) => [p.name.trim().toLowerCase(), p.id]));
     const categoryByName = new Map(allCategories.map((c) => [c.name.trim().toLowerCase(), c.id]));
+    const clientByName = new Map(allClients.map((c) => [c.name.trim().toLowerCase(), c.id]));
 
     const result: ImportResult = { imported: 0, total: rows.length, failed: [] };
 
@@ -159,6 +161,22 @@ export async function POST(req: Request) {
         }
       }
 
+      let taskClientId: string | undefined;
+      if (r["Client"]) {
+        const key = r["Client"].trim().toLowerCase();
+        const existing = clientByName.get(key);
+        if (existing) {
+          taskClientId = existing;
+        } else {
+          const newClient = await prisma.client.create({
+            data: { userId: user.id, name: r["Client"].trim() },
+            select: { id: true },
+          });
+          clientByName.set(key, newClient.id);
+          taskClientId = newClient.id;
+        }
+      }
+
       let categoryId: string | undefined;
       if (r["Categorie"]) {
         const id = categoryByName.get(r["Categorie"].trim().toLowerCase());
@@ -198,12 +216,12 @@ export async function POST(req: Request) {
           categoryId: categoryId ?? null,
         });
 
-        // Apply status override if given (createTask defaults to NEW)
-        if (statusVal && statusVal !== "NEW") {
-          await prisma.task.update({
-            where: { id: created.id },
-            data: { status: statusVal },
-          });
+        // Aplică status și/sau client dacă diferă de default
+        const postUpdates: Record<string, unknown> = {};
+        if (statusVal && statusVal !== "NEW") postUpdates.status = statusVal;
+        if (taskClientId) postUpdates.clientId = taskClientId;
+        if (Object.keys(postUpdates).length > 0) {
+          await prisma.task.update({ where: { id: created.id }, data: postUpdates });
         }
 
         result.imported++;
@@ -396,13 +414,15 @@ export async function POST(req: Request) {
         result.failed.push({ row: rowNum, error: "Câmpul 'Client' este obligatoriu." });
         continue;
       }
-      const clientId = clientByName.get(clientName.toLowerCase());
+      let clientId = clientByName.get(clientName.toLowerCase());
       if (!clientId) {
-        result.failed.push({
-          row: rowNum,
-          error: `Clientul '${clientName}' nu există. Creați clientul mai întâi.`,
+        // Auto-creare client dacă nu există
+        const newClient = await prisma.client.create({
+          data: { userId: user.id, name: clientName },
+          select: { id: true },
         });
-        continue;
+        clientByName.set(clientName.toLowerCase(), newClient.id);
+        clientId = newClient.id;
       }
 
       // Optional: Ora sfârșit → durationMinutes

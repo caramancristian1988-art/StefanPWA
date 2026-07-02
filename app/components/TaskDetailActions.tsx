@@ -6,7 +6,9 @@ import { updateTaskAction, deleteTask, type TaskState } from "@/app/actions/task
 import { dateKeyOf, formatTime } from "@/lib/date";
 import { useToast } from "./toast";
 import { IconTrash, IconPencil, IconX } from "./icons";
+import MultiAssignPicker from "./MultiAssignPicker";
 import type { CategoryLite } from "./types";
+import type { AssignmentSetting } from "@/lib/services/tasks";
 
 type Opt = { id: string; name: string };
 
@@ -20,6 +22,9 @@ export type TaskForEdit = {
   reminderIntervalMinutes: number | null;
   assigneeId: string | null;
   teamId: string | null;
+  extraAssigneeIds: string[];
+  extraTeamIds: string[];
+  assignmentSettingsJson: string | null;
   projectId: string | null;
   categoryId: string | null;
 };
@@ -233,16 +238,19 @@ function EditDialog({
             <option value="">Fără proiect</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <select name="assigneeId" defaultValue={task.assigneeId ?? ""} className={dlgInput}>
-              <option value="">Fără persoană</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-            <select name="teamId" defaultValue={task.teamId ?? ""} className={dlgInput}>
-              <option value="">Fără echipă</option>
-              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
+          <MultiAssignPicker
+            users={users}
+            teams={teams}
+            initialAssigneeIds={[
+              ...(task.assigneeId ? [task.assigneeId] : []),
+              ...(task.extraAssigneeIds ?? []),
+            ]}
+            initialTeamIds={[
+              ...(task.teamId ? [task.teamId] : []),
+              ...(task.extraTeamIds ?? []),
+            ]}
+            initialSettings={task.assignmentSettingsJson ? (JSON.parse(task.assignmentSettingsJson) as AssignmentSetting[]) : []}
+          />
           <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} />
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>

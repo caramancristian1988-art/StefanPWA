@@ -235,6 +235,9 @@ export default async function TaskDetailPage({
             reminderIntervalMinutes: task.reminderIntervalMinutes ?? null,
             assigneeId: task.assigneeId ?? null,
             teamId: task.teamId ?? null,
+            extraAssigneeIds: (task.extraAssigneeIds ?? []) as string[],
+            extraTeamIds: (task.extraTeamIds ?? []) as string[],
+            assignmentSettingsJson: (task.assignmentSettingsJson ?? null) as string | null,
             projectId: task.projectId ?? null,
             categoryId: task.categoryId ?? null,
           }}
@@ -278,8 +281,18 @@ export default async function TaskDetailPage({
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
           <MetaRow label="Prioritate" value={PRIO_RO[task.priority] ?? task.priority} />
-          {task.assignee?.name && <MetaRow label="Asignat" value={task.assignee.name} />}
-          {task.team?.name && <MetaRow label="Echipă" value={task.team.name} />}
+          {task.assignee?.name && (
+            <MetaRow
+              label="Asignat"
+              value={[task.assignee.name, ...(task.extraAssigneeIds ?? []).map((uid) => users.find((u) => u.id === uid)?.name).filter(Boolean)].join(", ")}
+            />
+          )}
+          {task.team?.name && (
+            <MetaRow
+              label="Echipă"
+              value={[task.team.name, ...(task.extraTeamIds ?? []).map((tid) => teams.find((t) => t.id === tid)?.name).filter(Boolean)].join(", ")}
+            />
+          )}
           {task.project?.name && <MetaRow label="Proiect" value={task.project.name} />}
           {task.project?.client?.name && <MetaRow label="Client" value={task.project.client.name} />}
           {task.progress > 0 && <MetaRow label="Progres" value={`${task.progress}%`} />}

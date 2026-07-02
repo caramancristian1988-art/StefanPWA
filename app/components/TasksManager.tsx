@@ -19,8 +19,10 @@ import { dateKeyOf, formatTime } from "@/lib/date";
 import { useToast } from "./toast";
 import { IconTrash, IconX, IconChevronLeft, IconChevronRight, IconPencil } from "./icons";
 import QuickSelect from "./QuickSelect";
+import MultiAssignPicker from "./MultiAssignPicker";
 import { quickCreateProject } from "@/app/actions/projects";
 import type { CategoryLite } from "./types";
+import type { AssignmentSetting } from "@/lib/services/tasks";
 
 type HistoryRow = {
   id: string;
@@ -53,6 +55,9 @@ type Task = {
   reminderIntervalMinutes: number | null;
   assigneeId: string | null;
   teamId: string | null;
+  extraAssigneeIds: string[];
+  extraTeamIds: string[];
+  assignmentSettingsJson: string | null;
   projectId: string | null;
   clientId: string | null;
   categoryId: string | null;
@@ -898,16 +903,19 @@ function EditDialog({
             <option value="">Fără proiect</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <select name="assigneeId" defaultValue={task.assigneeId ?? ""} className={dlgInput}>
-              <option value="">Fără persoană</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-            <select name="teamId" defaultValue={task.teamId ?? ""} className={dlgInput}>
-              <option value="">Fără echipă</option>
-              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
+          <MultiAssignPicker
+            users={users}
+            teams={teams}
+            initialAssigneeIds={[
+              ...(task.assigneeId ? [task.assigneeId] : []),
+              ...(task.extraAssigneeIds ?? []),
+            ]}
+            initialTeamIds={[
+              ...(task.teamId ? [task.teamId] : []),
+              ...(task.extraTeamIds ?? []),
+            ]}
+            initialSettings={task.assignmentSettingsJson ? (JSON.parse(task.assignmentSettingsJson) as AssignmentSetting[]) : []}
+          />
           <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} />
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
@@ -997,16 +1005,7 @@ function CreateDialog({
             onQuickCreate={quickCreateProject}
             defaultValue={initialProjectId ?? ""}
           />
-          <div className="grid gap-2 sm:grid-cols-2">
-            <select name="assigneeId" defaultValue="" className={dlgInput}>
-              <option value="">Asignează persoană…</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-            <select name="teamId" defaultValue="" className={dlgInput}>
-              <option value="">…sau echipă</option>
-              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
+          <MultiAssignPicker users={users} teams={teams} />
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
             <div className="grid gap-2 sm:grid-cols-2">

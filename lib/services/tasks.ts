@@ -26,6 +26,27 @@ async function nextSeq(name: string): Promise<number> {
   return counter.value;
 }
 
+export type AssignmentSetting = {
+  userId?: string;
+  teamId?: string;
+  notifyUntilStatus?: string | null;
+};
+
+const STATUS_ORDER: string[] = [
+  "NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED",
+];
+
+function shouldNotifyByThreshold(
+  settings: AssignmentSetting[],
+  recipientId: string,
+  isTeam: boolean,
+  newStatus: string,
+): boolean {
+  const s = settings.find((x) => (isTeam ? x.teamId === recipientId : x.userId === recipientId));
+  if (!s?.notifyUntilStatus) return true;
+  return STATUS_ORDER.indexOf(newStatus) <= STATUS_ORDER.indexOf(s.notifyUntilStatus);
+}
+
 export type CreateTaskInput = {
   title: string;
   description?: string;
@@ -34,6 +55,9 @@ export type CreateTaskInput = {
   dueAt?: Date | null;
   assigneeId?: string | null;
   teamId?: string | null;
+  extraAssigneeIds?: string[];
+  extraTeamIds?: string[];
+  assignmentSettingsJson?: string | null;
   projectId?: string | null;
   categoryId?: string | null;
   reminderIntervalMinutes?: number | null;
@@ -206,6 +230,9 @@ export async function createTask(
       creatorId,
       assigneeId,
       teamId,
+      extraAssigneeIds: input.extraAssigneeIds ?? [],
+      extraTeamIds: input.extraTeamIds ?? [],
+      assignmentSettingsJson: input.assignmentSettingsJson ?? null,
       projectId: input.projectId || null,
       categoryId: input.categoryId || null,
       clientId,
@@ -236,11 +263,18 @@ export async function notifyNewTask(taskId: string): Promise<void> {
         creatorId: true,
         assigneeId: true,
         teamId: true,
+        extraAssigneeIds: true,
+        extraTeamIds: true,
+        assignmentSettingsJson: true,
         assignee: { select: { name: true, teamIds: true } },
         project: { select: { name: true } },
       },
     });
     if (!task) return;
+
+    const assignmentSettings: AssignmentSetting[] = task.assignmentSettingsJson
+      ? (JSON.parse(task.assignmentSettingsJson) as AssignmentSetting[])
+      : [];
 
     const recipients = new Set<string>();
     if (task.assigneeId) recipients.add(task.assigneeId);
@@ -249,6 +283,11 @@ export async function notifyNewTask(taskId: string): Promise<void> {
         where: { id: task.teamId },
         select: { memberIds: true },
       });
+      team?.memberIds.forEach((id) => recipients.add(id));
+    }
+    for (const uid of (task.extraAssigneeIds ?? [])) recipients.add(uid);
+    for (const tid of (task.extraTeamIds ?? [])) {
+      const team = await prisma.team.findUnique({ where: { id: tid }, select: { memberIds: true } });
       team?.memberIds.forEach((id) => recipients.add(id));
     }
 
@@ -271,6 +310,7 @@ export async function notifyNewTask(taskId: string): Promise<void> {
     let stored = false;
     for (const uid of recipients) {
       try {
+        if (!shouldNotifyByThreshold(assignmentSettings, uid, false, task.status)) continue;
         const chatId = await telegramChatFor(uid);
         if (!chatId) continue;
         const res = (await sendMessage(chatId, text, taskStatusButtons(task.id))) as {
@@ -362,6 +402,9 @@ export async function changeTaskStatus(
       creatorId: true,
       assigneeId: true,
       teamId: true,
+      extraAssigneeIds: true,
+      extraTeamIds: true,
+      assignmentSettingsJson: true,
       telegramChatId: true,
       telegramMessageId: true,
       assignee: { select: { teamIds: true } },
@@ -374,6 +417,31 @@ export async function changeTaskStatus(
   if (task.status === newStatus) {
     console.log(`[tasks] changeTaskStatus: deja ${newStatus}, nimic de făcut`);
     return { ok: true as const, changed: false, fromStatus: task.status, title: task.title, type: task.type };
+  }
+
+  // Verifică dacă actorul mai este asignat la acest task (relevant pentru callback Telegram)
+  if (opts.fromTelegram) {
+    const actorTeams = (await prisma.user.findUnique({ where: { id: actorId }, select: { teamIds: true } }))?.teamIds ?? [];
+    const isDirectlyAssigned =
+      task.assigneeId === actorId ||
+      (task.extraAssigneeIds ?? []).includes(actorId);
+    const isTeamAssigned =
+      (task.teamId && actorTeams.includes(task.teamId)) ||
+      (task.extraTeamIds ?? []).some((tid) => actorTeams.includes(tid));
+    if (!isDirectlyAssigned && !isTeamAssigned) {
+      if (task.telegramChatId && task.telegramMessageId) {
+        const actorChatId = await telegramChatFor(actorId);
+        if (actorChatId) {
+          await editMessageText(
+            actorChatId,
+            task.telegramMessageId,
+            `ℹ️ Nu mai ești asignat la acest task: <b>${escapeHtml(task.title)}</b>`,
+            undefined,
+          ).catch(() => {});
+        }
+      }
+      return { ok: false as const, error: "Nu mai ești asignat la acest task." };
+    }
   }
 
   const closed = newStatus === "DONE" || newStatus === "CANCELLED";
@@ -397,17 +465,39 @@ export async function changeTaskStatus(
       newStatus === "READ" ? ["task.status", "task.read"]
       : newStatus === "DONE" ? ["task.status", "task.done"]
       : ["task.status"];
+    const assignmentSettings: AssignmentSetting[] = task.assignmentSettingsJson
+      ? (JSON.parse(task.assignmentSettingsJson) as AssignmentSetting[])
+      : [];
+
+    // Collect all extra-assigned user IDs (direct + via extra teams)
+    const extraDirectIds = task.extraAssigneeIds ?? [];
+    const extraTeamMemberIds: string[] = [];
+    for (const tid of (task.extraTeamIds ?? [])) {
+      const t = await prisma.team.findUnique({ where: { id: tid }, select: { memberIds: true } });
+      t?.memberIds.forEach((id) => extraTeamMemberIds.push(id));
+    }
+
     const admins = await filteredAdminRecipients({
       eventKeys,
-      teamIds: [task.teamId, ...(task.assignee?.teamIds ?? []), ...(actor?.teamIds ?? [])],
-      memberIds: [actorId, task.assigneeId],
+      teamIds: [task.teamId, ...(task.extraTeamIds ?? []), ...(task.assignee?.teamIds ?? []), ...(actor?.teamIds ?? [])],
+      memberIds: [actorId, task.assigneeId, ...extraDirectIds],
     });
     const recipients = new Set<string>([
       task.creatorId,
       ...admins,
       ...(await observerRecipients("task.status")),
     ]);
-    if (task.assigneeId) recipients.add(task.assigneeId);
+    if (task.assigneeId && shouldNotifyByThreshold(assignmentSettings, task.assigneeId, false, newStatus)) {
+      recipients.add(task.assigneeId);
+    }
+    for (const uid of extraDirectIds) {
+      if (shouldNotifyByThreshold(assignmentSettings, uid, false, newStatus)) recipients.add(uid);
+    }
+    if (task.teamId && shouldNotifyByThreshold(assignmentSettings, task.teamId, true, newStatus)) {
+      const t = await prisma.team.findUnique({ where: { id: task.teamId }, select: { memberIds: true } });
+      t?.memberIds.forEach((id) => recipients.add(id));
+    }
+    for (const uid of extraTeamMemberIds) recipients.add(uid);
     recipients.delete(actorId);
     const recipientIds = [...recipients];
     console.log(`[tasks] changeTaskStatus: ${recipientIds.length} destinatari de notificat`, recipientIds);
@@ -694,6 +784,9 @@ export type UpdateTaskInput = {
   description?: string;
   assigneeId?: string | null;
   teamId?: string | null;
+  extraAssigneeIds?: string[];
+  extraTeamIds?: string[];
+  assignmentSettingsJson?: string | null;
   projectId?: string | null;
   categoryId?: string | null;
   priority?: TaskPriority;
@@ -734,6 +827,9 @@ export async function updateTask(taskId: string, actorId: string, input: UpdateT
   if (input.description !== undefined) data.description = input.description.trim() || null;
   if ("assigneeId" in input) data.assigneeId = input.assigneeId || null;
   if ("teamId" in input) data.teamId = input.teamId || null;
+  if ("extraAssigneeIds" in input) data.extraAssigneeIds = input.extraAssigneeIds ?? [];
+  if ("extraTeamIds" in input) data.extraTeamIds = input.extraTeamIds ?? [];
+  if ("assignmentSettingsJson" in input) data.assignmentSettingsJson = input.assignmentSettingsJson ?? null;
   if ("projectId" in input) {
     const newProjectId = input.projectId || null;
     data.projectId = newProjectId;

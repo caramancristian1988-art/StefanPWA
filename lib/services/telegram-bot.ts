@@ -41,11 +41,17 @@ function menuFor(user: LinkedUser): InlineButton[][] {
   return user.isAdmin ? mainMenu() : workerMenu();
 }
 
-/** Clauza OR pentru a găsi task-urile unui worker (direct asignat SAU via echipă). */
+/** Clauza OR pentru a găsi task-urile unui worker (direct asignat SAU via echipă, inclusiv extra). */
 function workerTaskWhere(user: LinkedUser) {
-  const ors: object[] = [{ assigneeId: user.userId }];
-  if (user.teamIds.length > 0) ors.push({ teamId: { in: user.teamIds } });
-  return ors.length === 1 ? { assigneeId: user.userId } : { OR: ors };
+  const ors: object[] = [
+    { assigneeId: user.userId },
+    { extraAssigneeIds: { has: user.userId } },
+  ];
+  if (user.teamIds.length > 0) {
+    ors.push({ teamId: { in: user.teamIds } });
+    ors.push({ extraTeamIds: { hasSome: user.teamIds } });
+  }
+  return { OR: ors };
 }
 
 /** Doar conturi APROBATE de admin (userId setat) — cele pending rămân fără acces la funcții. */

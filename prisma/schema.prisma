@@ -271,6 +271,12 @@ model Task {
   teamId     String? @db.ObjectId
   team       Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
+  // Multi-asignare: IDs suplimentari (pe lângă assigneeId/teamId primar)
+  extraAssigneeIds String[] @db.ObjectId
+  extraTeamIds     String[] @db.ObjectId
+  // JSON: [{userId?:"id", teamId?:"id", notifyUntilStatus?:"STATUS"|null}]
+  assignmentSettingsJson String?
+
   projectId String?  @db.ObjectId
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 

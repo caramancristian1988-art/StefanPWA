@@ -20,6 +20,7 @@ import { taskHistory, type TaskHistoryRow } from "@/lib/queries/tasks";
 import { logAudit } from "@/lib/services/audit";
 import { TASK_STATUS_RO } from "@/lib/telegram";
 import type { TaskStatus, TaskType, TaskPriority } from "@prisma/client";
+import type { AssignmentSetting } from "@/lib/services/tasks";
 
 export type TaskState = { ok?: boolean; error?: string; id?: string } | undefined;
 
@@ -70,6 +71,18 @@ export async function createTaskAction(
     const reminderRaw = Number(formData.get("reminderIntervalMinutes") ?? 0);
     const reminderIntervalMinutes = reminderRaw > 0 ? reminderRaw : null;
 
+    const assigneeIds = formData.getAll("assigneeIds").map(String).filter(Boolean);
+    const teamIds = formData.getAll("teamIds").map(String).filter(Boolean);
+    const [assigneeId = null, ...extraAssigneeIds] = assigneeIds;
+    const [teamId = null, ...extraTeamIds] = teamIds;
+    const allIds = [...assigneeIds, ...teamIds];
+    const settings: AssignmentSetting[] = allIds.length > 1
+      ? [
+          ...assigneeIds.map((uid) => ({ userId: uid, notifyUntilStatus: (formData.get(`notifyUntil_${uid}`) as string) || null })),
+          ...teamIds.map((tid) => ({ teamId: tid, notifyUntilStatus: (formData.get(`notifyUntil_team_${tid}`) as string) || null })),
+        ].filter((s) => s.notifyUntilStatus)
+      : [];
+
     const res = await createTask(
       user.id,
       {
@@ -78,8 +91,11 @@ export async function createTaskAction(
         type,
         priority,
         dueAt,
-        assigneeId: (formData.get("assigneeId") as string) || null,
-        teamId: (formData.get("teamId") as string) || null,
+        assigneeId: assigneeId || (formData.get("assigneeId") as string) || null,
+        teamId: teamId || (formData.get("teamId") as string) || null,
+        extraAssigneeIds,
+        extraTeamIds,
+        assignmentSettingsJson: settings.length > 0 ? JSON.stringify(settings) : null,
         projectId: (formData.get("projectId") as string) || null,
         categoryId: (formData.get("categoryId") as string) || null,
         reminderIntervalMinutes,
@@ -224,11 +240,30 @@ export async function updateTaskAction(
     const reminderRaw = Number(formData.get("reminderIntervalMinutes") ?? 0);
     const reminderIntervalMinutes = reminderRaw > 0 ? reminderRaw : null;
 
+    const assigneeIds = formData.getAll("assigneeIds").map(String).filter(Boolean);
+    const teamIds = formData.getAll("teamIds").map(String).filter(Boolean);
+    const [assigneeId = null, ...extraAssigneeIds] = assigneeIds;
+    const [teamId = null, ...extraTeamIds] = teamIds;
+    const allAssignIds = [...assigneeIds, ...teamIds];
+    const settings: AssignmentSetting[] = allAssignIds.length > 1
+      ? [
+          ...assigneeIds.map((uid) => ({ userId: uid, notifyUntilStatus: (formData.get(`notifyUntil_${uid}`) as string) || null })),
+          ...teamIds.map((tid) => ({ teamId: tid, notifyUntilStatus: (formData.get(`notifyUntil_team_${tid}`) as string) || null })),
+        ].filter((s) => s.notifyUntilStatus)
+      : [];
+
+    const hasMultiAssign = formData.has("assigneeIds") || formData.has("teamIds");
+
     const res = await updateTask(id, user.id, {
       title,
       description,
-      assigneeId: (formData.get("assigneeId") as string) || null,
-      teamId: (formData.get("teamId") as string) || null,
+      assigneeId: hasMultiAssign ? (assigneeId || null) : ((formData.get("assigneeId") as string) || null),
+      teamId: hasMultiAssign ? (teamId || null) : ((formData.get("teamId") as string) || null),
+      ...(hasMultiAssign ? {
+        extraAssigneeIds,
+        extraTeamIds,
+        assignmentSettingsJson: settings.length > 0 ? JSON.stringify(settings) : null,
+      } : {}),
       projectId: (formData.get("projectId") as string) || null,
       categoryId: (formData.get("categoryId") as string) || null,
       priority,

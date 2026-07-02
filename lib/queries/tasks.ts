@@ -23,6 +23,9 @@ export type TaskRow = {
   categoryId: string | null;
   categoryName: string | null;
   categoryColor: string | null;
+  extraAssigneeIds: string[];
+  extraTeamIds: string[];
+  assignmentSettingsJson: string | null;
   assigneeName: string | null;
   teamName: string | null;
   projectName: string | null;
@@ -49,6 +52,9 @@ const TASK_SELECT = {
   clientId: true,
   createdAt: true,
   categoryId: true,
+  extraAssigneeIds: true,
+  extraTeamIds: true,
+  assignmentSettingsJson: true,
   assignee: { select: { name: true } },
   team: { select: { name: true } },
   // project.client NOT selected — clientName not displayed in list; clientId is denormalized
@@ -77,6 +83,9 @@ function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRo
     categoryId: t.categoryId ?? null,
     categoryName: t.category?.name ?? null,
     categoryColor: t.category?.color ?? null,
+    extraAssigneeIds: t.extraAssigneeIds ?? [],
+    extraTeamIds: t.extraTeamIds ?? [],
+    assignmentSettingsJson: t.assignmentSettingsJson ?? null,
     assigneeName: t.assignee?.name ?? null,
     teamName: t.team?.name ?? null,
     projectName: t.project?.name ?? null,
@@ -117,7 +126,11 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
   } else if (filter.scope === "mine") {
     where.OR = [
       { assigneeId: filter.userId },
-      ...(filter.teamIds?.length ? [{ teamId: { in: filter.teamIds } }] : []),
+      { extraAssigneeIds: { has: filter.userId } },
+      ...(filter.teamIds?.length ? [
+        { teamId: { in: filter.teamIds } },
+        { extraTeamIds: { hasSome: filter.teamIds } },
+      ] : []),
     ];
   } else if (filter.scope === "created") {
     where.creatorId = filter.userId;

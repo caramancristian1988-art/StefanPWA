@@ -69,6 +69,10 @@ export function editMessageText(
   });
 }
 
+export function deleteMessage(chatId: string | number, messageId: number) {
+  return tgCall("deleteMessage", { chat_id: chatId, message_id: messageId });
+}
+
 /** Răspuns instant la callback (ca botul să nu pară lent). */
 export function answerCallback(callbackId: string, text?: string) {
   return tgCall("answerCallbackQuery", {

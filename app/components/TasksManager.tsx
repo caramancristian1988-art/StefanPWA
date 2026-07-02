@@ -175,7 +175,7 @@ export default function TasksManager({
   const toast = useToast();
   const [navPending, startNav] = useTransition();
   const [createType, setCreateType] = useState<"TASK" | "TICKET" | "WORK_ORDER" | null>(
-    initialCreate ?? (initialProjectId ? "TASK" : null),
+    initialCreate ?? null,
   );
   const [tasks, setTasks] = useState(items);
   useEffect(() => setTasks(items), [items]);

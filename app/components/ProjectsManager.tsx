@@ -146,7 +146,7 @@ export default function ProjectsManager({
         <div className="flex flex-col gap-2.5">
           {rows.map((p) => (
             <div key={p.id} className="card flex items-center gap-3 p-3.5">
-              <Link href={`/tasks?scope=all&proj=${p.id}&project=${p.id}`} className="tap min-w-0 flex-1 hover:opacity-80">
+              <Link href={`/tasks?scope=all&proj=${p.id}`} className="tap min-w-0 flex-1 hover:opacity-80">
                 <p className="truncate font-semibold">{p.name}</p>
                 <p className="truncate text-xs text-ink-soft">
                   {STATUS_RO[p.status]} · {p.taskCount} task-uri

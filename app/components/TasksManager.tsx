@@ -20,6 +20,7 @@ import { useToast } from "./toast";
 import { IconTrash, IconX, IconChevronLeft, IconChevronRight, IconPencil } from "./icons";
 import QuickSelect from "./QuickSelect";
 import MultiAssignPicker from "./MultiAssignPicker";
+import ExportButton from "./ExportButton";
 import { quickCreateProject } from "@/app/actions/projects";
 import type { CategoryLite } from "./types";
 import type { AssignmentSetting } from "@/lib/services/tasks";
@@ -395,6 +396,23 @@ export default function TasksManager({
             Resetează
           </button>
         )}
+        <ExportButton
+          entity={basePath === "/tickets" ? "tickets" : "tasks"}
+          params={{
+            scope: scope !== "mine" ? scope : undefined,
+            q: filters.q || undefined,
+            status: filters.status || undefined,
+            prio: filters.prio || undefined,
+            assignee: filters.assignee || undefined,
+            team: filters.team || undefined,
+            proj: filters.proj || undefined,
+            client: filters.client || undefined,
+            due: filters.due || undefined,
+            sort: filters.sort || undefined,
+            category: filters.category || undefined,
+          }}
+          className="tap h-9 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+        />
       </div>
 
       {canCreate && createButtons && createButtons.length > 0 && (

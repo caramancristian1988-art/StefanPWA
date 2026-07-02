@@ -13,6 +13,7 @@ import { toVM } from "@/lib/view";
 import AppointmentItem from "@/app/components/AppointmentItem";
 import AppointmentsControls from "@/app/components/AppointmentsControls";
 import OpenQuickAddButton from "@/app/components/OpenQuickAddButton";
+import ExportButton from "@/app/components/ExportButton";
 import AutoOpenQuickAdd from "@/app/components/AutoOpenQuickAdd";
 import { QuickAddProvider } from "@/app/components/quick-add-context";
 import type { ApptVM } from "@/app/components/types";
@@ -74,8 +75,18 @@ export default async function AppointmentsPage({
       <div className="w-full">
         <AppointmentsControls categories={categories} />
 
-        <div className="mb-4">
+        <div className="mb-4 flex items-center gap-2">
           <OpenQuickAddButton />
+          <ExportButton
+            entity="appointments"
+            params={{
+              view: view !== "azi" ? view : undefined,
+              q: q || undefined,
+              status: status || undefined,
+              category: category || undefined,
+            }}
+            className="tap h-10 shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
+          />
         </div>
 
         {items.length === 0 ? (

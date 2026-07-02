@@ -11,6 +11,7 @@ import {
 } from "@/app/actions/projects";
 import { useToast } from "./toast";
 import { IconX, IconPencil, IconTrash, IconPlus, IconChevronLeft, IconChevronRight } from "./icons";
+import ExportButton from "./ExportButton";
 
 type Opt = { id: string; name: string };
 type Project = {
@@ -122,6 +123,14 @@ export default function ProjectsManager({
             Resetează
           </button>
         )}
+        <ExportButton
+          entity="projects"
+          params={{
+            q: filters.q || undefined,
+            status: filters.status || undefined,
+          }}
+          className="tap h-9 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+        />
       </div>
 
       {rows.length === 0 ? (

@@ -59,6 +59,7 @@ export type CreateTaskInput = {
   extraTeamIds?: string[];
   assignmentSettingsJson?: string | null;
   projectId?: string | null;
+  clientId?: string | null;
   categoryId?: string | null;
   reminderIntervalMinutes?: number | null;
   bypassQuietHours?: boolean;
@@ -210,6 +211,8 @@ export async function createTask(
         teamId = project.teamId;
       }
     }
+  } else {
+    clientId = input.clientId || null;
   }
   if (!assigneeId && !teamId) assigneeId = creatorId;
 
@@ -806,6 +809,7 @@ export type UpdateTaskInput = {
   extraTeamIds?: string[];
   assignmentSettingsJson?: string | null;
   projectId?: string | null;
+  clientId?: string | null;
   categoryId?: string | null;
   priority?: TaskPriority;
   dueAt?: Date | null;
@@ -856,8 +860,10 @@ export async function updateTask(taskId: string, actorId: string, input: UpdateT
       const proj = await prisma.project.findUnique({ where: { id: newProjectId }, select: { clientId: true } });
       data.clientId = proj?.clientId ?? null;
     } else {
-      data.clientId = null;
+      data.clientId = input.clientId || null;
     }
+  } else if ("clientId" in input) {
+    data.clientId = input.clientId || null;
   }
   if ("categoryId" in input) data.categoryId = input.categoryId || null;
   if (input.priority !== undefined) data.priority = input.priority;

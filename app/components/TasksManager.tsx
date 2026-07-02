@@ -599,6 +599,7 @@ export default function TasksManager({
           users={users}
           teams={teams}
           projects={projects}
+          clients={clients}
           categories={categories}
           canCreateProject={canCreateProject}
           quietHoursEnabled={quietHoursEnabled}
@@ -613,6 +614,7 @@ export default function TasksManager({
           users={users}
           teams={teams}
           projects={projects}
+          clients={clients}
           categories={categories}
           quietHoursEnabled={quietHoursEnabled}
           onClose={() => setEditTask(null)}
@@ -863,12 +865,13 @@ function CategoryChips({
 }
 
 function EditDialog({
-  task, users, teams, projects, categories, quietHoursEnabled, onClose, onSaved,
+  task, users, teams, projects, clients, categories, quietHoursEnabled, onClose, onSaved,
 }: {
   task: Task;
   users: Opt[];
   teams: Opt[];
   projects: Opt[];
+  clients: Opt[];
   categories: CategoryLite[];
   quietHoursEnabled?: boolean;
   onClose: () => void;
@@ -932,6 +935,12 @@ function EditDialog({
             <option value="">Fără proiect</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          {clients.length > 0 && (
+            <select name="clientId" defaultValue={task.clientId ?? ""} className={dlgInput}>
+              <option value="">Fără client</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
           <MultiAssignPicker
             users={users}
             teams={teams}
@@ -983,12 +992,13 @@ function EditDialog({
 }
 
 function CreateDialog({
-  initialType, users, teams, projects, categories, canCreateProject, quietHoursEnabled, initialProjectId, onClose, onCreated,
+  initialType, users, teams, projects, clients, categories, canCreateProject, quietHoursEnabled, initialProjectId, onClose, onCreated,
 }: {
   initialType: "TASK" | "TICKET" | "WORK_ORDER";
   users: Opt[];
   teams: Opt[];
   projects: Opt[];
+  clients: Opt[];
   categories: CategoryLite[];
   canCreateProject: boolean;
   quietHoursEnabled?: boolean;
@@ -1041,6 +1051,12 @@ function CreateDialog({
             onQuickCreate={quickCreateProject}
             defaultValue={initialProjectId ?? ""}
           />
+          {clients.length > 0 && (
+            <select name="clientId" defaultValue="" className={dlgInput}>
+              <option value="">Fără client</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
           <MultiAssignPicker users={users} teams={teams} />
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>

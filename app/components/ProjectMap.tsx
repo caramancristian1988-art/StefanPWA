@@ -14,8 +14,9 @@ export default function ProjectMap({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
   useEffect(() => {
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
     if (!token || !containerRef.current) return;
 
     let map: import("mapbox-gl").Map | undefined;
@@ -45,6 +46,14 @@ export default function ProjectMap({
       map?.remove();
     };
   }, [lat, lng, address]);
+
+  if (!token) {
+    return (
+      <div className="grid h-40 place-items-center rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] text-center text-sm text-ink-soft">
+        <p>NEXT_PUBLIC_MAPBOX_TOKEN lipsește — harta indisponibilă.</p>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -30,9 +30,9 @@ const STATUS_RO: Record<string, string> = {
 export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<string | null>(null);
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
   useEffect(() => {
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
     if (!token || !containerRef.current || pins.length === 0) return;
 
     let map: import("mapbox-gl").Map;
@@ -78,7 +78,7 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
               ${pin.address ? `<div style="font-size:12px;color:#6b7280;margin-bottom:8px">${pin.address}</div>` : ""}
               <div style="display:flex;gap:8px;margin-top:8px">
                 <a href="/projects/${pin.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none">Detalii</a>
-                <a href="/tasks?scope=all&proj=${pin.id}&project=${pin.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none">Task-uri →</a>
+                <a href="/tasks?scope=all&proj=${pin.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none">Task-uri →</a>
               </div>
             </div>
           `);
@@ -95,10 +95,23 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  if (!token) {
+    return (
+      <div className="card grid place-items-center p-16 text-center text-sm text-ink-soft">
+        <p className="mb-1 font-semibold text-ink">Hartă indisponibilă</p>
+        <p>
+          Variabila <code className="rounded bg-[var(--color-surface-2)] px-1">NEXT_PUBLIC_MAPBOX_TOKEN</code> nu este configurată.
+        </p>
+        <p className="mt-1">Adaug-o în Vercel → Settings → Environment Variables.</p>
+      </div>
+    );
+  }
+
   if (pins.length === 0) {
     return (
       <div className="card grid place-items-center p-16 text-center text-sm text-ink-soft">
-        Niciun proiect cu locație salvată. Editează un proiect și adaugă coordonate.
+        <p className="mb-1 font-semibold text-ink">Niciun proiect cu locație</p>
+        <p>Deschide un proiect, apasă pe câmpul Adresă și selectează locația de pe hartă.</p>
       </div>
     );
   }

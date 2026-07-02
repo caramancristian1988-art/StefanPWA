@@ -40,7 +40,7 @@ const STATUSES: TaskStatus[] = [
 ];
 
 function revalidateTasks() {
-  for (const p of ["/tasks", "/dashboard", "/projects", "/kanban", "/notificari"]) revalidatePath(p);
+  for (const p of ["/tasks", "/tickets", "/dashboard", "/projects", "/kanban", "/notificari"]) revalidatePath(p);
 }
 
 export async function createTaskAction(

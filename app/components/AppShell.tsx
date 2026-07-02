@@ -13,6 +13,7 @@ type NavItem = { href: string; label: string; icon: ReactNode; perm?: string };
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: gridIcon() },
   { href: "/tasks", label: "Task-uri", icon: checklistIcon(), perm: "tasks.view" },
+  { href: "/tickets", label: "Tichete", icon: ticketIcon(), perm: "tasks.view" },
   { href: "/kanban", label: "Kanban", icon: kanbanIcon(), perm: "tasks.view" },
   { href: "/calendar", label: "Calendar", icon: calIcon(), perm: "tasks.view" },
   { href: "/appointments", label: "Programări", icon: apptIcon(), perm: "appointments.view" },
@@ -261,6 +262,9 @@ function userIcon() {
 }
 function checklistIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12M3.5 6 4.5 7 6 5M3.5 12l1 1L6 11M3.5 18l1 1L6 17"/></svg>;
+}
+function ticketIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-2a2 2 0 0 0 0-4Z"/><path d="M9 3v3M9 18v3M15 3v3M15 18v3"/></svg>;
 }
 function folderIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>;

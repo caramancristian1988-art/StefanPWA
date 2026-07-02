@@ -139,6 +139,8 @@ export default function TasksManager({
   initialProjectId,
   initialOpenId,
   scopeOptions,
+  basePath = "/tasks",
+  createButtons,
 }: {
   items: Task[];
   hasMore: boolean;
@@ -159,6 +161,8 @@ export default function TasksManager({
   initialProjectId?: string;
   initialOpenId?: string;
   scopeOptions?: { key: string; label: string }[];
+  basePath?: string;
+  createButtons?: { label: string; type: "TASK" | "TICKET" | "WORK_ORDER" }[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -230,7 +234,7 @@ export default function TasksManager({
     const usp = new URLSearchParams();
     if (newScope !== "mine") usp.set("scope", newScope);
     const qs = usp.toString();
-    startNav(() => router.push(`/tasks${qs ? `?${qs}` : ""}`));
+    startNav(() => router.push(`${basePath}${qs ? `?${qs}` : ""}`));
   }
 
   function buildUrl(patch: Partial<TaskFilters & { page: number }>) {
@@ -244,7 +248,7 @@ export default function TasksManager({
     const pageVal = "page" in patch ? Number(patch.page) : 1;
     if (pageVal > 1) usp.set("page", String(pageVal));
     const qs = usp.toString();
-    return `/tasks${qs ? `?${qs}` : ""}`;
+    return `${basePath}${qs ? `?${qs}` : ""}`;
   }
   function setFilter(patch: Partial<TaskFilters>) { startNav(() => router.push(buildUrl(patch))); }
   function goPage(n: number) { startNav(() => router.push(buildUrl({ page: n }))); }
@@ -380,7 +384,7 @@ export default function TasksManager({
 
         {activeFilters && (
           <button
-            onClick={() => router.push(scope !== "mine" ? `/tasks?scope=${scope}` : "/tasks")}
+            onClick={() => router.push(scope !== "mine" ? `${basePath}?scope=${scope}` : basePath)}
             className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
             Resetează
@@ -388,14 +392,21 @@ export default function TasksManager({
         )}
       </div>
 
-      {canCreate && (
+      {canCreate && createButtons && createButtons.length > 0 && (
         <div className="mb-3 flex gap-2">
-          <button onClick={() => setCreateType("TASK")} className="tap h-10 flex-1 rounded-xl bg-brand text-sm font-semibold text-white hover:bg-brand-strong">
-            + Task nou
-          </button>
-          <button onClick={() => setCreateType("TICKET")} className="tap h-10 flex-1 rounded-xl bg-[var(--color-surface-2)] text-sm font-semibold hover:bg-brand-soft">
-            + Tichet nou
-          </button>
+          {createButtons.map((btn) => (
+            <button
+              key={btn.type}
+              onClick={() => setCreateType(btn.type)}
+              className={`tap h-10 flex-1 rounded-xl text-sm font-semibold ${
+                btn.type === "TASK"
+                  ? "bg-brand text-white hover:bg-brand-strong"
+                  : "bg-[var(--color-surface-2)] hover:bg-brand-soft"
+              }`}
+            >
+              {btn.label}
+            </button>
+          ))}
         </div>
       )}
 

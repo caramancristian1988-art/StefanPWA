@@ -90,6 +90,7 @@ export type TaskFilter = {
   scope?: "all" | "mine" | "created";
   status?: TaskStatus;
   type?: TaskType;
+  types?: TaskType[];
   priority?: TaskPriority;
   projectId?: string;
   clientId?: string;
@@ -123,7 +124,8 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
   }
   if (filter.teamId) where.teamId = filter.teamId;
   if (filter.status) where.status = filter.status;
-  if (filter.type) where.type = filter.type;
+  if (filter.types?.length) where.type = { in: filter.types };
+  else if (filter.type) where.type = filter.type;
   if (filter.priority) where.priority = filter.priority;
   if (filter.projectId) where.projectId = filter.projectId;
   if (filter.clientId) where.clientId = filter.clientId;

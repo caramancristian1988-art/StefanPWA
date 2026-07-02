@@ -7,7 +7,7 @@ import { projectOptions } from "@/lib/queries/projects";
 import { invoiceClientOptions } from "@/lib/queries/invoices";
 import { listCategories } from "@/lib/queries/categories";
 import TasksManager from "@/app/components/TasksManager";
-import type { TaskStatus, TaskType, TaskPriority } from "@prisma/client";
+import type { TaskStatus, TaskPriority } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,6 @@ const SCOPES = [
 ] as const;
 
 const STATUS_SET = new Set(["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED"]);
-const TYPE_SET = new Set(["TASK", "TICKET", "WORK_ORDER"]);
 const PRIO_SET = new Set(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 
 function pick<T extends string>(v: string | undefined, set: Set<string>): T | undefined {
@@ -28,19 +27,18 @@ function pick<T extends string>(v: string | undefined, set: Set<string>): T | un
 const DUE_RANGES = new Set(["overdue", "today", "tomorrow", "week", "month"]);
 const SORTS = new Set(["dueAsc", "dueDesc"]);
 
-export default async function TasksPage({
+export default async function TicketsPage({
   searchParams,
 }: {
   searchParams: Promise<{
     scope?: string; page?: string; create?: string; project?: string;
-    q?: string; status?: string; type?: string; assignee?: string;
+    q?: string; status?: string; assignee?: string;
     team?: string; proj?: string; client?: string; prio?: string;
     due?: string; sort?: string; open?: string; category?: string;
   }>;
 }) {
   const user = await requirePermission("tasks.view");
   const sp = await searchParams;
-  // STAFF vede mereu doar propriile task-uri; ADMIN poate comuta scope din URL
   const scope = (
     user.role === "STAFF"
       ? "mine"
@@ -48,7 +46,7 @@ export default async function TasksPage({
   ) as "mine" | "all" | "created";
   const page = Math.max(1, Number(sp.page) || 1);
   const initialCreate =
-    sp.create === "work_order" ? "WORK_ORDER" : sp.create === "task" ? "TASK" : undefined;
+    sp.create === "ticket" ? "TICKET" : undefined;
   const initialProjectId = typeof sp.project === "string" ? sp.project : undefined;
   const initialOpenId = typeof sp.open === "string" && sp.open ? sp.open : undefined;
 
@@ -62,7 +60,7 @@ export default async function TasksPage({
       scope,
       userId: user.id,
       teamIds: user.teamIds,
-      types: ["TASK", "WORK_ORDER"],
+      types: ["TICKET"],
       status: pick<TaskStatus>(sp.status, STATUS_SET),
       priority: pick<TaskPriority>(sp.prio, PRIO_SET),
       assigneeId: sp.assignee || undefined,
@@ -100,7 +98,7 @@ export default async function TasksPage({
         filters={{
           q: sp.q ?? "",
           status: sp.status ?? "",
-          type: sp.type ?? "",
+          type: "",
           assignee: sp.assignee ?? "",
           team: sp.team ?? "",
           proj: sp.proj ?? "",
@@ -118,10 +116,9 @@ export default async function TasksPage({
         initialProjectId={can(user, "tasks.create") ? initialProjectId : undefined}
         initialOpenId={initialOpenId}
         scopeOptions={scopeOptions}
-        basePath="/tasks"
+        basePath="/tickets"
         createButtons={can(user, "tasks.create") ? [
-          { label: "+ Task nou", type: "TASK" },
-          { label: "+ Work Order", type: "WORK_ORDER" },
+          { label: "+ Tichet nou", type: "TICKET" },
         ] : []}
       />
     </div>

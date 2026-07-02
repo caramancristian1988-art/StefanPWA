@@ -1,7 +1,13 @@
 import "server-only";
 import { prisma } from "../prisma";
 import { DEMO, demoAppointments } from "../demo";
-import type { AppointmentStatus } from "@prisma/client";
+import type { AppointmentStatus, Prisma } from "@prisma/client";
+
+export type ApptFilter = {
+  search?: string;
+  status?: AppointmentStatus;
+  categoryId?: string;
+};
 
 /** Câmpuri suficiente pentru listări (folosesc snapshot-urile, fără include). */
 export const LIST_SELECT = {
@@ -41,26 +47,34 @@ const ACTIVE_STATUSES: AppointmentStatus[] = [
   "DONE",
 ];
 
+function applyFilter(base: Prisma.AppointmentWhereInput, f: ApptFilter): Prisma.AppointmentWhereInput {
+  const w = { ...base };
+  if (f.search) w.clientNameSnapshot = { contains: f.search, mode: "insensitive" };
+  if (f.status) w.status = f.status;
+  if (f.categoryId) w.categoryId = f.categoryId;
+  return w;
+}
+
 /** Programările unei zile (Azi / Telegram). Query unic pe index userId+dateKey. */
-export function listByDateKey(userId: string, dateKey: string) {
+export function listByDateKey(userId: string, dateKey: string, filter: ApptFilter = {}) {
   if (DEMO) {
     return Promise.resolve(demoAppointments().filter((a) => a.dateKey === dateKey));
   }
   return prisma.appointment.findMany({
-    where: { userId, dateKey },
+    where: applyFilter({ userId, dateKey }, filter),
     select: LIST_SELECT,
     orderBy: { startAt: "asc" },
   });
 }
 
 /** Mai multe zile deodată (săptămână / calendar). */
-export function listByDateKeys(userId: string, dateKeys: string[]) {
+export function listByDateKeys(userId: string, dateKeys: string[], filter: ApptFilter = {}) {
   if (DEMO) {
     const set = new Set(dateKeys);
     return Promise.resolve(demoAppointments().filter((a) => set.has(a.dateKey)));
   }
   return prisma.appointment.findMany({
-    where: { userId, dateKey: { in: dateKeys } },
+    where: applyFilter({ userId, dateKey: { in: dateKeys } }, filter),
     select: LIST_SELECT,
     orderBy: { startAt: "asc" },
   });

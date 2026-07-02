@@ -15,6 +15,7 @@ const NAV: NavItem[] = [
   { href: "/tasks", label: "Task-uri", icon: checklistIcon(), perm: "tasks.view" },
   { href: "/kanban", label: "Kanban", icon: kanbanIcon(), perm: "tasks.view" },
   { href: "/calendar", label: "Calendar", icon: calIcon(), perm: "tasks.view" },
+  { href: "/appointments", label: "Programări", icon: apptIcon(), perm: "appointments.view" },
   { href: "/projects", label: "Proiecte", icon: folderIcon(), perm: "projects.view" },
   { href: "/team", label: "Echipă", icon: usersIcon(), perm: "teams.view" },
   { href: "/invoices", label: "Facturi", icon: invoiceIcon(), perm: "invoices.view" },
@@ -242,6 +243,9 @@ function listIcon() {
 }
 function calIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>;
+}
+function apptIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/><circle cx="15.5" cy="15.5" r="3.5"/><path d="M15.5 14v1.5l1 1"/></svg>;
 }
 function kanbanIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 3v18M12 3v12M19 3v8"/></svg>;

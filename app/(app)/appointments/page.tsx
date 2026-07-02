@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
 import { getSettings } from "@/lib/queries/settings";
 import { listCategories } from "@/lib/queries/categories";
@@ -12,24 +11,21 @@ import {
 } from "@/lib/date";
 import { toVM } from "@/lib/view";
 import AppointmentItem from "@/app/components/AppointmentItem";
+import AppointmentsControls from "@/app/components/AppointmentsControls";
 import OpenQuickAddButton from "@/app/components/OpenQuickAddButton";
 import AutoOpenQuickAdd from "@/app/components/AutoOpenQuickAdd";
 import { QuickAddProvider } from "@/app/components/quick-add-context";
 import type { ApptVM } from "@/app/components/types";
+import type { AppointmentStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-const VIEWS = [
-  { key: "azi", label: "Azi" },
-  { key: "maine", label: "Mâine" },
-  { key: "saptamana", label: "Săptămâna" },
-  { key: "lista", label: "Listă" },
-] as const;
+const VALID_STATUSES = new Set(["NEW", "CONFIRMED", "IN_PROGRESS", "DONE", "CANCELLED", "NO_SHOW"]);
 
 export default async function AppointmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; create?: string }>;
+  searchParams: Promise<{ view?: string; create?: string; q?: string; status?: string; category?: string }>;
 }) {
   const user = await requirePermission("appointments.view");
   const [settings, categories] = await Promise.all([
@@ -37,7 +33,13 @@ export default async function AppointmentsPage({
     listCategories(),
   ]);
   const tz = settings.timezone;
-  const { view = "azi", create } = await searchParams;
+  const { view = "azi", create, q, status, category } = await searchParams;
+
+  const filter = {
+    search: q?.trim() || undefined,
+    status: (status && VALID_STATUSES.has(status) ? status : undefined) as AppointmentStatus | undefined,
+    categoryId: category || undefined,
+  };
 
   const today = todayKey(tz);
   const tomorrow = tomorrowKey(tz);
@@ -45,16 +47,16 @@ export default async function AppointmentsPage({
   let grouped = false;
 
   if (view === "maine") {
-    items = (await listByDateKey(user.id, tomorrow)).map((a) => toVM(a, tz));
+    items = (await listByDateKey(user.id, tomorrow, filter)).map((a) => toVM(a, tz));
   } else if (view === "saptamana") {
-    items = (await listByDateKeys(user.id, weekKeys(today, tz))).map((a) => toVM(a, tz));
+    items = (await listByDateKeys(user.id, weekKeys(today, tz), filter)).map((a) => toVM(a, tz));
     grouped = true;
   } else if (view === "lista") {
     const keys = Array.from({ length: 14 }, (_, i) => addDaysToKey(today, i, tz));
-    items = (await listByDateKeys(user.id, keys)).map((a) => toVM(a, tz));
+    items = (await listByDateKeys(user.id, keys, filter)).map((a) => toVM(a, tz));
     grouped = true;
   } else {
-    items = (await listByDateKey(user.id, today)).map((a) => toVM(a, tz));
+    items = (await listByDateKey(user.id, today, filter)).map((a) => toVM(a, tz));
   }
 
   const quickDefaults = {
@@ -70,21 +72,7 @@ export default async function AppointmentsPage({
     <QuickAddProvider categories={categories} defaults={quickDefaults}>
       {create === "1" && <AutoOpenQuickAdd />}
       <div className="w-full">
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-          {VIEWS.map((v) => (
-            <Link
-              key={v.key}
-              href={`/appointments?view=${v.key}`}
-              className={`tap shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
-                view === v.key
-                  ? "bg-brand text-white"
-                  : "card text-ink-soft"
-              }`}
-            >
-              {v.label}
-            </Link>
-          ))}
-        </div>
+        <AppointmentsControls categories={categories} />
 
         <div className="mb-4">
           <OpenQuickAddButton />

@@ -84,7 +84,7 @@ export async function updateClient(
   if (DEMO) return { error: DEMO_MSG };
   const id = String(formData.get("id") ?? "");
   const owned = await prisma.client.findFirst({
-    where: { id, userId: user.id },
+    where: { id },
     select: { id: true, name: true, phone: true, email: true },
   });
   if (!owned) return { error: "Client inexistent." };
@@ -127,8 +127,8 @@ export async function deleteClient(id: string): Promise<void> {
   const user = await requireUser();
   if (!can(user, "clients.delete")) return;
   if (DEMO) return;
-  const c = await prisma.client.findFirst({ where: { id, userId: user.id }, select: { name: true } });
-  await prisma.client.deleteMany({ where: { id, userId: user.id } });
+  const c = await prisma.client.findFirst({ where: { id }, select: { name: true } });
+  await prisma.client.deleteMany({ where: { id } });
   await logAudit(actor(user), { action: "client.delete", module: "Clients", objectId: id, objectName: c?.name ?? null });
   revalidatePath("/clients");
   revalidateTag("clients", "max");

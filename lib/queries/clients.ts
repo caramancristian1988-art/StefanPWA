@@ -28,7 +28,7 @@ const PAGE_SIZE = 20;
 
 /** Listare paginată + search (nume/telefon), select minimal. */
 export async function listClients(
-  userId: string,
+  _userId: string,
   opts: { search?: string; page?: number; pageSize?: number } = {},
 ) {
   const page = Math.max(1, opts.page ?? 1);
@@ -46,17 +46,14 @@ export async function listClients(
     return { items: filtered, total: filtered.length, page: 1, pageSize, hasMore: false };
   }
 
-  const where = {
-    userId,
-    ...(search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" as const } },
-            { phone: { contains: search } },
-          ],
-        }
-      : {}),
-  };
+  const where = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { phone: { contains: search } },
+        ],
+      }
+    : {};
 
   const [items, total] = await Promise.all([
     prisma.client.findMany({
@@ -79,7 +76,7 @@ export async function listClients(
 }
 
 /** Search rapid pentru autocomplete (formular programare). */
-export async function searchClients(userId: string, q: string, limit = 8) {
+export async function searchClients(_userId: string, q: string, limit = 8) {
   const search = q.trim();
   if (!search) return [];
   if (DEMO) {
@@ -94,7 +91,6 @@ export async function searchClients(userId: string, q: string, limit = 8) {
   }
   return prisma.client.findMany({
     where: {
-      userId,
       OR: [
         { name: { contains: search, mode: "insensitive" } },
         { phone: { contains: search } },
@@ -106,19 +102,18 @@ export async function searchClients(userId: string, q: string, limit = 8) {
   });
 }
 
-export async function clientOptions(userId: string): Promise<{ id: string; name: string }[]> {
+export async function clientOptions(_userId: string): Promise<{ id: string; name: string }[]> {
   if (DEMO) return [];
   return prisma.client.findMany({
-    where: { userId },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
 }
 
-export async function getClient(userId: string, id: string) {
+export async function getClient(_userId: string, id: string) {
   if (DEMO) return demoClients.find((c) => c.id === id) ?? null;
   return prisma.client.findFirst({
-    where: { id, userId },
+    where: { id },
     select: {
       id: true,
       name: true,
@@ -142,7 +137,7 @@ export async function findOrCreateClient(
 ) {
   const name = data.name.trim();
   const existing = await prisma.client.findFirst({
-    where: { userId, name: { equals: name, mode: "insensitive" } },
+    where: { name: { equals: name, mode: "insensitive" } },
     select: { id: true, name: true, phone: true, email: true, telegramChatId: true },
   });
   if (existing) {

@@ -7,20 +7,20 @@ export type ParsedRow = Record<string, string>;
  * Prima linie devine cheile obiectului (antet). Valorile sunt întotdeauna string.
  */
 export function parseWorkbook(buffer: ArrayBuffer): ParsedRow[] {
-  const wb = XLSX.read(buffer, { type: "array", cellText: true, cellDates: false });
+  const wb = XLSX.read(buffer, { type: "array", cellText: true, cellDates: false, codepage: 65001 });
   const ws = wb.Sheets[wb.SheetNames[0]];
   if (!ws) return [];
 
   const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {
     defval: "",
-    raw: false, // toate valorile ca string
+    raw: false,
   });
 
   return raw.map((row) => {
     const cleaned: ParsedRow = {};
     for (const [k, v] of Object.entries(row)) {
-      // Strip BOM (﻿) that gets prepended to the first column in BOM-prefixed CSV files
-      const key = String(k).trim().replace(/^﻿/, "");
+      // Strip BOM ﻿ that SheetJS includes in the first column when parsing BOM-prefixed CSV
+      const key = String(k).replace(/^﻿/, "").trim();
       cleaned[key] = String(v ?? "").trim();
     }
     return cleaned;

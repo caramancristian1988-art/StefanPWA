@@ -39,6 +39,17 @@ export async function POST(req: Request) {
     return Response.json({ imported: 0, total: 0, failed: [] } satisfies ImportResult);
   }
 
+  // Debug: returnează cheile primului rând dacă entitatea este "debug"
+  if (entity === "debug") {
+    const firstRow = rows[0];
+    const keys = Object.keys(firstRow).map((k) => ({
+      raw: k,
+      codes: Array.from(k).map((c) => c.charCodeAt(0).toString(16)).join(" "),
+      value: firstRow[k],
+    }));
+    return Response.json({ keys });
+  }
+
   // ─── TASKS / TICHETE ──────────────────────────────────────────────────────
   if (entity === "tasks" || entity === "tickets") {
     // Pre-fetch lookup tables

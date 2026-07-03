@@ -194,7 +194,14 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
   }
 
   if (filter.search?.trim()) {
-    where.title = { contains: filter.search.trim(), mode: "insensitive" };
+    const term = filter.search.trim();
+    const stripped = term.startsWith("#") ? term.slice(1) : term;
+    const seqNum = /^\d+$/.test(stripped) ? parseInt(stripped, 10) : NaN;
+    if (!isNaN(seqNum)) {
+      where.OR = [{ seq: seqNum }, { title: { contains: term, mode: "insensitive" } }];
+    } else {
+      where.title = { contains: term, mode: "insensitive" };
+    }
   }
   return where;
 }

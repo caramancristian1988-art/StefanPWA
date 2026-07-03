@@ -279,6 +279,15 @@ export default function TasksManager({
 
   const [searchInput, setSearchInput] = useState(filters.q);
   useEffect(() => setSearchInput(filters.q), [filters.q]);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleSearchChange(val: string) {
+    setSearchInput(val);
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(() => {
+      startNav(() => router.push(buildUrl({ q: val })));
+    }, 350);
+  }
 
   function setScope(newScope: string) {
     const usp = new URLSearchParams();
@@ -366,13 +375,13 @@ export default function TasksManager({
       {/* ── Filtre ─────────────────────────────────────────── */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <form
-          onSubmit={(e) => { e.preventDefault(); setFilter({ q: searchInput }); }}
+          onSubmit={(e) => { e.preventDefault(); if (searchDebounce.current) clearTimeout(searchDebounce.current); startNav(() => router.push(buildUrl({ q: searchInput }))); }}
           className="flex min-w-40 flex-1 items-center"
         >
           <input
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Caută… (Enter)"
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Caută după titlu sau #număr…"
             className="h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
           />
         </form>

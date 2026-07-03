@@ -133,7 +133,7 @@ async function TasksSection({
             const due = t.dueAt ? new Date(t.dueAt) : null;
             const overdue = due && due < new Date() && t.status !== "DONE" && t.status !== "CANCELLED";
             return (
-              <Link key={t.id} href="/tasks" className="card tap flex items-center gap-2.5 px-3 py-2.5 hover:border-brand">
+              <Link key={t.id} href={`/tasks?open=${t.id}`} className="card tap flex items-center gap-2.5 px-3 py-2.5 hover:border-brand">
                 <span className={`size-2.5 shrink-0 rounded-full ${meta.dot}`} />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{t.title}</span>
                 {pMeta && (

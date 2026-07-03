@@ -19,6 +19,7 @@ export type InvoiceInput = {
   clientId?: string | null;
   projectId?: string | null;
   taskId?: string | null;
+  taskIds?: string[];
   notes?: string;
   terms?: string;
   items: InvoiceItemInput[];
@@ -91,7 +92,8 @@ export async function createInvoice(userId: string, input: InvoiceInput) {
       dueDate: input.dueDate ?? null,
       clientId: input.clientId || null,
       projectId: input.projectId || null,
-      taskId: input.taskId || null,
+      taskIds: input.taskIds ?? [],
+      taskId: (input.taskIds ?? [])[0] ?? input.taskId ?? null,
       notes: input.notes?.trim() || null,
       terms: input.terms?.trim() || null,
       currency: company.currency || "MDL",
@@ -119,7 +121,8 @@ export async function updateInvoice(id: string, input: InvoiceInput) {
       dueDate: input.dueDate ?? null,
       clientId: input.clientId || null,
       projectId: input.projectId || null,
-      taskId: input.taskId || null,
+      taskIds: input.taskIds ?? [],
+      taskId: (input.taskIds ?? [])[0] ?? input.taskId ?? null,
       notes: input.notes?.trim() || null,
       terms: input.terms?.trim() || null,
       subtotal,

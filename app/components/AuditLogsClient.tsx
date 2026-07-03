@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { rowSummary, moduleLabel, AUDIT_MODULES, ACTION_OPTIONS } from "@/lib/audit-meta";
 import { deleteAllAuditLogs } from "@/app/actions/audit";
@@ -28,10 +28,15 @@ type Filters = {
   role: string;
   action: string;
   module: string;
+  ps?: string;
 };
 
-const fld =
-  "h-8 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand";
+const fldCls = (val: string) =>
+  `h-8 appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
+    val
+      ? "border-brand bg-brand/10 font-semibold text-brand"
+      : "border-[var(--color-line)] bg-[var(--color-surface)] text-ink"
+  }`;
 
 function fmtTime(d: string | Date): string {
   const dt = new Date(d);
@@ -62,17 +67,47 @@ export default function AuditLogsClient({
   page,
   hasMore,
   filters,
+  totalPages = 1,
 }: {
   items: Row[];
   users: Opt[];
   page: number;
   hasMore: boolean;
   filters: Filters;
+  totalPages?: number;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Persistenţă filtre ──────────────────────────────────
+  const auditFiltersEmpty = !filters.user && !filters.role && !filters.action && !filters.module;
+  const auditIsFirstSave = useRef(true);
+  useEffect(() => {
+    if (auditFiltersEmpty) {
+      try {
+        const saved = localStorage.getItem("filters:audit");
+        if (saved) router.replace(`/admin/audit-logs?${saved}`);
+      } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (auditIsFirstSave.current) { auditIsFirstSave.current = false; if (auditFiltersEmpty) return; }
+    try {
+      const sp = new URLSearchParams();
+      if (filters.user) sp.set("user", filters.user);
+      if (filters.role) sp.set("role", filters.role);
+      if (filters.action) sp.set("action", filters.action);
+      if (filters.module) sp.set("module", filters.module);
+      if (filters.ps && filters.ps !== "20") sp.set("ps", filters.ps);
+      const str = sp.toString();
+      if (str) localStorage.setItem("filters:audit", str);
+      else localStorage.removeItem("filters:audit");
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.user, filters.role, filters.action, filters.module, filters.ps]);
 
   function apply(patch: Partial<Filters & { page: number }>) {
     const next: Record<string, string> = {
@@ -80,11 +115,16 @@ export default function AuditLogsClient({
       role: filters.role,
       action: filters.action,
       module: filters.module,
+      ps: filters.ps ?? "",
       ...Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, String(v ?? "")])),
     };
     if (!("page" in patch)) next.page = "1";
     const usp = new URLSearchParams();
-    for (const [k, v] of Object.entries(next)) if (v && v !== "1") usp.set(k, v);
+    for (const [k, v] of Object.entries(next)) {
+      if (!v || v === "1") continue;
+      if (k === "ps" && v === "20") continue;
+      usp.set(k, v);
+    }
     if (next.page && next.page !== "1") usp.set("page", next.page);
     const qs = usp.toString();
     router.push(`/admin/audit-logs${qs ? `?${qs}` : ""}`);
@@ -116,31 +156,29 @@ export default function AuditLogsClient({
     <>
       {/* Bară filtre + acțiuni */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <select value={filters.user} onChange={(e) => apply({ user: e.target.value })} className={fld}>
+        <select value={filters.user} onChange={(e) => apply({ user: e.target.value })} className={fldCls(filters.user)}>
           <option value="">Toți utilizatorii</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
-        <select value={filters.role} onChange={(e) => apply({ role: e.target.value })} className={fld}>
+        <select value={filters.role} onChange={(e) => apply({ role: e.target.value })} className={fldCls(filters.role)}>
           <option value="">Orice rol</option>
           <option value="ADMIN">Administrator</option>
           <option value="STAFF">Staff</option>
         </select>
-        <select value={filters.module} onChange={(e) => apply({ module: e.target.value })} className={fld}>
+        <select value={filters.module} onChange={(e) => apply({ module: e.target.value })} className={fldCls(filters.module)}>
           <option value="">Orice modul</option>
           {AUDIT_MODULES.map((m) => <option key={m} value={m}>{moduleLabel(m)}</option>)}
         </select>
-        <select value={filters.action} onChange={(e) => apply({ action: e.target.value })} className={fld}>
+        <select value={filters.action} onChange={(e) => apply({ action: e.target.value })} className={fldCls(filters.action)}>
           <option value="">Orice acțiune</option>
           {ACTION_OPTIONS.map((a) => <option key={a.key} value={a.key}>{a.label}</option>)}
         </select>
-        {activeFilters && (
-          <button
-            onClick={() => router.push("/admin/audit-logs")}
-            className="h-8 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
-          >
-            Resetează
-          </button>
-        )}
+        <button
+          onClick={() => { try { localStorage.removeItem("filters:audit"); } catch {} router.push("/admin/audit-logs"); }}
+          className="tap h-8 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+        >
+          ✕ Filtre
+        </button>
 
         <div className="ml-auto flex items-center gap-2">
           <a
@@ -244,23 +282,41 @@ export default function AuditLogsClient({
       )}
 
       {/* Paginare */}
-      {(page > 1 || hasMore) && (
-        <div className="mt-4 flex items-center justify-between">
+      {(page > 1 || hasMore || filters.ps) && (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-1">
           <button
             disabled={page <= 1}
             onClick={() => apply({ page: page - 1 })}
-            className="tap card inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-40"
+            className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+            aria-label="Anterior"
           >
-            <IconChevronLeft className="size-4" /> Anterior
+            <IconChevronLeft className="size-4" />
           </button>
-          <span className="text-sm text-ink-soft">Pagina {page}</span>
+          {totalPages > 1 && (
+            <span className="px-2 text-sm text-ink-soft">{page} / {totalPages}</span>
+          )}
           <button
             disabled={!hasMore}
             onClick={() => apply({ page: page + 1 })}
-            className="tap card inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-40"
+            className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+            aria-label="Următor"
           >
-            Următor <IconChevronRight className="size-4" />
+            <IconChevronRight className="size-4" />
           </button>
+          <select
+            value={filters.ps || "20"}
+            onChange={(e) => apply({ ps: e.target.value, page: 1 } as Partial<Filters & { page: number }>)}
+            className="ml-2 h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand"
+            title="Înregistrări pe pagină"
+          >
+            <option value="20">20 / pag.</option>
+            <option value="50">50 / pag.</option>
+            <option value="100">100 / pag.</option>
+            <option value="200">200 / pag.</option>
+            <option value="500">500 / pag.</option>
+            <option value="1000">1000 / pag.</option>
+            <option value="all">Toate</option>
+          </select>
         </div>
       )}
     </>

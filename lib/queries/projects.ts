@@ -30,8 +30,8 @@ const PROJECT_PAGE_SIZE = 30;
 
 export async function listProjects(
   filter: ProjectFilter = {},
-): Promise<{ items: ProjectRow[]; hasMore: boolean; page: number }> {
-  if (DEMO) return { items: [], hasMore: false, page: 1 };
+): Promise<{ items: ProjectRow[]; hasMore: boolean; page: number; totalPages: number }> {
+  if (DEMO) return { items: [], hasMore: false, page: 1, totalPages: 0 };
   const page = Math.max(1, filter.page ?? 1);
   const pageSize = filter.pageSize ?? PROJECT_PAGE_SIZE;
 
@@ -45,30 +45,34 @@ export async function listProjects(
     ];
   }
 
-  const rows = await prisma.project.findMany({
-    where,
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      status: true,
-      ownerId: true,
-      clientId: true,
-      assigneeId: true,
-      teamId: true,
-      address: true,
-      lat: true,
-      lng: true,
-      _count: { select: { tasks: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    skip: (page - 1) * pageSize,
-    take: pageSize + 1,
-  });
+  const [rows, total] = await Promise.all([
+    prisma.project.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        ownerId: true,
+        clientId: true,
+        assigneeId: true,
+        teamId: true,
+        address: true,
+        lat: true,
+        lng: true,
+        _count: { select: { tasks: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.project.count({ where }),
+  ]);
 
-  const hasMore = rows.length > pageSize;
+  const totalPages = Math.ceil(total / pageSize);
+  const hasMore = page < totalPages;
   return {
-    items: rows.slice(0, pageSize).map((r) => ({
+    items: rows.map((r) => ({
       id: r.id,
       name: r.name,
       description: r.description,
@@ -84,6 +88,7 @@ export async function listProjects(
     })),
     hasMore,
     page,
+    totalPages,
   };
 }
 

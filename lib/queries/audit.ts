@@ -35,8 +35,8 @@ const PAGE_SIZE = 30;
 
 export async function listAuditLogs(
   filter: AuditFilter,
-): Promise<{ items: AuditLogRow[]; hasMore: boolean; page: number }> {
-  if (DEMO) return { items: [], hasMore: false, page: 1 };
+): Promise<{ items: AuditLogRow[]; hasMore: boolean; page: number; totalPages: number }> {
+  if (DEMO) return { items: [], hasMore: false, page: 1, totalPages: 0 };
 
   const page = Math.max(1, filter.page ?? 1);
   const pageSize = filter.pageSize ?? PAGE_SIZE;
@@ -60,16 +60,19 @@ export async function listAuditLogs(
     ];
   }
 
-  // pageSize+1 ca să știm dacă există pagină următoare, fără count separat (performant).
-  const rows = await prisma.auditLog.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    skip: (page - 1) * pageSize,
-    take: pageSize + 1,
-  });
+  const [rows, total] = await Promise.all([
+    prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.auditLog.count({ where }),
+  ]);
 
-  const hasMore = rows.length > pageSize;
-  return { items: rows.slice(0, pageSize), hasMore, page };
+  const totalPages = Math.ceil(total / pageSize);
+  const hasMore = page < totalPages;
+  return { items: rows, hasMore, page, totalPages };
 }
 
 export async function exportAuditLogs(

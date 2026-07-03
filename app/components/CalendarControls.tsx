@@ -4,6 +4,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 import { addDaysToKey, todayKey } from "@/lib/date";
 import { IconChevronLeft, IconChevronRight } from "./icons";
+import { useUrlFilters } from "@/app/hooks/useUrlFilters";
 
 type Opt = { id: string; name: string };
 
@@ -73,6 +74,7 @@ export default function CalendarControls({
   const pathname = usePathname();
   const sp = useSearchParams();
   const [, start] = useTransition();
+  const { clearFilters } = useUrlFilters("filters:calendar");
 
   function patch(updates: Record<string, string>) {
     const params = new URLSearchParams(sp.toString());
@@ -97,8 +99,12 @@ export default function CalendarControls({
 
   const chip = (active: boolean) =>
     `tap rounded-full px-3.5 py-1.5 text-sm font-medium ${active ? "bg-brand text-white" : "card text-ink-soft"}`;
-  const fld =
-    "h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand";
+  const fldCls = (val: string) =>
+    `h-9 appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
+      val
+        ? "border-brand bg-brand/10 font-semibold text-brand"
+        : "border-[var(--color-line)] bg-[var(--color-surface)] text-ink"
+    }`;
   const viewTab = (v: string) =>
     `rounded-full px-3.5 py-1.5 text-sm font-medium ${view === v ? "bg-brand text-white" : "text-ink-soft"}`;
 
@@ -146,30 +152,37 @@ export default function CalendarControls({
 
       {/* Dimension filters */}
       <div className="flex flex-wrap gap-2">
-        <select value={assigneeId} onChange={(e) => patch({ assigneeId: e.target.value })} className={fld}>
+        <select value={assigneeId} onChange={(e) => patch({ assigneeId: e.target.value })} className={fldCls(assigneeId)}>
           <option value="">Persoană: toți</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
-        <select value={teamId} onChange={(e) => patch({ teamId: e.target.value })} className={fld}>
+        <select value={teamId} onChange={(e) => patch({ teamId: e.target.value })} className={fldCls(teamId)}>
           <option value="">Echipă: toate</option>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        <select value={projectId} onChange={(e) => patch({ projectId: e.target.value })} className={fld}>
+        <select value={projectId} onChange={(e) => patch({ projectId: e.target.value })} className={fldCls(projectId)}>
           <option value="">Proiect: toate</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         {clients.length > 0 && (
-          <select value={clientId} onChange={(e) => patch({ clientId: e.target.value })} className={fld}>
+          <select value={clientId} onChange={(e) => patch({ clientId: e.target.value })} className={fldCls(clientId)}>
             <option value="">Client: toți</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
         {categories.length > 0 && (
-          <select value={categoryId} onChange={(e) => patch({ categoryId: e.target.value })} className={fld}>
+          <select value={categoryId} onChange={(e) => patch({ categoryId: e.target.value })} className={fldCls(categoryId)}>
             <option value="">Categorie: toate</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
+        <button
+          onClick={clearFilters}
+          className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+          title="Șterge toate filtrele și resetează la Azi"
+        >
+          ✕ Filtre
+        </button>
       </div>
     </div>
   );

@@ -30,6 +30,8 @@ export type TaskRow = {
   assigneeName: string | null;
   teamName: string | null;
   projectName: string | null;
+  projectLat: number | null;
+  projectLng: number | null;
   clientName: string | null;
   creatorName: string;
   createdAt: Date;
@@ -60,7 +62,7 @@ const TASK_SELECT = {
   assignee: { select: { name: true } },
   team: { select: { name: true } },
   // project.client NOT selected — clientName not displayed in list; clientId is denormalized
-  project: { select: { name: true, clientId: true } },
+  project: { select: { name: true, clientId: true, lat: true, lng: true } },
   category: { select: { name: true, color: true } },
   creator: { select: { name: true } },
 } as const;
@@ -92,6 +94,8 @@ function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRo
     assigneeName: t.assignee?.name ?? null,
     teamName: t.team?.name ?? null,
     projectName: t.project?.name ?? null,
+    projectLat: t.project?.lat ?? null,
+    projectLng: t.project?.lng ?? null,
     clientName: null,
     creatorName: t.creator?.name ?? "Necunoscut",
     createdAt: t.createdAt,
@@ -347,7 +351,11 @@ export async function getTask(id: string) {
 }
 
 /** Statistici pentru dashboard: ale mele pe status + tichete/task-uri deschise + proiecte active. */
-export async function dashboardStats(userId: string, teamIds: string[]) {
+export async function dashboardStats(
+  userId: string,
+  teamIds: string[],
+  role: "ADMIN" | "STAFF" = "STAFF",
+) {
   if (DEMO) {
     return {
       myOpen: 0, myInProgress: 0, myReview: 0, myDone: 0,
@@ -355,14 +363,31 @@ export async function dashboardStats(userId: string, teamIds: string[]) {
     };
   }
   const mineWhere: Prisma.TaskWhereInput = {
-    OR: [{ assigneeId: userId }, ...(teamIds.length ? [{ teamId: { in: teamIds } }] : [])],
+    OR: [
+      { assigneeId: userId },
+      { extraAssigneeIds: { has: userId } },
+      ...(teamIds.length ? [
+        { teamId: { in: teamIds } },
+        { extraTeamIds: { hasSome: teamIds } },
+      ] : []),
+    ],
   };
   const openStatuses: TaskStatus[] = ["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW"];
 
+  // Adminii văd contorizări globale; STAFF-ul vede doar ale lor
+  const globalTicketWhere: Prisma.TaskWhereInput =
+    role === "ADMIN"
+      ? { type: "TICKET", status: { in: openStatuses } }
+      : { ...mineWhere, type: "TICKET", status: { in: openStatuses } };
+  const globalTaskWhere: Prisma.TaskWhereInput =
+    role === "ADMIN"
+      ? { type: "TASK", status: { in: openStatuses } }
+      : { ...mineWhere, type: "TASK", status: { in: openStatuses } };
+
   const [grouped, ticketsOpen, tasksOpen, projectsActive] = await Promise.all([
     prisma.task.groupBy({ by: ["status"], where: mineWhere, _count: { _all: true } }),
-    prisma.task.count({ where: { type: "TICKET", status: { in: openStatuses } } }),
-    prisma.task.count({ where: { type: "TASK", status: { in: openStatuses } } }),
+    prisma.task.count({ where: globalTicketWhere }),
+    prisma.task.count({ where: globalTaskWhere }),
     prisma.project.count({ where: { status: "ACTIVE" } }),
   ]);
   const m = Object.fromEntries(grouped.map((g) => [g.status, g._count._all])) as Record<

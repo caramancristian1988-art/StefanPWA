@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
+import { useUrlFilters } from "@/app/hooks/useUrlFilters";
 
 type Opt = { id: string; name: string };
 
@@ -21,8 +22,12 @@ const STATUSES = [
   { value: "NO_SHOW", label: "Nu a venit" },
 ];
 
-const fld =
-  "h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand";
+const fldCls = (val: string) =>
+  `h-9 appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
+    val
+      ? "border-brand bg-brand/10 font-semibold text-brand"
+      : "border-[var(--color-line)] bg-[var(--color-surface)] text-ink"
+  }`;
 
 export default function AppointmentsControls({
   categories = [],
@@ -33,6 +38,7 @@ export default function AppointmentsControls({
   const pathname = usePathname();
   const sp = useSearchParams();
   const [, start] = useTransition();
+  const { clearFilters } = useUrlFilters("filters:appointments");
 
   const view = sp.get("view") ?? "azi";
   const q = sp.get("q") ?? "";
@@ -75,28 +81,26 @@ export default function AppointmentsControls({
           placeholder="Caută client…"
           className="h-9 min-w-36 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
         />
-        <select value={status} onChange={(e) => patch({ status: e.target.value })} className={fld}>
+        <select value={status} onChange={(e) => patch({ status: e.target.value })} className={fldCls(status)}>
           <option value="">Status: toate</option>
           {STATUSES.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
         {categories.length > 0 && (
-          <select value={category} onChange={(e) => patch({ category: e.target.value })} className={fld}>
+          <select value={category} onChange={(e) => patch({ category: e.target.value })} className={fldCls(category)}>
             <option value="">Categorie: toate</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         )}
-        {hasFilters && (
-          <button
-            onClick={() => patch({ q: "", status: "", category: "" })}
-            className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
-          >
-            Resetează
-          </button>
-        )}
+        <button
+          onClick={() => { patch({ q: "", status: "", category: "" }); clearFilters(); }}
+          className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+        >
+          ✕ Filtre
+        </button>
       </div>
     </div>
   );

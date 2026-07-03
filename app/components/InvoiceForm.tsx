@@ -23,7 +23,7 @@ export type InvoiceInitial = {
   dueDate: string;
   clientId: string | null;
   projectId: string | null;
-  taskId: string | null;
+  taskIds: string[];
   notes: string;
   terms: string;
   currency: string;
@@ -93,13 +93,13 @@ export default function InvoiceForm({
       // legăm proiectul de clientul curent (dacă există) ca să apară în filtrare
       setProjectList((l) => [{ id: res.id, name: res.name, clientId: clientId || null }, ...l]);
       setProjectId(res.id);
-      setTaskId("");
+      setTaskIds([]);
       setNewProject("");
       setAddingProject(false);
       toast.success("Proiect creat");
     } else toast.error(res.error);
   }
-  const [taskId, setTaskId] = useState(initial?.taskId ?? "");
+  const [taskIds, setTaskIds] = useState<string[]>(initial?.taskIds ?? []);
   const [tasks, setTasks] = useState<{ id: string; title: string }[]>([]);
   const [issueDate, setIssueDate] = useState(initial?.issueDate ?? todayStr());
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
@@ -142,7 +142,7 @@ export default function InvoiceForm({
 
   function onClientChange(cid: string) {
     setClientId(cid);
-    setTaskId("");
+    setTaskIds([]);
     const owned = projectList.filter((p) => p.clientId === cid);
     // Un singur proiect → selectat automat; altfel resetăm
     if (cid && owned.length === 1) setProjectId(owned[0].id);
@@ -151,9 +151,13 @@ export default function InvoiceForm({
 
   function onProjectChange(pid: string) {
     setProjectId(pid);
-    setTaskId("");
+    setTaskIds([]);
     const proj = projectList.find((p) => p.id === pid);
     if (proj?.clientId) setClientId(proj.clientId); // autofill client
+  }
+
+  function toggleTask(id: string) {
+    setTaskIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
 
   // Calcule live
@@ -197,7 +201,7 @@ export default function InvoiceForm({
       dueDate: dueDate || null,
       clientId: clientId || null,
       projectId: projectId || null,
-      taskId: taskId || null,
+      taskIds,
       notes,
       terms,
       items: valid.map((it) => ({
@@ -231,7 +235,7 @@ export default function InvoiceForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={label}>Client (opțional)</label>
             <div className="flex gap-2">
@@ -278,14 +282,37 @@ export default function InvoiceForm({
               </div>
             )}
           </div>
-          <div>
-            <label className={label}>Task (opțional)</label>
-            <select value={taskId} onChange={(e) => setTaskId(e.target.value)} disabled={!projectId} className={`${input} disabled:opacity-50`}>
-              <option value="">{projectId ? "—" : "alege un proiect"}</option>
-              {tasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
-            </select>
-          </div>
         </div>
+
+        {projectId && (
+          <div>
+            <label className={label}>
+              Task-uri (opțional)
+              {taskIds.length > 0 && (
+                <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">
+                  {taskIds.length} selectat{taskIds.length !== 1 ? "e" : ""}
+                </span>
+              )}
+            </label>
+            {tasks.length === 0 ? (
+              <p className="text-sm text-ink-soft">Niciun task în acest proiect.</p>
+            ) : (
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] p-1">
+                {tasks.map((t) => (
+                  <label key={t.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[var(--color-surface-1)]">
+                    <input
+                      type="checkbox"
+                      checked={taskIds.includes(t.id)}
+                      onChange={() => toggleTask(t.id)}
+                      className="size-4 shrink-0 rounded border-[var(--color-line)] accent-[var(--color-brand)]"
+                    />
+                    <span className="text-sm">{t.title}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Items */}

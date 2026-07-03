@@ -73,8 +73,12 @@ const QUICK = [
   { key: "month", label: "Luna" },
 ] as const;
 
-const fld =
-  "h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand";
+const fldCls = (val: string) =>
+  `h-9 rounded-lg border px-2 text-xs outline-none focus:border-brand ${
+    val
+      ? "border-brand bg-brand/10 font-semibold text-brand"
+      : "border-[var(--color-line)] bg-[var(--color-surface)] text-ink"
+  }`;
 
 function matchesDue(dueAt: Date | null, filter: string): boolean {
   if (!filter) return true;
@@ -127,22 +131,39 @@ export default function TaskKanban({
   const [dragId, setDragId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<Status | null>(null);
 
-  const [fSearch, setFSearch] = useState("");
-  const [fStatus, setFStatus] = useState("");
-  const [fType, setFType] = useState("");
-  const [fPriority, setFPriority] = useState("");
-  const [fAssignee, setFAssignee] = useState("");
-  const [fTeam, setFTeam] = useState("");
-  const [fProject, setFProject] = useState("");
-  const [fClient, setFClient] = useState("");
-  const [fDeadline, setFDeadline] = useState("");
-  const [fCategory, setFCategory] = useState("");
+  // Lazy init din localStorage
+  const initKanban = () => {
+    if (typeof window === "undefined") return {} as Record<string, string>;
+    try { return JSON.parse(localStorage.getItem("filters:kanban") ?? "{}") as Record<string, string>; }
+    catch { return {}; }
+  };
+  const [fSearch, setFSearch] = useState(() => initKanban().fSearch ?? "");
+  const [fStatus, setFStatus] = useState(() => initKanban().fStatus ?? "");
+  const [fType, setFType] = useState(() => initKanban().fType ?? "");
+  const [fPriority, setFPriority] = useState(() => initKanban().fPriority ?? "");
+  const [fAssignee, setFAssignee] = useState(() => initKanban().fAssignee ?? "");
+  const [fTeam, setFTeam] = useState(() => initKanban().fTeam ?? "");
+  const [fProject, setFProject] = useState(() => initKanban().fProject ?? "");
+  const [fClient, setFClient] = useState(() => initKanban().fClient ?? "");
+  const [fDeadline, setFDeadline] = useState(() => initKanban().fDeadline ?? "");
+  const [fCategory, setFCategory] = useState(() => initKanban().fCategory ?? "");
 
   const hasFilters = !!(fSearch || fStatus || fType || fPriority || fAssignee || fTeam || fProject || fClient || fDeadline || fCategory);
+
+  // Salvează în localStorage când se schimbă filtrele
+  useEffect(() => {
+    try {
+      const data = { fSearch, fStatus, fType, fPriority, fAssignee, fTeam, fProject, fClient, fDeadline, fCategory };
+      const hasAny = Object.values(data).some(Boolean);
+      if (hasAny) localStorage.setItem("filters:kanban", JSON.stringify(data));
+      else localStorage.removeItem("filters:kanban");
+    } catch {}
+  }, [fSearch, fStatus, fType, fPriority, fAssignee, fTeam, fProject, fClient, fDeadline, fCategory]);
 
   function resetAll() {
     setFSearch(""); setFStatus(""); setFType(""); setFPriority("");
     setFAssignee(""); setFTeam(""); setFProject(""); setFClient(""); setFDeadline(""); setFCategory("");
+    try { localStorage.removeItem("filters:kanban"); } catch {}
   }
 
   const clients = useMemo(() => {
@@ -205,14 +226,12 @@ export default function TaskKanban({
             {q.label}
           </button>
         ))}
-        {hasFilters && (
-          <button
-            onClick={resetAll}
-            className="tap ml-auto rounded-full border border-[var(--color-line)] px-4 py-1.5 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
-          >
-            Resetează filtrele
-          </button>
-        )}
+        <button
+          onClick={resetAll}
+          className="tap ml-auto rounded-full border border-[var(--color-line)] px-4 py-1.5 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
+        >
+          ✕ Filtre
+        </button>
       </div>
 
       {/* Filter bar */}
@@ -223,44 +242,44 @@ export default function TaskKanban({
           placeholder="Caută…"
           className="h-9 min-w-36 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
         />
-        <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className={fld}>
+        <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className={fldCls(fStatus)}>
           <option value="">Status: toate</option>
           {COLUMNS.map((c) => (
             <option key={c.status} value={c.status}>{c.label}</option>
           ))}
         </select>
-        <select value={fType} onChange={(e) => setFType(e.target.value)} className={fld}>
+        <select value={fType} onChange={(e) => setFType(e.target.value)} className={fldCls(fType)}>
           <option value="">Tip: toate</option>
           <option value="TASK">Task</option>
           <option value="TICKET">Tichet</option>
         </select>
-        <select value={fPriority} onChange={(e) => setFPriority(e.target.value)} className={fld}>
+        <select value={fPriority} onChange={(e) => setFPriority(e.target.value)} className={fldCls(fPriority)}>
           <option value="">Prioritate: orice</option>
           <option value="URGENT">Urgentă</option>
           <option value="HIGH">Ridicată</option>
           <option value="MEDIUM">Medie</option>
           <option value="LOW">Scăzută</option>
         </select>
-        <select value={fAssignee} onChange={(e) => setFAssignee(e.target.value)} className={fld}>
+        <select value={fAssignee} onChange={(e) => setFAssignee(e.target.value)} className={fldCls(fAssignee)}>
           <option value="">Persoană: toți</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>{u.name}</option>
           ))}
         </select>
-        <select value={fTeam} onChange={(e) => setFTeam(e.target.value)} className={fld}>
+        <select value={fTeam} onChange={(e) => setFTeam(e.target.value)} className={fldCls(fTeam)}>
           <option value="">Echipă: toate</option>
           {teams.map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </select>
-        <select value={fProject} onChange={(e) => setFProject(e.target.value)} className={fld}>
+        <select value={fProject} onChange={(e) => setFProject(e.target.value)} className={fldCls(fProject)}>
           <option value="">Proiect: toate</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
         {clients.length > 0 && (
-          <select value={fClient} onChange={(e) => setFClient(e.target.value)} className={fld}>
+          <select value={fClient} onChange={(e) => setFClient(e.target.value)} className={fldCls(fClient)}>
             <option value="">Client: toți</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
@@ -268,22 +287,23 @@ export default function TaskKanban({
           </select>
         )}
         {categories.length > 0 && (
-          <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} className={fld}>
+          <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} className={fldCls(fCategory)}>
             <option value="">Categorie: toate</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         )}
-        <select value={fDeadline} onChange={(e) => setFDeadline(e.target.value)} className={fld}>
+        <select value={fDeadline} onChange={(e) => setFDeadline(e.target.value)} className={fldCls(fDeadline)}>
           {DEADLINE_OPTS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
       </div>
 
-      {/* Board */}
-      <div className="flex gap-3 overflow-x-auto pb-4">
+      {/* Board — overflow wrapper întors cu 180° pe X ca bara de scroll să apară sus */}
+      <div className="overflow-x-auto pt-1 [transform:rotateX(180deg)]">
+        <div className="flex gap-3 pb-2 [transform:rotateX(180deg)]">
         {COLUMNS.map((col) => {
           const colItems = byStatus.get(col.status) ?? [];
           const isOver = overCol === col.status;
@@ -355,6 +375,7 @@ export default function TaskKanban({
             </div>
           );
         })}
+        </div>
       </div>
     </>
   );

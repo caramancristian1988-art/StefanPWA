@@ -13,15 +13,16 @@ const STATUS_SET = new Set(["ACTIVE", "ON_HOLD", "DONE", "ARCHIVED"]);
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ create?: string; q?: string; status?: string; page?: string }>;
+  searchParams: Promise<{ create?: string; q?: string; status?: string; page?: string; ps?: string }>;
 }) {
   await requirePermission("projects.view");
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);
+  const pageSize = sp.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(sp.ps) || 20));
   const status = sp.status && STATUS_SET.has(sp.status) ? (sp.status as ProjectStatus) : undefined;
 
   const [result, users, teams, clients] = await Promise.all([
-    listProjects({ search: sp.q || undefined, status, page, pageSize: 30 }),
+    listProjects({ search: sp.q || undefined, status, page, pageSize }),
     userOptions(),
     teamOptions(),
     invoiceClientOptions(),
@@ -35,7 +36,8 @@ export default async function ProjectsPage({
         clients={clients}
         page={result.page}
         hasMore={result.hasMore}
-        filters={{ q: sp.q ?? "", status: sp.status ?? "" }}
+        totalPages={result.totalPages}
+        filters={{ q: sp.q ?? "", status: sp.status ?? "", ps: sp.ps ?? "" }}
         openCreate={sp.create === "1"}
       />
     </div>

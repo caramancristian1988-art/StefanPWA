@@ -22,6 +22,7 @@ import QuickSelect from "./QuickSelect";
 import MultiAssignPicker from "./MultiAssignPicker";
 import ExportButton from "./ExportButton";
 import ImportButton from "./ImportButton";
+import TaskAttachmentsPanel from "./TaskAttachmentsPanel";
 import { quickCreateProject } from "@/app/actions/projects";
 import type { CategoryLite } from "./types";
 import type { AssignmentSetting } from "@/lib/services/tasks";
@@ -69,6 +70,8 @@ type Task = {
   assigneeName: string | null;
   teamName: string | null;
   projectName: string | null;
+  projectLat: number | null;
+  projectLng: number | null;
   clientName: string | null;
   creatorName: string;
   createdAt: string | Date;
@@ -119,11 +122,15 @@ function fmtDue(dueAt: string | Date): string {
 type TaskFilters = {
   q: string; status: string; type: string; assignee: string;
   team: string; proj: string; client: string; prio: string;
-  due: string; sort: string; category: string;
+  due: string; sort: string; category: string; ps: string;
 };
 
-const fld =
-  "h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand";
+const fldCls = (val: string) =>
+  `h-9 appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
+    val
+      ? "border-brand bg-brand/10 font-semibold text-brand"
+      : "border-[var(--color-line)] bg-[var(--color-surface)] text-ink"
+  }`;
 const dlgInput =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
 
@@ -177,6 +184,38 @@ export default function TasksManager({
   const router = useRouter();
   const toast = useToast();
   const [navPending, startNav] = useTransition();
+
+  // ── Persistenţă filtre în localStorage ──────────────────
+  const storageKey = `filters:${basePath}`;
+  const isFirstSave = useRef(true);
+  const filtersEmpty = !Object.values(filters).some(Boolean) && scope === "mine";
+  const filterSnapshot = `${scope}|${Object.entries(filters).map(([k, v]) => `${k}:${v}`).join("|")}`;
+  // Restore la primul mount dacă nu sunt filtre active
+  useEffect(() => {
+    if (filtersEmpty) {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) router.replace(`${basePath}?${saved}`);
+      } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Salvează ori de câte ori se schimbă filtrele
+  useEffect(() => {
+    if (isFirstSave.current) {
+      isFirstSave.current = false;
+      if (filtersEmpty) return; // Nu suprascrie salvarea cu stare goală la primul render
+    }
+    try {
+      const sp = new URLSearchParams();
+      if (scope !== "mine") sp.set("scope", scope);
+      for (const [k, v] of Object.entries(filters)) { if (v) sp.set(k, v); }
+      const str = sp.toString();
+      if (str) localStorage.setItem(storageKey, str);
+      else localStorage.removeItem(storageKey);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterSnapshot]);
   const [createType, setCreateType] = useState<"TASK" | "TICKET" | "WORK_ORDER" | null>(
     initialCreate ?? null,
   );
@@ -189,6 +228,7 @@ export default function TasksManager({
   const [progressPending, setProgressPending] = useState<string | null>(null);
 
   const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
+  const [filesOpenId, setFilesOpenId] = useState<string | null>(null);
   useEffect(() => {
     if (initialOpenId) {
       getTaskHistory(initialOpenId)
@@ -251,9 +291,9 @@ export default function TasksManager({
     const merged = { ...filters, ...patch } as Record<string, string | number | undefined>;
     const usp = new URLSearchParams();
     if (scope !== "mine") usp.set("scope", scope);
-    for (const k of ["q", "status", "type", "assignee", "team", "proj", "client", "prio", "due", "sort", "category"] as const) {
+    for (const k of ["q", "status", "type", "assignee", "team", "proj", "client", "prio", "due", "sort", "category", "ps"] as const) {
       const v = merged[k];
-      if (v) usp.set(k, String(v));
+      if (v && v !== "20") usp.set(k, String(v));
     }
     const pageVal = "page" in patch ? Number(patch.page) : 1;
     if (pageVal > 1) usp.set("page", String(pageVal));
@@ -337,39 +377,39 @@ export default function TasksManager({
           />
         </form>
 
-        <select value={filters.status} onChange={(e) => setFilter({ status: e.target.value })} className={fld}>
+        <select value={filters.status} onChange={(e) => setFilter({ status: e.target.value })} className={fldCls(filters.status)}>
           <option value="">Status: toate</option>
           {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
         </select>
 
-        <select value={filters.assignee} onChange={(e) => setFilter({ assignee: e.target.value })} className={fld}>
+        <select value={filters.assignee} onChange={(e) => setFilter({ assignee: e.target.value })} className={fldCls(filters.assignee)}>
           <option value="">Persoană: toți</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
 
-        <select value={filters.team} onChange={(e) => setFilter({ team: e.target.value })} className={fld}>
+        <select value={filters.team} onChange={(e) => setFilter({ team: e.target.value })} className={fldCls(filters.team)}>
           <option value="">Echipă: toate</option>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
 
-        <select value={filters.proj} onChange={(e) => setFilter({ proj: e.target.value })} className={fld}>
+        <select value={filters.proj} onChange={(e) => setFilter({ proj: e.target.value })} className={fldCls(filters.proj)}>
           <option value="">Proiect: toate</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
 
-        <select value={filters.client} onChange={(e) => setFilter({ client: e.target.value })} className={fld}>
+        <select value={filters.client} onChange={(e) => setFilter({ client: e.target.value })} className={fldCls(filters.client)}>
           <option value="">Client: toți</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
 
         {categories && categories.length > 0 && (
-          <select value={filters.category} onChange={(e) => setFilter({ category: e.target.value })} className={fld}>
+          <select value={filters.category} onChange={(e) => setFilter({ category: e.target.value })} className={fldCls(filters.category)}>
             <option value="">Categorie: toate</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
 
-        <select value={filters.prio} onChange={(e) => setFilter({ prio: e.target.value })} className={fld}>
+        <select value={filters.prio} onChange={(e) => setFilter({ prio: e.target.value })} className={fldCls(filters.prio)}>
           <option value="">Prioritate: toate</option>
           <option value="LOW">Scăzută</option>
           <option value="MEDIUM">Medie</option>
@@ -377,7 +417,7 @@ export default function TasksManager({
           <option value="URGENT">Urgentă</option>
         </select>
 
-        <select value={filters.due} onChange={(e) => setFilter({ due: e.target.value })} className={fld}>
+        <select value={filters.due} onChange={(e) => setFilter({ due: e.target.value })} className={fldCls(filters.due)}>
           <option value="">Deadline: oricare</option>
           <option value="overdue">Expirate</option>
           <option value="today">Azi</option>
@@ -386,20 +426,21 @@ export default function TasksManager({
           <option value="month">Luna</option>
         </select>
 
-        <select value={filters.sort} onChange={(e) => setFilter({ sort: e.target.value })} className={fld}>
+        <select value={filters.sort} onChange={(e) => setFilter({ sort: e.target.value })} className={fldCls(filters.sort)}>
           <option value="">Sortare: implicit</option>
           <option value="dueAsc">Deadline ↑</option>
           <option value="dueDesc">Deadline ↓</option>
         </select>
 
-        {activeFilters && (
-          <button
-            onClick={() => router.push(scope !== "mine" ? `${basePath}?scope=${scope}` : basePath)}
-            className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
-          >
-            Resetează
-          </button>
-        )}
+        <button
+          onClick={() => {
+            try { localStorage.removeItem(storageKey); } catch {}
+            startNav(() => router.push(scope !== "mine" ? `${basePath}?scope=${scope}` : basePath));
+          }}
+          className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+        >
+          ✕ Filtre
+        </button>
         <ExportButton
           entity={basePath === "/tickets" ? "tickets" : "tasks"}
           params={{
@@ -517,6 +558,13 @@ export default function TasksManager({
                   pending={statusPending === t.id}
                   onChange={(s) => changeStatus(t.id, s)}
                 />
+                <button
+                  onClick={() => setFilesOpenId((id) => id === t.id ? null : t.id)}
+                  className={`tap grid size-8 shrink-0 place-items-center rounded-lg border text-sm ${filesOpenId === t.id ? "border-brand bg-brand/10 text-brand" : "border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"}`}
+                  title="Fișiere atașate"
+                >
+                  📎
+                </button>
                 {canEdit && (
                   <button onClick={() => setEditTask(t)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title="Editează">
                     <IconPencil className="size-3.5" />
@@ -536,6 +584,37 @@ export default function TasksManager({
                       <p className="whitespace-pre-wrap text-[12px]">{t.description}</p>
                     </div>
                   )}
+                  {t.projectLat != null && t.projectLng != null && (
+                    <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-3 py-2.5">
+                      <p className="mb-1.5 text-[11px] font-semibold text-ink-soft">📍 Locație proiect</p>
+                      <div className="flex flex-wrap gap-2">
+                        <a
+                          href={`https://www.google.com/maps?q=${t.projectLat},${t.projectLng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-[11px] font-medium text-ink hover:bg-[var(--color-surface-2)]"
+                        >
+                          🗺 Google Maps
+                        </a>
+                        <a
+                          href={`https://waze.com/ul?ll=${t.projectLat},${t.projectLng}&navigate=yes`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-[11px] font-medium text-ink hover:bg-[var(--color-surface-2)]"
+                        >
+                          🚗 Waze
+                        </a>
+                        <a
+                          href={`https://maps.apple.com/?ll=${t.projectLat},${t.projectLng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-[11px] font-medium text-ink hover:bg-[var(--color-surface-2)]"
+                        >
+                          🍎 Apple Maps
+                        </a>
+                      </div>
+                    </div>
+                  )}
                   <Timeline rows={history[t.id]} loading={loadingHist === t.id} createdAt={t.createdAt} creatorName={t.creatorName} />
                   <Comments
                     rows={comments[t.id]}
@@ -546,6 +625,9 @@ export default function TasksManager({
                   />
                 </>
               )}
+              {filesOpenId === t.id && (
+                <TaskAttachmentsPanel taskId={t.id} projectName={t.projectName} />
+              )}
             </div>
           ))}
               </div>
@@ -555,8 +637,8 @@ export default function TasksManager({
       )}
 
       {/* ── Paginare numerică ──────────────────────────────── */}
-      {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-1">
+      {(totalPages > 1 || filters.ps) && (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-1">
           <button
             disabled={page <= 1}
             onClick={() => goPage(page - 1)}
@@ -590,6 +672,20 @@ export default function TasksManager({
           >
             <IconChevronRight className="size-4" />
           </button>
+          <select
+            value={filters.ps || "20"}
+            onChange={(e) => startNav(() => router.push(buildUrl({ ps: e.target.value === "20" ? "" : e.target.value, page: 1 })))}
+            className="ml-2 h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand"
+            title="Înregistrări pe pagină"
+          >
+            <option value="20">20 / pag.</option>
+            <option value="50">50 / pag.</option>
+            <option value="100">100 / pag.</option>
+            <option value="200">200 / pag.</option>
+            <option value="500">500 / pag.</option>
+            <option value="1000">1000 / pag.</option>
+            <option value="all">Toate</option>
+          </select>
         </div>
       )}
 
@@ -973,6 +1069,7 @@ function EditDialog({
               <option value={360}>La fiecare 6h</option>
               <option value={720}>La fiecare 12h</option>
               <option value={1440}>La fiecare 24h</option>
+              <option value={10080}>La fiecare 7 zile</option>
             </select>
           </div>
           {quietHoursEnabled && (
@@ -1077,11 +1174,12 @@ function CreateDialog({
               <option value={360}>La fiecare 6h</option>
               <option value={720}>La fiecare 12h</option>
               <option value={1440}>La fiecare 24h</option>
+              <option value={10080}>La fiecare 7 zile</option>
             </select>
           </div>
           {quietHoursEnabled && (
             <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input type="checkbox" name="bypassQuietHours" defaultChecked className="size-4 accent-brand" />
+              <input type="checkbox" name="bypassQuietHours" className="size-4 accent-brand" />
               <span>Trimite notificări și în orele de somn</span>
             </label>
           )}

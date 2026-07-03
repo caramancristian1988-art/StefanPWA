@@ -17,10 +17,27 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
     undefined,
   );
   const [reminderOffsets, setReminderOffsets] = useState<string[]>(settings.reminderOffsets);
+  const [selectedTheme, setSelectedTheme] = useState(settings.theme);
 
   useEffect(() => {
-    if (state?.ok) router.refresh();
-  }, [state, router]);
+    if (state?.ok) {
+      // Aplică tema imediat pe DOM + localStorage ca să nu fie nevoie de reload
+      const el = document.documentElement;
+      if (selectedTheme === "dark") {
+        el.classList.add("dark");
+        localStorage.setItem("theme", "dark");
+      } else if (selectedTheme === "light") {
+        el.classList.remove("dark");
+        localStorage.setItem("theme", "light");
+      } else {
+        // system
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        if (prefersDark) el.classList.add("dark"); else el.classList.remove("dark");
+        localStorage.removeItem("theme");
+      }
+      router.refresh();
+    }
+  }, [state, router, selectedTheme]);
 
   return (
     <form action={action} className="card flex flex-col gap-4 p-5">
@@ -33,7 +50,7 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
         </div>
         <div>
           <label className={label}>Temă</label>
-          <select name="theme" defaultValue={settings.theme} className={input}>
+          <select name="theme" value={selectedTheme} onChange={(e) => setSelectedTheme(e.target.value)} className={input}>
             <option value="system">Sistem</option>
             <option value="light">Luminoasă</option>
             <option value="dark">Întunecată</option>

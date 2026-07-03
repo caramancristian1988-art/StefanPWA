@@ -4,6 +4,7 @@ import { DEMO } from "../demo";
 import {
   sendMessage,
   editMessageText,
+  deleteMessage,
   taskStatusButtons,
   taskOpenButton,
   TASK_STATUS_RO,
@@ -311,12 +312,15 @@ export async function notifyNewTask(taskId: string): Promise<void> {
     if (task.project?.name) lines.push(`📁 Proiect: ${escapeHtml(task.project.name)}`);
     lines.push(`Status: <b>${TASK_STATUS_RO[task.status]}</b>`);
 
-    // Link invizibil spre hartă (zero-width space ca anchor text — Telegram afișează preview hartă)
     const proj = task.project as { name: string; lat: number | null; lng: number | null; address: string | null } | null;
     if (proj?.lat != null && proj?.lng != null) {
-      lines.push(`​<a href="https://maps.google.com/maps?q=${proj.lat},${proj.lng}">​</a>`);
+      lines.push(
+        `📍 <a href="https://www.google.com/maps?q=${proj.lat},${proj.lng}">Google Maps</a>` +
+        ` | <a href="https://waze.com/ul?ll=${proj.lat},${proj.lng}&navigate=yes">Waze</a>` +
+        ` | <a href="https://maps.apple.com/?ll=${proj.lat},${proj.lng}">Apple Maps</a>`,
+      );
     } else if (proj?.address) {
-      lines.push(`​<a href="https://maps.google.com/maps?q=${encodeURIComponent(proj.address)}">​</a>`);
+      lines.push(`📍 <a href="https://www.google.com/maps?q=${encodeURIComponent(proj.address)}">Google Maps</a>`);
     }
 
     const text = lines.join("\n");
@@ -956,13 +960,15 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
   const candidates = await prisma.task.findMany({
     where: { status: { notIn: ["DONE", "CANCELLED"] }, nextReminderAt: { lte: now } },
     select: {
-      id: true, seq: true, title: true, type: true, status: true,
+      id: true, seq: true, title: true, description: true,
+      type: true, status: true, priority: true,
       dueAt: true, reminderIntervalMinutes: true,
       creatorId: true, assigneeId: true, teamId: true,
-      assignee: { select: { teamIds: true } },
+      reminderMsgChatId: true, reminderMsgId: true,
+      assignee: { select: { name: true, teamIds: true } },
+      project: { select: { name: true, lat: true, lng: true, address: true } },
     },
   });
-  // Extra JS filter: skip tasks where nextReminderAt is null (MongoDB null <= date = true)
   const tasks = candidates.filter((t) => t.reminderIntervalMinutes);
 
   console.log(`[tasks] checkTaskReminders: ${tasks.length}/${candidates.length} task-uri cu reamintire scadentă`);
@@ -971,29 +977,96 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
   for (const task of tasks) {
     try {
       const isOverdue = task.dueAt && task.dueAt < now;
-      const lbl = taskLabel(task.seq, task.title);
-      const notifTitle = isOverdue ? `⏰ Întârziat: ${lbl}` : `🔔 Reamintire: ${lbl}`;
-      const notifBody = task.dueAt
-        ? `Deadline: ${formatDate(task.dueAt, DEFAULT_TZ)}`
-        : undefined;
 
+      // ── Destinatari ──────────────────────────────────────────────────────────
       const admins = await filteredAdminRecipients({
         eventKeys: ["task.reminder"],
         teamIds: [task.teamId, ...(task.assignee?.teamIds ?? [])],
         memberIds: [task.assigneeId, task.creatorId],
       });
-      const recipients = new Set<string>([task.creatorId, ...admins]);
-      if (task.assigneeId) recipients.add(task.assigneeId);
-      const recipientIds = [...recipients];
+      const allRecipients = new Set<string>([task.creatorId, ...admins]);
+      if (task.assigneeId) allRecipients.add(task.assigneeId);
+      const recipientIds = [...allRecipients];
 
-      // In-app + PWA + Telegram
-      await notifyUsers(
-        recipientIds,
-        { title: notifTitle, body: notifBody, taskId: task.id, seq: task.seq, url: `/tasks/${task.id}` },
-        { telegram: true },
-      );
+      // ── Telegram detaliat pentru asignat ─────────────────────────────────────
+      let newReminderChatId: string | null = null;
+      let newReminderMsgId: number | null = null;
 
-      // Email (best-effort, per destinatar)
+      if (task.assigneeId) {
+        const chatId = await telegramChatFor(task.assigneeId);
+        if (chatId) {
+          // Șterge reamintirea anterioară (best-effort)
+          if (task.reminderMsgChatId && task.reminderMsgId) {
+            await deleteMessage(task.reminderMsgChatId, task.reminderMsgId).catch(() => {});
+          }
+
+          // Construiește mesaj detaliat (același format ca notifyNewTask)
+          const header = isOverdue
+            ? `⏰ <b>Task în întârziere</b> (${taskRef(task.seq, task.id)})`
+            : `🔔 <b>Reamintire ${TASK_TYPE_RO[task.type]}</b> (${taskRef(task.seq, task.id)})`;
+
+          const lines = [
+            header,
+            `<b>${escapeHtml(task.title)}</b>`,
+          ];
+          if (task.description?.trim()) {
+            lines.push("", escapeHtml(task.description.trim()));
+          }
+          lines.push(
+            "",
+            `⚑ Prioritate: <b>${TASK_PRIORITY_RO[task.priority]}</b>`,
+            `📌 Status: <b>${TASK_STATUS_RO[task.status]}</b>`,
+          );
+          if (task.assignee?.name) lines.push(`👤 Asignat: ${escapeHtml(task.assignee.name)}`);
+          if (task.project?.name) lines.push(`📁 Proiect: ${escapeHtml(task.project.name)}`);
+          if (task.dueAt) {
+            const deadlineLabel = isOverdue ? "⚠️ Deadline depășit" : "📅 Deadline";
+            lines.push(`${deadlineLabel}: <b>${formatDate(task.dueAt, DEFAULT_TZ)}</b>`);
+          }
+          const proj = task.project as { name: string; lat: number | null; lng: number | null; address: string | null } | null;
+          if (proj?.lat != null && proj?.lng != null) {
+            lines.push(
+              `📍 <a href="https://www.google.com/maps?q=${proj.lat},${proj.lng}">Google Maps</a>` +
+              ` | <a href="https://waze.com/ul?ll=${proj.lat},${proj.lng}&navigate=yes">Waze</a>` +
+              ` | <a href="https://maps.apple.com/?ll=${proj.lat},${proj.lng}">Apple Maps</a>`,
+            );
+          } else if (proj?.address) {
+            lines.push(`📍 <a href="https://www.google.com/maps?q=${encodeURIComponent(proj.address)}">Google Maps</a>`);
+          }
+
+          const text = lines.join("\n");
+          const res = (await sendMessage(chatId, text, taskStatusButtons(task.id))) as { message_id?: number } | null;
+          if (res?.message_id) {
+            newReminderChatId = chatId;
+            newReminderMsgId = res.message_id;
+          }
+        }
+      }
+
+      // ── In-app + PWA + Telegram pentru ceilalți destinatari ──────────────────
+      const lbl = taskLabel(task.seq, task.title);
+      const notifTitle = isOverdue ? `⏰ Întârziat: ${lbl}` : `🔔 Reamintire: ${lbl}`;
+      const notifBody = task.dueAt ? `Deadline: ${formatDate(task.dueAt, DEFAULT_TZ)}` : undefined;
+
+      // Asignatul primește Telegram detaliat mai sus; ceilalți primesc notificare standard
+      const othersIds = recipientIds.filter((id) => id !== task.assigneeId);
+      if (othersIds.length > 0) {
+        await notifyUsers(
+          othersIds,
+          { title: notifTitle, body: notifBody, taskId: task.id, seq: task.seq, url: `/tasks/${task.id}` },
+          { telegram: true },
+        );
+      }
+      // In-app + PWA pentru asignat (Telegram a fost trimis deja mai sus)
+      if (task.assigneeId) {
+        await notifyUsers(
+          [task.assigneeId],
+          { title: notifTitle, body: notifBody, taskId: task.id, seq: task.seq, url: `/tasks/${task.id}` },
+          { telegram: false },
+        );
+      }
+
+      // ── Email (best-effort) ───────────────────────────────────────────────────
       if (env.smtp.enabled) {
         const { sendTaskReminderEmail } = await import("../email");
         await Promise.all(
@@ -1003,16 +1076,21 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
               if (u?.email) {
                 await sendTaskReminderEmail({ to: u.email, userName: u.name, taskTitle: task.title, seq: task.seq, taskUrl: taskUrl(task.id), isOverdue: !!isOverdue });
               }
-            } catch {
-              // best-effort
-            }
+            } catch { /* best-effort */ }
           }),
         );
       }
 
-      // Schedule next reminder
+      // ── Programează reamintirea următoare + salvează ID mesaj ─────────────────
       const nextAt = new Date(now.getTime() + task.reminderIntervalMinutes! * 60_000);
-      await prisma.task.update({ where: { id: task.id }, data: { nextReminderAt: nextAt } });
+      await prisma.task.update({
+        where: { id: task.id },
+        data: {
+          nextReminderAt: nextAt,
+          reminderMsgChatId: newReminderChatId,
+          reminderMsgId: newReminderMsgId,
+        },
+      });
       notified++;
     } catch (e) {
       console.error(`[tasks] checkTaskReminders: eșuat pentru task ${task.id}`, e);

@@ -371,6 +371,46 @@ export async function deleteAttachmentAction(
   return { ok: true };
 }
 
+export type ProjectTaskRow = {
+  id: string;
+  seq: number | null;
+  title: string;
+  status: string;
+  priority: string;
+  assigneeName: string | null;
+  teamName: string | null;
+  dueAt: Date | null;
+};
+
+export async function getProjectTasksAction(projectId: string): Promise<ProjectTaskRow[]> {
+  await requireUser();
+  const tasks = await prisma.task.findMany({
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    select: {
+      id: true,
+      seq: true,
+      title: true,
+      status: true,
+      priority: true,
+      dueAt: true,
+      assignee: { select: { name: true } },
+      team: { select: { name: true } },
+    },
+  });
+  return tasks.map((t) => ({
+    id: t.id,
+    seq: t.seq ?? null,
+    title: t.title,
+    status: t.status,
+    priority: t.priority,
+    assigneeName: t.assignee?.name ?? null,
+    teamName: t.team?.name ?? null,
+    dueAt: t.dueAt,
+  }));
+}
+
 export async function deleteTask(id: string): Promise<void> {
   const user = await requireUser();
   if (!can(user, "tasks.delete")) return;

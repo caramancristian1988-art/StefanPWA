@@ -35,7 +35,7 @@ export default async function EditInvoicePage({
     dueDate: invoice.dueDate ? invoice.dueDate.toISOString().slice(0, 10) : "",
     clientId: invoice.clientId,
     projectId: invoice.projectId,
-    taskId: invoice.taskId,
+    taskIds: invoice.taskIds?.length ? invoice.taskIds : (invoice.taskId ? [invoice.taskId] : []),
     notes: invoice.notes ?? "",
     terms: invoice.terms ?? "",
     currency: invoice.currency,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,10 +9,12 @@ import {
   deleteProject,
   type ProjectState,
 } from "@/app/actions/projects";
+import { getProjectTasksAction, type ProjectTaskRow } from "@/app/actions/tasks";
 import { useToast } from "./toast";
 import { IconX, IconPencil, IconTrash, IconPlus, IconChevronLeft, IconChevronRight } from "./icons";
 import ExportButton from "./ExportButton";
 import ImportButton from "./ImportButton";
+import ProjectFilesPanel from "./ProjectFilesPanel";
 
 type Opt = { id: string; name: string };
 type Project = {
@@ -30,6 +32,12 @@ type Project = {
 };
 
 const STATUS_RO = { ACTIVE: "Activ", ON_HOLD: "În așteptare", DONE: "Finalizat", ARCHIVED: "Arhivat" };
+
+const STATUS_DOT: Record<string, string> = {
+  NEW: "bg-st-new", ASSIGNED: "bg-st-new", READ: "bg-st-confirmed",
+  IN_PROGRESS: "bg-st-progress", ON_HOLD: "bg-st-noshow",
+  REVIEW: "bg-st-confirmed", DONE: "bg-st-done", CANCELLED: "bg-st-cancelled",
+};
 const input =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
 
@@ -40,7 +48,8 @@ export default function ProjectsManager({
   clients,
   page = 1,
   hasMore = false,
-  filters = { q: "", status: "" },
+  totalPages = 1,
+  filters = { q: "", status: "", ps: "" },
   openCreate,
 }: {
   projects: Project[];
@@ -49,27 +58,74 @@ export default function ProjectsManager({
   clients: Opt[];
   page?: number;
   hasMore?: boolean;
-  filters?: { q: string; status: string };
+  totalPages?: number;
+  filters?: { q: string; status: string; ps?: string };
   openCreate?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [rows, setRows] = useState(projects);
   useEffect(() => setRows(projects), [projects]);
+
+  // ── Persistenţă filtre ──────────────────────────────────
+  const projFiltersEmpty = !filters.q && !filters.status;
+  const projIsFirstSave = useRef(true);
+  useEffect(() => {
+    if (projFiltersEmpty) {
+      try {
+        const saved = localStorage.getItem("filters:projects");
+        if (saved) router.replace(`/projects?${saved}`);
+      } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (projIsFirstSave.current) { projIsFirstSave.current = false; if (projFiltersEmpty) return; }
+    try {
+      const sp = new URLSearchParams();
+      if (filters.q) sp.set("q", filters.q);
+      if (filters.status) sp.set("status", filters.status);
+      if (filters.ps && filters.ps !== "20") sp.set("ps", filters.ps);
+      const str = sp.toString();
+      if (str) localStorage.setItem("filters:projects", str);
+      else localStorage.removeItem("filters:projects");
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.q, filters.status, filters.ps]);
   const [dialog, setDialog] = useState<{ open: boolean; project: Project | null }>({
     open: openCreate ? true : false,
     project: null,
   });
 
+  // ── Expandare task-uri + fișiere ────────────────────────
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filesOpenId, setFilesOpenId] = useState<string | null>(null);
+  const [projectTasks, setProjectTasks] = useState<Record<string, ProjectTaskRow[]>>({});
+  const [loadingTasks, setLoadingTasks] = useState<string | null>(null);
+
+  function toggleExpand(id: string) {
+    if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedId(id);
+    if (!projectTasks[id]) {
+      setLoadingTasks(id);
+      getProjectTasksAction(id)
+        .then((rows) => setProjectTasks((prev) => ({ ...prev, [id]: rows })))
+        .catch(() => {})
+        .finally(() => setLoadingTasks((cur) => (cur === id ? null : cur)));
+    }
+  }
+
   // Filtrare pe server (reflectată în URL)
   const [searchInput, setSearchInput] = useState(filters.q);
   useEffect(() => setSearchInput(filters.q), [filters.q]);
 
-  function buildUrl(patch: { q?: string; status?: string; page?: number }) {
-    const merged = { q: filters.q, status: filters.status, ...patch } as Record<string, string | number | undefined>;
+  function buildUrl(patch: { q?: string; status?: string; page?: number; ps?: string }) {
+    const merged = { q: filters.q, status: filters.status, ps: filters.ps ?? "", ...patch } as Record<string, string | number | undefined>;
     const usp = new URLSearchParams();
     if (merged.q) usp.set("q", String(merged.q));
     if (merged.status) usp.set("status", String(merged.status));
+    const psVal = String(merged.ps ?? "");
+    if (psVal && psVal !== "20") usp.set("ps", psVal);
     const pageVal = "page" in patch ? Number(patch.page) : 1;
     if (pageVal > 1) usp.set("page", String(pageVal));
     const qs = usp.toString();
@@ -112,18 +168,19 @@ export default function ProjectsManager({
             className="h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
           />
         </form>
-        <select value={filters.status} onChange={(e) => router.push(buildUrl({ status: e.target.value }))} className="h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand">
+        <select value={filters.status} onChange={(e) => router.push(buildUrl({ status: e.target.value }))} className={`h-9 rounded-lg border px-2 text-xs outline-none focus:border-brand ${filters.status ? "border-brand bg-brand/10 font-semibold text-brand" : "border-[var(--color-line)] bg-[var(--color-surface)] text-ink"}`}>
           <option value="">Status: toate</option>
           <option value="ACTIVE">Activ</option>
           <option value="ON_HOLD">În așteptare</option>
           <option value="DONE">Finalizat</option>
           <option value="ARCHIVED">Arhivat</option>
         </select>
-        {activeFilters && (
-          <button onClick={() => router.push("/projects")} className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">
-            Resetează
-          </button>
-        )}
+        <button
+          onClick={() => { try { localStorage.removeItem("filters:projects"); } catch {} router.push("/projects"); }}
+          className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+        >
+          ✕ Filtre
+        </button>
         <ExportButton
           entity="projects"
           params={{
@@ -145,51 +202,143 @@ export default function ProjectsManager({
       ) : (
         <div className="flex flex-col gap-2.5">
           {rows.map((p) => (
-            <div key={p.id} className="card flex items-center gap-3 p-3.5">
-              <Link href={`/tasks?scope=all&proj=${p.id}`} className="tap min-w-0 flex-1 hover:opacity-80">
-                <p className="truncate font-semibold">{p.name}</p>
-                <p className="truncate text-xs text-ink-soft">
-                  {STATUS_RO[p.status]} · {p.taskCount} task-uri
-                  {p.clientId && ` · ${nameOf(p.clientId, clients) ?? "?"}`}
-                  {p.assigneeId && ` · → ${nameOf(p.assigneeId, users) ?? "?"}`}
-                  {p.teamId && ` · echipă ${nameOf(p.teamId, teams) ?? "?"}`}
-                  {p.lat != null && ` · 📍`}
-                </p>
-              </Link>
-              <Link href={`/projects/${p.id}`} className="tap grid size-9 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]" title="Detalii proiect">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8Z"/></svg>
-              </Link>
-              <Link href={`/tasks?create=task&project=${p.id}`} className="tap inline-flex h-9 shrink-0 items-center gap-1 rounded-lg border border-[var(--color-line)] px-2.5 text-xs font-medium text-brand hover:bg-brand-soft" title="Adaugă task în proiect">
-                <IconPlus className="size-3.5" /> Task
-              </Link>
-              <button onClick={() => setDialog({ open: true, project: p })} className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]" title="Editează">
-                <IconPencil className="size-4" />
-              </button>
-              <button onClick={() => remove(p.id)} className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title="Șterge">
-                <IconTrash className="size-4" />
-              </button>
+            <div key={p.id} className="card overflow-hidden">
+              {/* ── Rând principal ── */}
+              <div className="flex items-center gap-2.5 p-3.5">
+                <button
+                  type="button"
+                  onClick={() => toggleExpand(p.id)}
+                  className="tap min-w-0 flex-1 text-left"
+                >
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <IconChevronRight
+                      className={`size-3.5 shrink-0 text-ink-soft transition-transform ${expandedId === p.id ? "rotate-90" : ""}`}
+                    />
+                    <p className="truncate font-semibold">{p.name}</p>
+                  </div>
+                  <p className="truncate pl-5 text-xs text-ink-soft">
+                    {STATUS_RO[p.status]} · {p.taskCount} task-uri
+                    {p.clientId && ` · ${nameOf(p.clientId, clients) ?? "?"}`}
+                    {p.assigneeId && ` · → ${nameOf(p.assigneeId, users) ?? "?"}`}
+                    {p.teamId && ` · echipă ${nameOf(p.teamId, teams) ?? "?"}`}
+                    {p.lat != null && ` · 📍`}
+                  </p>
+                </button>
+                {p.lat != null && p.lng != null && (
+                  <Link href={`/projects/${p.id}`} className="tap grid size-9 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]" title="Hartă proiect">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8Z"/></svg>
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setFilesOpenId((id) => id === p.id ? null : p.id)}
+                  className={`tap grid size-9 shrink-0 place-items-center rounded-lg border text-sm ${filesOpenId === p.id ? "border-brand bg-brand/10 text-brand" : "border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"}`}
+                  title="Fișiere atașate"
+                >
+                  📎
+                </button>
+                <Link href={`/tasks?create=task&project=${p.id}`} className="tap inline-flex h-9 shrink-0 items-center gap-1 rounded-lg border border-[var(--color-line)] px-2.5 text-xs font-medium text-brand hover:bg-brand-soft" title="Adaugă task în proiect">
+                  <IconPlus className="size-3.5" /> Task
+                </Link>
+                <button onClick={() => setDialog({ open: true, project: p })} className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]" title="Editează">
+                  <IconPencil className="size-4" />
+                </button>
+                <button onClick={() => remove(p.id)} className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title="Șterge">
+                  <IconTrash className="size-4" />
+                </button>
+              </div>
+
+              {/* ── Task-uri expandate ── */}
+              {expandedId === p.id && (
+                <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40">
+                  {loadingTasks === p.id ? (
+                    <p className="px-4 py-3 text-[12px] text-ink-soft">Se încarcă task-urile…</p>
+                  ) : !projectTasks[p.id]?.length ? (
+                    <p className="px-4 py-3 text-[12px] text-ink-soft">Niciun task în acest proiect.</p>
+                  ) : (
+                    <>
+                      <div className="flex flex-col divide-y divide-[var(--color-line)]">
+                        {projectTasks[p.id].map((t) => (
+                          <Link
+                            key={t.id}
+                            href={`/tasks/${t.id}`}
+                            className="flex items-center gap-2.5 px-4 py-2 hover:bg-[var(--color-surface-2)]"
+                          >
+                            <span className={`size-2 shrink-0 rounded-full ${STATUS_DOT[t.status] ?? "bg-gray-400"}`} />
+                            {t.seq != null && (
+                              <span className="shrink-0 rounded bg-brand/10 px-1.5 py-px text-[10px] font-mono font-semibold text-brand">
+                                #{t.seq}
+                              </span>
+                            )}
+                            <span className="min-w-0 flex-1 truncate text-[13px]">{t.title}</span>
+                            {(t.assigneeName || t.teamName) && (
+                              <span className="shrink-0 text-[11px] text-ink-soft">{t.assigneeName ?? t.teamName}</span>
+                            )}
+                            {t.dueAt && (
+                              <span className={`shrink-0 text-[11px] ${new Date(t.dueAt) < new Date() && t.status !== "DONE" ? "text-red-500" : "text-ink-soft"}`}>
+                                {new Date(t.dueAt).toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit" })}
+                              </span>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                      <div className="border-t border-[var(--color-line)] px-4 py-2">
+                        <Link
+                          href={`/tasks?scope=all&proj=${p.id}`}
+                          className="text-[11px] font-medium text-brand hover:underline"
+                        >
+                          Vezi toate task-urile →
+                        </Link>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ── Fișiere proiect ── */}
+              {filesOpenId === p.id && <ProjectFilesPanel projectId={p.id} />}
             </div>
           ))}
         </div>
       )}
 
-      {(page > 1 || hasMore) && (
-        <div className="mt-4 flex items-center justify-between">
+      {(page > 1 || hasMore || filters.ps) && (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-1">
           <button
             disabled={page <= 1}
             onClick={() => router.push(buildUrl({ page: page - 1 }))}
-            className="tap card inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-40"
+            className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+            aria-label="Anterior"
           >
-            <IconChevronLeft className="size-4" /> Anterior
+            <IconChevronLeft className="size-4" />
           </button>
-          <span className="text-sm text-ink-soft">Pagina {page}</span>
+          {totalPages > 1 && (
+            <span className="px-2 text-sm text-ink-soft">
+              {page} / {totalPages}
+            </span>
+          )}
           <button
             disabled={!hasMore}
             onClick={() => router.push(buildUrl({ page: page + 1 }))}
-            className="tap card inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-40"
+            className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+            aria-label="Următor"
           >
-            Următor <IconChevronRight className="size-4" />
+            <IconChevronRight className="size-4" />
           </button>
+          <select
+            value={filters.ps || "20"}
+            onChange={(e) => router.push(buildUrl({ ps: e.target.value, page: 1 }))}
+            className="ml-2 h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand"
+            title="Înregistrări pe pagină"
+          >
+            <option value="20">20 / pag.</option>
+            <option value="50">50 / pag.</option>
+            <option value="100">100 / pag.</option>
+            <option value="200">200 / pag.</option>
+            <option value="500">500 / pag.</option>
+            <option value="1000">1000 / pag.</option>
+            <option value="all">Toate</option>
+          </select>
         </div>
       )}
 

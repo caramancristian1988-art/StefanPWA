@@ -84,6 +84,7 @@ const FULL_SELECT = {
   clientId: true,
   projectId: true,
   taskId: true,
+  taskIds: true,
   client: { select: { id: true, name: true, phone: true, email: true, notes: true } },
   project: { select: { id: true, name: true } },
   task: { select: { id: true, title: true } },
@@ -142,4 +143,9 @@ export async function tasksByProject(projectId: string): Promise<{ id: string; t
     orderBy: { createdAt: "desc" },
     take: 200,
   });
+}
+
+export async function getInvoiceTaskTitles(taskIds: string[]): Promise<{ id: string; title: string }[]> {
+  if (DEMO || !taskIds.length) return [];
+  return prisma.task.findMany({ where: { id: { in: taskIds } }, select: { id: true, title: true } });
 }

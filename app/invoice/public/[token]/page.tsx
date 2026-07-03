@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getInvoiceByToken } from "@/lib/queries/invoices";
+import { getInvoiceByToken, getInvoiceTaskTitles } from "@/lib/queries/invoices";
 import { getCompanySettings } from "@/lib/queries/company";
 import { env } from "@/lib/env";
 import { money, fmtDate, INVOICE_STATUS, type InvoiceStatusKey } from "@/app/components/invoice-meta";
@@ -18,6 +18,7 @@ export default async function PublicInvoicePage({
     getCompanySettings(),
   ]);
   if (!invoice) notFound();
+  const invoiceTasks = await getInvoiceTaskTitles(invoice.taskIds ?? []);
 
   const st = INVOICE_STATUS[invoice.status as InvoiceStatusKey];
 
@@ -70,10 +71,12 @@ export default async function PublicInvoicePage({
                   </div>
                 </>
               )}
-              {(invoice.project || invoice.task) && (
+              {(invoice.project || invoiceTasks.length > 0) && (
                 <p className="mt-2 text-xs text-zinc-500">
                   {invoice.project && <>Proiect: {invoice.project.name}</>}
-                  {invoice.task && <> · Task: {invoice.task.title}</>}
+                  {invoiceTasks.length > 0 && (
+                    <> · Task{invoiceTasks.length > 1 ? "-uri" : ""}: {invoiceTasks.map((t) => t.title).join(", ")}</>
+                  )}
                 </p>
               )}
             </div>

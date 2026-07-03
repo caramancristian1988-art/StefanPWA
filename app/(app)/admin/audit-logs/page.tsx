@@ -14,11 +14,13 @@ export default async function AuditLogsPage({
     action?: string;
     module?: string;
     page?: string;
+    ps?: string;
   }>;
 }) {
   await requireSuperAdmin();
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);
+  const pageSize = sp.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(sp.ps) || 20));
 
   const [result, users] = await Promise.all([
     listAuditLogs({
@@ -27,7 +29,7 @@ export default async function AuditLogsPage({
       action: sp.action || undefined,
       module: sp.module || undefined,
       page,
-      pageSize: 50,
+      pageSize,
     }),
     userOptions(),
   ]);
@@ -43,11 +45,13 @@ export default async function AuditLogsPage({
         users={users}
         page={result.page}
         hasMore={result.hasMore}
+        totalPages={result.totalPages}
         filters={{
           user: sp.user ?? "",
           role: sp.role ?? "",
           action: sp.action ?? "",
           module: sp.module ?? "",
+          ps: sp.ps ?? "",
         }}
       />
     </div>

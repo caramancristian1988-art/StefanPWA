@@ -36,7 +36,7 @@ export default async function TasksPage({
     scope?: string; page?: string; create?: string; project?: string;
     q?: string; status?: string; type?: string; assignee?: string;
     team?: string; proj?: string; client?: string; prio?: string;
-    due?: string; sort?: string; open?: string; category?: string;
+    due?: string; sort?: string; open?: string; category?: string; ps?: string;
   }>;
 }) {
   const user = await requirePermission("tasks.view");
@@ -48,6 +48,7 @@ export default async function TasksPage({
       : ["mine", "all", "created"].includes(sp.scope ?? "") ? sp.scope : "mine"
   ) as "mine" | "all" | "created";
   const page = Math.max(1, Number(sp.page) || 1);
+  const pageSize = sp.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(sp.ps) || 20));
   const initialCreate =
     sp.create === "task" ? "TASK" : undefined;
   const initialProjectId = typeof sp.project === "string" ? sp.project : undefined;
@@ -75,6 +76,7 @@ export default async function TasksPage({
       sort,
       search: sp.q || undefined,
       page,
+      pageSize,
     }),
     userOptions(),
     teamOptions(),
@@ -111,6 +113,7 @@ export default async function TasksPage({
           due: sp.due ?? "",
           sort: sp.sort ?? "",
           category: sp.category ?? "",
+          ps: sp.ps ?? "",
         }}
         canCreate={can(user, "tasks.create")}
         canDelete={can(user, "tasks.delete")}

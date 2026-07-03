@@ -29,7 +29,7 @@ const STATUS_RO: Record<string, string> = {
 
 export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [hovered, setHovered] = useState<ProjectPin | null>(null);
+  const [active, setActive] = useState<string | null>(null);
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
   useEffect(() => {
@@ -65,17 +65,27 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
             border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,.35);
             cursor: pointer; transition: transform .15s;
           `;
-          el.addEventListener("mouseenter", () => {
-            el.style.transform = "rotate(-45deg) scale(1.2)";
-            setHovered(pin);
-          });
-          el.addEventListener("mouseleave", () => {
-            el.style.transform = "rotate(-45deg) scale(1)";
-            setHovered(null);
-          });
+          el.addEventListener("mouseenter", () => { el.style.transform = "rotate(-45deg) scale(1.2)"; });
+          el.addEventListener("mouseleave", () => { el.style.transform = "rotate(-45deg) scale(1)"; });
+
+          const popup = new mbgl.default.Popup({ offset: 30, closeButton: false, maxWidth: "260px" }).setHTML(`
+            <div style="font-family:system-ui,sans-serif;padding:4px 0">
+              <div style="font-weight:700;font-size:14px;margin-bottom:4px">${pin.name}</div>
+              <div style="font-size:12px;color:#6b7280;margin-bottom:2px">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${STATUS_COLOR[pin.status] ?? "#9ca3af"};margin-right:4px"></span>
+                ${STATUS_RO[pin.status] ?? pin.status} · ${pin.taskCount} task-uri
+              </div>
+              ${pin.address ? `<div style="font-size:12px;color:#6b7280;margin-bottom:8px">${pin.address}</div>` : ""}
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <a href="/projects/${pin.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none">Detalii</a>
+                <a href="/tasks?scope=all&proj=${pin.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none">Task-uri →</a>
+              </div>
+            </div>
+          `);
 
           new mbgl.default.Marker({ element: el })
             .setLngLat([pin.lng, pin.lat])
+            .setPopup(popup)
             .addTo(map);
         });
       });
@@ -112,39 +122,6 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
         ref={containerRef}
         className="h-[calc(100dvh-8rem)] w-full overflow-hidden rounded-2xl border border-[var(--color-line)]"
       />
-
-      {/* Hover card — panel fix în dreapta sus, apare la hover pe marker */}
-      {hovered && (
-        <div className="pointer-events-none absolute right-4 top-14 z-10 w-64 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-4 shadow-xl">
-          <p className="mb-1 text-sm font-bold leading-tight">{hovered.name}</p>
-          <div className="mb-1 flex items-center gap-1.5 text-xs text-ink-soft">
-            <span
-              className="size-2 shrink-0 rounded-full"
-              style={{ background: STATUS_COLOR[hovered.status] ?? "#9ca3af" }}
-            />
-            {STATUS_RO[hovered.status] ?? hovered.status}
-            <span className="mx-1">·</span>
-            {hovered.taskCount} task-uri
-          </div>
-          {hovered.address && (
-            <p className="mb-3 text-xs text-ink-soft">{hovered.address}</p>
-          )}
-          <div className="pointer-events-auto flex gap-3">
-            <a
-              href={`/projects/${hovered.id}`}
-              className="text-xs font-semibold text-brand hover:underline"
-            >
-              Detalii
-            </a>
-            <a
-              href={`/tasks?scope=all&proj=${hovered.id}`}
-              className="text-xs font-semibold text-brand hover:underline"
-            >
-              Task-uri →
-            </a>
-          </div>
-        </div>
-      )}
 
       {/* Legend */}
       <div className="absolute bottom-4 left-4 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-3 shadow-lg">

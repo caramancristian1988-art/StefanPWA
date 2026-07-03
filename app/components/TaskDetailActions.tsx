@@ -270,6 +270,7 @@ function EditDialog({
               <option value={360}>La fiecare 6h</option>
               <option value={720}>La fiecare 12h</option>
               <option value={1440}>La fiecare 24h</option>
+              <option value={10080}>La fiecare 7 zile</option>
             </select>
           </div>
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}

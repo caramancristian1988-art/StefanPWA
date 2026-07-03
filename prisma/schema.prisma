@@ -302,6 +302,10 @@ model Task {
   reminderIntervalMinutes Int?
   nextReminderAt          DateTime?
 
+  // Ultimul mesaj de reamintire Telegram trimis asignatului (pentru a-l șterge la reamintirea următoare)
+  reminderMsgChatId String?
+  reminderMsgId     Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -426,6 +430,7 @@ model Invoice {
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   taskId    String? @db.ObjectId
   task      Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskIds   String[] @db.ObjectId
 
   notes    String?
   terms    String?

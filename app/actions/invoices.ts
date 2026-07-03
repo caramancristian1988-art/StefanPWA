@@ -32,7 +32,7 @@ export type InvoicePayload = {
   dueDate: string | null;
   clientId: string | null;
   projectId: string | null;
-  taskId: string | null;
+  taskIds: string[];
   notes: string;
   terms: string;
   items: { description: string; quantity: number; unitPrice: number; taxRate: number }[];
@@ -64,7 +64,7 @@ export async function saveInvoice(payload: InvoicePayload): Promise<InvoiceActio
     dueDate: toDate(payload.dueDate),
     clientId: payload.clientId,
     projectId: payload.projectId,
-    taskId: payload.taskId,
+    taskIds: payload.taskIds,
     notes: payload.notes,
     terms: payload.terms,
     items: payload.items,

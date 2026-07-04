@@ -16,13 +16,50 @@ import {
   listTaskComments,
   updateTask,
 } from "@/lib/services/tasks";
-import { taskHistory, type TaskHistoryRow } from "@/lib/queries/tasks";
+import { listTasks, taskHistory, type TaskHistoryRow, type TaskRow } from "@/lib/queries/tasks";
 import { logAudit } from "@/lib/services/audit";
 import { TASK_STATUS_RO } from "@/lib/telegram";
 import type { TaskStatus, TaskType, TaskPriority } from "@prisma/client";
 import type { AssignmentSetting } from "@/lib/services/tasks";
 
 export type TaskState = { ok?: boolean; error?: string; id?: string } | undefined;
+
+const F_STATUSES = new Set(["NEW","ASSIGNED","READ","IN_PROGRESS","ON_HOLD","REVIEW","DONE","CANCELLED"]);
+const F_PRIOS = new Set(["LOW","MEDIUM","HIGH","URGENT"]);
+const F_DUE = new Set(["overdue","today","tomorrow","week","month"]);
+const F_SORTS = new Set(["dueAsc","dueDesc"]);
+
+export type TaskListOpts = {
+  scope?: string; q?: string; status?: string; assignee?: string;
+  team?: string; proj?: string; client?: string; prio?: string;
+  due?: string; sort?: string; category?: string; ps?: string;
+  page?: number; types?: string[];
+};
+export type TaskListResult = {
+  items: TaskRow[]; hasMore: boolean; page: number; totalPages: number;
+};
+
+export async function listTasksAction(opts: TaskListOpts): Promise<TaskListResult> {
+  const user = await requireUser();
+  const scope = (
+    user.role === "STAFF" ? "mine"
+    : (["mine","all","created"].includes(opts.scope ?? "") ? opts.scope : "mine")
+  ) as "mine" | "all" | "created";
+  const pageSize = opts.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(opts.ps) || 20));
+  return listTasks({
+    scope, userId: user.id, teamIds: user.teamIds,
+    types: opts.types?.length ? (opts.types as TaskType[]) : undefined,
+    status: F_STATUSES.has(opts.status ?? "") ? (opts.status as TaskStatus) : undefined,
+    priority: F_PRIOS.has(opts.prio ?? "") ? (opts.prio as TaskPriority) : undefined,
+    assigneeId: opts.assignee || undefined, teamId: opts.team || undefined,
+    projectId: opts.proj || undefined, clientId: opts.client || undefined,
+    categoryId: opts.category || undefined,
+    dueRange: F_DUE.has(opts.due ?? "") ? (opts.due as "overdue"|"today"|"tomorrow"|"week"|"month") : undefined,
+    sort: F_SORTS.has(opts.sort ?? "") ? (opts.sort as "dueAsc"|"dueDesc") : "default",
+    search: opts.q || undefined,
+    page: Math.max(1, opts.page || 1), pageSize,
+  });
+}
 
 const moduleForType = (t: TaskType) => (t === "TICKET" ? "Tickets" : "Tasks");
 const prefixForType = (t: TaskType) => (t === "TICKET" ? "ticket" : "task");

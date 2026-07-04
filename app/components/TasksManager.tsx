@@ -13,6 +13,7 @@ import {
   getTaskHistory,
   getTaskComments,
   addTaskCommentAction,
+  listTasksAction,
   type TaskState,
 } from "@/app/actions/tasks";
 import { dateKeyOf, formatTime } from "@/lib/date";
@@ -185,37 +186,80 @@ export default function TasksManager({
   const toast = useToast();
   const [navPending, startNav] = useTransition();
 
+  // ── Tipuri fixe per pagină (/tasks → TASK, /tickets → TICKET) ──
+  const fixedTypes = basePath === "/tickets" ? ["TICKET"] : basePath === "/tasks" ? ["TASK"] : undefined;
+
+  // ── Filtre client-side (instant, fără navigare) ──────────
+  const [localFilters, setLocalFilters] = useState(filters);
+  const [localScope, setLocalScope] = useState(scope);
+  const [currentPage, setCurrentPage] = useState(page);
+  const [totalPagesState, setTotalPagesState] = useState(totalPages);
+  const [hasMoreState, setHasMoreState] = useState(hasMore);
+
+  function buildQueryStr(f: TaskFilters, s: string, p: number) {
+    const usp = new URLSearchParams();
+    if (s !== "mine") usp.set("scope", s);
+    for (const k of ["q","status","assignee","team","proj","client","prio","due","sort","category","ps"] as const) {
+      if (f[k] && f[k] !== "20") usp.set(k, f[k]);
+    }
+    if (p > 1) usp.set("page", String(p));
+    return usp.toString();
+  }
+
+  function applyFilter(patch: Partial<TaskFilters>, newScope?: string, newPage?: number) {
+    const f = { ...localFilters, ...patch };
+    const s = newScope ?? localScope;
+    const p = newPage ?? 1;
+    setLocalFilters(f);
+    if (newScope !== undefined) setLocalScope(s);
+    setCurrentPage(p);
+    const qs = buildQueryStr(f, s, p);
+    window.history.replaceState(null, "", `${basePath}${qs ? `?${qs}` : ""}`);
+    // Persistă în localStorage
+    try {
+      if (qs) localStorage.setItem(`filters:${basePath}`, qs);
+      else localStorage.removeItem(`filters:${basePath}`);
+    } catch {}
+    startNav(async () => {
+      const result = await listTasksAction({ ...f, scope: s, page: p, types: fixedTypes });
+      setTasks(result.items);
+      setTotalPagesState(result.totalPages);
+      setHasMoreState(result.hasMore);
+      setCurrentPage(result.page);
+    });
+  }
+
   // ── Persistenţă filtre în localStorage ──────────────────
   const storageKey = `filters:${basePath}`;
-  const isFirstSave = useRef(true);
-  const filtersEmpty = !Object.values(filters).some(Boolean) && scope === "mine";
-  const filterSnapshot = `${scope}|${Object.entries(filters).map(([k, v]) => `${k}:${v}`).join("|")}`;
-  // Restore la primul mount dacă nu sunt filtre active
   useEffect(() => {
-    if (filtersEmpty) {
-      try {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) router.replace(`${basePath}?${saved}`);
-      } catch {}
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  // Salvează ori de câte ori se schimbă filtrele
-  useEffect(() => {
-    if (isFirstSave.current) {
-      isFirstSave.current = false;
-      if (filtersEmpty) return; // Nu suprascrie salvarea cu stare goală la primul render
-    }
+    const filtersEmpty = !Object.values(filters).some(Boolean) && scope === "mine";
+    if (!filtersEmpty) return;
     try {
-      const sp = new URLSearchParams();
-      if (scope !== "mine") sp.set("scope", scope);
-      for (const [k, v] of Object.entries(filters)) { if (v) sp.set(k, v); }
-      const str = sp.toString();
-      if (str) localStorage.setItem(storageKey, str);
-      else localStorage.removeItem(storageKey);
+      const saved = localStorage.getItem(storageKey);
+      if (!saved) return;
+      const params = new URLSearchParams(saved);
+      const f: TaskFilters = {
+        q: params.get("q") ?? "", status: params.get("status") ?? "",
+        type: params.get("type") ?? "", assignee: params.get("assignee") ?? "",
+        team: params.get("team") ?? "", proj: params.get("proj") ?? "",
+        client: params.get("client") ?? "", prio: params.get("prio") ?? "",
+        due: params.get("due") ?? "", sort: params.get("sort") ?? "",
+        category: params.get("category") ?? "", ps: params.get("ps") ?? "",
+      };
+      const s = (params.get("scope") as "mine"|"all"|"created") ?? "mine";
+      setLocalFilters(f);
+      setLocalScope(s);
+      window.history.replaceState(null, "", `${basePath}?${saved}`);
+      startNav(async () => {
+        const result = await listTasksAction({ ...f, scope: s, page: 1, types: fixedTypes });
+        setTasks(result.items);
+        setTotalPagesState(result.totalPages);
+        setHasMoreState(result.hasMore);
+      });
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterSnapshot]);
+  }, []);
+
   const [createType, setCreateType] = useState<"TASK" | "TICKET" | "WORK_ORDER" | null>(
     initialCreate ?? null,
   );
@@ -277,40 +321,14 @@ export default function TasksManager({
       .finally(() => setPostingComment((cur) => (cur === id ? null : cur)));
   }
 
-  const [searchInput, setSearchInput] = useState(filters.q);
-  useEffect(() => setSearchInput(filters.q), [filters.q]);
+  const [searchInput, setSearchInput] = useState(localFilters.q);
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleSearchChange(val: string) {
     setSearchInput(val);
     if (searchDebounce.current) clearTimeout(searchDebounce.current);
-    searchDebounce.current = setTimeout(() => {
-      startNav(() => router.push(buildUrl({ q: val })));
-    }, 350);
+    searchDebounce.current = setTimeout(() => applyFilter({ q: val }), 350);
   }
-
-  function setScope(newScope: string) {
-    const usp = new URLSearchParams();
-    if (newScope !== "mine") usp.set("scope", newScope);
-    const qs = usp.toString();
-    startNav(() => router.push(`${basePath}${qs ? `?${qs}` : ""}`));
-  }
-
-  function buildUrl(patch: Partial<TaskFilters & { page: number }>) {
-    const merged = { ...filters, ...patch } as Record<string, string | number | undefined>;
-    const usp = new URLSearchParams();
-    if (scope !== "mine") usp.set("scope", scope);
-    for (const k of ["q", "status", "type", "assignee", "team", "proj", "client", "prio", "due", "sort", "category", "ps"] as const) {
-      const v = merged[k];
-      if (v && v !== "20") usp.set(k, String(v));
-    }
-    const pageVal = "page" in patch ? Number(patch.page) : 1;
-    if (pageVal > 1) usp.set("page", String(pageVal));
-    const qs = usp.toString();
-    return `${basePath}${qs ? `?${qs}` : ""}`;
-  }
-  function setFilter(patch: Partial<TaskFilters>) { startNav(() => router.push(buildUrl(patch))); }
-  function goPage(n: number) { startNav(() => router.push(buildUrl({ page: n }))); }
 
   function changeStatus(id: string, next: Status) {
     const prev = tasks;
@@ -346,12 +364,11 @@ export default function TasksManager({
   }
 
   const activeFilters = Boolean(
-    filters.status || filters.type || filters.assignee || filters.team ||
-    filters.proj || filters.client || filters.prio || filters.due || filters.q || filters.category,
+    localFilters.status || localFilters.type || localFilters.assignee || localFilters.team ||
+    localFilters.proj || localFilters.client || localFilters.prio || localFilters.due || localFilters.q || localFilters.category,
   );
 
-  // Paginare: afișăm maxim 7 pagini vizibile în jurul paginii curente
-  const pageButtons = buildPageButtons(page, totalPages);
+  const pageButtons = buildPageButtons(currentPage, totalPagesState);
 
   return (
     <>
@@ -361,9 +378,9 @@ export default function TasksManager({
             <button
               key={s.key}
               type="button"
-              onClick={() => setScope(s.key)}
+              onClick={() => applyFilter({}, s.key, 1)}
               className={`tap shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
-                scope === s.key ? "bg-brand text-white" : "card text-ink-soft"
+                localScope === s.key ? "bg-brand text-white" : "card text-ink-soft"
               }`}
             >
               {s.label}
@@ -375,7 +392,7 @@ export default function TasksManager({
       {/* ── Filtre ─────────────────────────────────────────── */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <form
-          onSubmit={(e) => { e.preventDefault(); if (searchDebounce.current) clearTimeout(searchDebounce.current); startNav(() => router.push(buildUrl({ q: searchInput }))); }}
+          onSubmit={(e) => { e.preventDefault(); if (searchDebounce.current) clearTimeout(searchDebounce.current); applyFilter({ q: searchInput }); }}
           className="flex min-w-40 flex-1 items-center"
         >
           <input
@@ -386,39 +403,39 @@ export default function TasksManager({
           />
         </form>
 
-        <select value={filters.status} onChange={(e) => setFilter({ status: e.target.value })} className={fldCls(filters.status)}>
+        <select value={localFilters.status} onChange={(e) => applyFilter({ status: e.target.value })} className={fldCls(localFilters.status)}>
           <option value="">Status: toate</option>
           {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
         </select>
 
-        <select value={filters.assignee} onChange={(e) => setFilter({ assignee: e.target.value })} className={fldCls(filters.assignee)}>
+        <select value={localFilters.assignee} onChange={(e) => applyFilter({ assignee: e.target.value })} className={fldCls(localFilters.assignee)}>
           <option value="">Persoană: toți</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
 
-        <select value={filters.team} onChange={(e) => setFilter({ team: e.target.value })} className={fldCls(filters.team)}>
+        <select value={localFilters.team} onChange={(e) => applyFilter({ team: e.target.value })} className={fldCls(localFilters.team)}>
           <option value="">Echipă: toate</option>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
 
-        <select value={filters.proj} onChange={(e) => setFilter({ proj: e.target.value })} className={fldCls(filters.proj)}>
+        <select value={localFilters.proj} onChange={(e) => applyFilter({ proj: e.target.value })} className={fldCls(localFilters.proj)}>
           <option value="">Proiect: toate</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
 
-        <select value={filters.client} onChange={(e) => setFilter({ client: e.target.value })} className={fldCls(filters.client)}>
+        <select value={localFilters.client} onChange={(e) => applyFilter({ client: e.target.value })} className={fldCls(localFilters.client)}>
           <option value="">Client: toți</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
 
         {categories && categories.length > 0 && (
-          <select value={filters.category} onChange={(e) => setFilter({ category: e.target.value })} className={fldCls(filters.category)}>
+          <select value={localFilters.category} onChange={(e) => applyFilter({ category: e.target.value })} className={fldCls(localFilters.category)}>
             <option value="">Categorie: toate</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
 
-        <select value={filters.prio} onChange={(e) => setFilter({ prio: e.target.value })} className={fldCls(filters.prio)}>
+        <select value={localFilters.prio} onChange={(e) => applyFilter({ prio: e.target.value })} className={fldCls(localFilters.prio)}>
           <option value="">Prioritate: toate</option>
           <option value="LOW">Scăzută</option>
           <option value="MEDIUM">Medie</option>
@@ -426,7 +443,7 @@ export default function TasksManager({
           <option value="URGENT">Urgentă</option>
         </select>
 
-        <select value={filters.due} onChange={(e) => setFilter({ due: e.target.value })} className={fldCls(filters.due)}>
+        <select value={localFilters.due} onChange={(e) => applyFilter({ due: e.target.value })} className={fldCls(localFilters.due)}>
           <option value="">Deadline: oricare</option>
           <option value="overdue">Expirate</option>
           <option value="today">Azi</option>
@@ -435,7 +452,7 @@ export default function TasksManager({
           <option value="month">Luna</option>
         </select>
 
-        <select value={filters.sort} onChange={(e) => setFilter({ sort: e.target.value })} className={fldCls(filters.sort)}>
+        <select value={localFilters.sort} onChange={(e) => applyFilter({ sort: e.target.value })} className={fldCls(localFilters.sort)}>
           <option value="">Sortare: implicit</option>
           <option value="dueAsc">Deadline ↑</option>
           <option value="dueDesc">Deadline ↓</option>
@@ -444,7 +461,10 @@ export default function TasksManager({
         <button
           onClick={() => {
             try { localStorage.removeItem(storageKey); } catch {}
-            startNav(() => router.push(scope !== "mine" ? `${basePath}?scope=${scope}` : basePath));
+            const emptyFilters: TaskFilters = { q:"", status:"", type:"", assignee:"", team:"", proj:"", client:"", prio:"", due:"", sort:"", category:"", ps:"" };
+            setLocalFilters(emptyFilters);
+            setSearchInput("");
+            applyFilter(emptyFilters, localScope, 1);
           }}
           className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
         >
@@ -453,17 +473,17 @@ export default function TasksManager({
         <ExportButton
           entity={basePath === "/tickets" ? "tickets" : "tasks"}
           params={{
-            scope: scope !== "mine" ? scope : undefined,
-            q: filters.q || undefined,
-            status: filters.status || undefined,
-            prio: filters.prio || undefined,
-            assignee: filters.assignee || undefined,
-            team: filters.team || undefined,
-            proj: filters.proj || undefined,
-            client: filters.client || undefined,
-            due: filters.due || undefined,
-            sort: filters.sort || undefined,
-            category: filters.category || undefined,
+            scope: localScope !== "mine" ? localScope : undefined,
+            q: localFilters.q || undefined,
+            status: localFilters.status || undefined,
+            prio: localFilters.prio || undefined,
+            assignee: localFilters.assignee || undefined,
+            team: localFilters.team || undefined,
+            proj: localFilters.proj || undefined,
+            client: localFilters.client || undefined,
+            due: localFilters.due || undefined,
+            sort: localFilters.sort || undefined,
+            category: localFilters.category || undefined,
           }}
           className="tap h-9 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
         />
@@ -646,11 +666,11 @@ export default function TasksManager({
       )}
 
       {/* ── Paginare numerică ──────────────────────────────── */}
-      {(totalPages > 1 || filters.ps) && (
+      {(totalPagesState > 1 || localFilters.ps) && (
         <div className="mt-4 flex flex-wrap items-center justify-center gap-1">
           <button
-            disabled={page <= 1}
-            onClick={() => goPage(page - 1)}
+            disabled={currentPage <= 1}
+            onClick={() => applyFilter({}, undefined, currentPage - 1)}
             className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
             aria-label="Anterior"
           >
@@ -662,9 +682,9 @@ export default function TasksManager({
             ) : (
               <button
                 key={b}
-                onClick={() => goPage(Number(b))}
+                onClick={() => applyFilter({}, undefined, Number(b))}
                 className={`tap h-9 min-w-[36px] rounded-lg px-2.5 text-sm font-medium ${
-                  Number(b) === page
+                  Number(b) === currentPage
                     ? "bg-brand text-white"
                     : "border border-[var(--color-line)] text-ink hover:bg-[var(--color-surface-2)]"
                 }`}
@@ -674,16 +694,16 @@ export default function TasksManager({
             ),
           )}
           <button
-            disabled={!hasMore}
-            onClick={() => goPage(page + 1)}
+            disabled={!hasMoreState}
+            onClick={() => applyFilter({}, undefined, currentPage + 1)}
             className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
             aria-label="Următor"
           >
             <IconChevronRight className="size-4" />
           </button>
           <select
-            value={filters.ps || "20"}
-            onChange={(e) => startNav(() => router.push(buildUrl({ ps: e.target.value === "20" ? "" : e.target.value, page: 1 })))}
+            value={localFilters.ps || "20"}
+            onChange={(e) => applyFilter({ ps: e.target.value === "20" ? "" : e.target.value }, undefined, 1)}
             className="ml-2 h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand"
             title="Înregistrări pe pagină"
           >

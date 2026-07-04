@@ -16,6 +16,17 @@ import {
 } from "@/lib/services/appointments";
 import { DEMO } from "@/lib/demo";
 import { sanitizeReminderPresets } from "@/lib/reminder-presets";
+import {
+  listByDateKey,
+  listByDateKeys,
+  type AppointmentListItem,
+  type ApptFilter,
+} from "@/lib/queries/appointments";
+import { getSettings } from "@/lib/queries/settings";
+import { todayKey, tomorrowKey, weekKeys, addDaysToKey } from "@/lib/date";
+import { toVM } from "@/lib/view";
+import type { ApptVM } from "@/app/components/types";
+import type { AppointmentStatus } from "@prisma/client";
 
 export type ApptState =
   | { ok?: boolean; error?: string; id?: string }
@@ -116,6 +127,47 @@ export async function rescheduleAppointment(
   if (!res.ok) return { error: res.error };
   revalidateAll();
   return { ok: true };
+}
+
+const VALID_APPT_STATUSES = new Set(["NEW", "CONFIRMED", "IN_PROGRESS", "DONE", "CANCELLED", "NO_SHOW"]);
+
+export async function listAppointmentsAction(opts: {
+  view: string;
+  q?: string;
+  status?: string;
+  category?: string;
+}): Promise<{ items: ApptVM[]; grouped: boolean }> {
+  const user = await requireUser();
+  const settings = await getSettings(user.id);
+  const tz = settings.timezone;
+
+  const filter: ApptFilter = {
+    search: opts.q?.trim() || undefined,
+    status: (opts.status && VALID_APPT_STATUSES.has(opts.status)
+      ? opts.status
+      : undefined) as AppointmentStatus | undefined,
+    categoryId: opts.category || undefined,
+  };
+
+  const today = todayKey(tz);
+  const tomorrow = tomorrowKey(tz);
+  let raw: AppointmentListItem[];
+  let grouped = false;
+
+  if (opts.view === "maine") {
+    raw = await listByDateKey(user.id, tomorrow, filter);
+  } else if (opts.view === "saptamana") {
+    raw = await listByDateKeys(user.id, weekKeys(today, tz), filter);
+    grouped = true;
+  } else if (opts.view === "lista") {
+    const keys = Array.from({ length: 14 }, (_, i) => addDaysToKey(today, i, tz));
+    raw = await listByDateKeys(user.id, keys, filter);
+    grouped = true;
+  } else {
+    raw = await listByDateKey(user.id, today, filter);
+  }
+
+  return { items: raw.map((a) => toVM(a, tz)), grouped };
 }
 
 export async function deleteAppointment(id: string): Promise<void> {

@@ -74,7 +74,7 @@ const QUICK = [
 ] as const;
 
 const fldCls = (val: string) =>
-  `h-9 rounded-lg border px-2 text-xs outline-none focus:border-brand ${
+  `h-9 appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
     val
       ? "border-brand bg-brand/10 font-semibold text-brand"
       : "border-[var(--color-line)] bg-[var(--color-surface)] text-ink"

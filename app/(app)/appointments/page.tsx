@@ -2,22 +2,9 @@ import { requirePermission } from "@/lib/dal";
 import { getSettings } from "@/lib/queries/settings";
 import { listCategories } from "@/lib/queries/categories";
 import { listByDateKey, listByDateKeys } from "@/lib/queries/appointments";
-import {
-  todayKey,
-  tomorrowKey,
-  weekKeys,
-  addDaysToKey,
-  humanDay,
-} from "@/lib/date";
+import { todayKey, tomorrowKey, weekKeys, addDaysToKey } from "@/lib/date";
 import { toVM } from "@/lib/view";
-import AppointmentItem from "@/app/components/AppointmentItem";
-import AppointmentsControls from "@/app/components/AppointmentsControls";
-import OpenQuickAddButton from "@/app/components/OpenQuickAddButton";
-import ExportButton from "@/app/components/ExportButton";
-import ImportButton from "@/app/components/ImportButton";
-import AutoOpenQuickAdd from "@/app/components/AutoOpenQuickAdd";
-import { QuickAddProvider } from "@/app/components/quick-add-context";
-import type { ApptVM } from "@/app/components/types";
+import AppointmentsManager from "@/app/components/AppointmentsManager";
 import type { AppointmentStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -35,17 +22,17 @@ export default async function AppointmentsPage({
     listCategories(),
   ]);
   const tz = settings.timezone;
-  const { view = "azi", create, q, status, category } = await searchParams;
+  const { view = "azi", create, q = "", status = "", category = "" } = await searchParams;
 
   const filter = {
-    search: q?.trim() || undefined,
+    search: q.trim() || undefined,
     status: (status && VALID_STATUSES.has(status) ? status : undefined) as AppointmentStatus | undefined,
     categoryId: category || undefined,
   };
 
   const today = todayKey(tz);
   const tomorrow = tomorrowKey(tz);
-  let items: ApptVM[] = [];
+  let items;
   let grouped = false;
 
   if (view === "maine") {
@@ -71,85 +58,18 @@ export default async function AppointmentsPage({
   };
 
   return (
-    <QuickAddProvider categories={categories} defaults={quickDefaults}>
-      {create === "1" && <AutoOpenQuickAdd />}
-      <div className="w-full">
-        <AppointmentsControls categories={categories} />
-
-        <div className="mb-4 flex items-center gap-2">
-          <OpenQuickAddButton />
-          <ExportButton
-            entity="appointments"
-            params={{
-              view: view !== "azi" ? view : undefined,
-              q: q || undefined,
-              status: status || undefined,
-              category: category || undefined,
-            }}
-            className="tap h-10 shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
-          />
-          <ImportButton
-            entity="appointments"
-            className="tap h-10 shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
-          />
-        </div>
-
-        {items.length === 0 ? (
-          <Empty />
-        ) : grouped ? (
-          <GroupedList items={items} tz={tz} today={today} />
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            {items.map((a) => (
-              <AppointmentItem key={a.id} appt={a} />
-            ))}
-          </div>
-        )}
-      </div>
-    </QuickAddProvider>
-  );
-}
-
-function GroupedList({
-  items,
-  tz,
-  today,
-}: {
-  items: ApptVM[];
-  tz: string;
-  today: string;
-}) {
-  const byDay = new Map<string, ApptVM[]>();
-  for (const it of items) {
-    const arr = byDay.get(it.dateKey) ?? [];
-    arr.push(it);
-    byDay.set(it.dateKey, arr);
-  }
-  const days = [...byDay.keys()].sort();
-
-  return (
-    <div className="flex flex-col gap-5">
-      {days.map((day) => (
-        <section key={day}>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft capitalize">
-            {day === today ? "Azi · " : ""}
-            {humanDay(day, tz)}
-          </h3>
-          <div className="flex flex-col gap-2.5">
-            {byDay.get(day)!.map((a) => (
-              <AppointmentItem key={a.id} appt={a} />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function Empty() {
-  return (
-    <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
-      Nicio programare în acest interval.
-    </div>
+    <AppointmentsManager
+      initialItems={items}
+      initialView={view}
+      initialQ={q}
+      initialStatus={status}
+      initialCategory={category}
+      initialGrouped={grouped}
+      categories={categories}
+      quickDefaults={quickDefaults}
+      initialCreate={create === "1"}
+      today={today}
+      tz={tz}
+    />
   );
 }

@@ -154,6 +154,7 @@ export async function getProject(id: string) {
     where: { id },
     select: {
       id: true,
+      seq: true,
       name: true,
       description: true,
       status: true,

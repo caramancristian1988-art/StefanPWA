@@ -118,6 +118,15 @@ export async function updateUser(
   ]);
   if (emailOwner && emailOwner.id !== id) return { error: "Există deja un cont cu acest email." };
 
+  // Nu îți poți retrage propriul rol de admin
+  if (id === admin.id && admin.role === "ADMIN" && role === "STAFF") {
+    return { error: "Nu îți poți retrage propriul rol de administrator." };
+  }
+  // Non-super nu poate modifica rolul unui alt administrator
+  if (!isSuper(admin) && before?.role === "ADMIN" && role !== "ADMIN") {
+    return { error: "Nu poți modifica rolul unui alt administrator." };
+  }
+
   const newPerms = role === "ADMIN" ? [] : parsePerms(formData);
   const newNotify = parseNotifyEvents(formData);
 
@@ -186,7 +195,8 @@ export async function toggleUserActive(id: string, active: boolean): Promise<voi
   const admin = await requireUser();
   if (!can(admin, "users.manage")) return;
   if (DEMO) return;
-  const target = await prisma.user.findUnique({ where: { id }, select: { name: true } });
+  const target = await prisma.user.findUnique({ where: { id }, select: { name: true, role: true } });
+  if (!isSuper(admin) && target?.role === "ADMIN") return;
   await prisma.user.update({ where: { id }, data: { isActive: active } });
   // La dezactivare, invalidează sesiunile
   if (!active) await prisma.session.deleteMany({ where: { userId: id } });
@@ -206,7 +216,10 @@ export async function deleteUser(id: string): Promise<UserState> {
   if (DEMO) return { error: "Mod demo." };
   if (id === admin.id) return { error: "Nu te poți șterge pe tine." };
 
-  const target = await prisma.user.findUnique({ where: { id }, select: { name: true } });
+  const target = await prisma.user.findUnique({ where: { id }, select: { name: true, role: true } });
+  if (!isSuper(admin) && target?.role === "ADMIN") {
+    return { error: "Nu poți șterge un alt administrator." };
+  }
   // Reasignează datele importante adminului (evităm pierderea task-urilor/proiectelor create)
   await prisma.task.updateMany({ where: { creatorId: id }, data: { creatorId: admin.id } });
   await prisma.project.updateMany({ where: { ownerId: id }, data: { ownerId: admin.id } });
@@ -238,6 +251,7 @@ export async function setSuperAdmin(id: string, value: boolean): Promise<UserSta
   const admin = await requireUser();
   if (!isSuper(admin)) return { error: "Doar un super-admin poate face asta." };
   if (DEMO) return { error: "Mod demo." };
+  if (id === admin.id && !value) return { error: "Nu îți poți retrage propriul statut de super-admin." };
 
   const target = await prisma.user.findUnique({
     where: { id },

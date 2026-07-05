@@ -10,7 +10,7 @@ export default async function UsersPage() {
   const [users, teams] = await Promise.all([listUsers(), teamOptions()]);
   return (
     <div className="w-full">
-      <UsersManager users={users} teams={teams} viewerIsSuper={isSuper(user)} />
+      <UsersManager users={users} teams={teams} viewerIsSuper={isSuper(user)} viewerId={user.id} viewerRole={user.role} />
     </div>
   );
 }

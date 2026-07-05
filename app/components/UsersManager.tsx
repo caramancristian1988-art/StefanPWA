@@ -38,10 +38,14 @@ export default function UsersManager({
   users,
   teams = [],
   viewerIsSuper = false,
+  viewerId = "",
+  viewerRole = "STAFF",
 }: {
   users: UserRow[];
   teams?: Opt[];
   viewerIsSuper?: boolean;
+  viewerId?: string;
+  viewerRole?: "ADMIN" | "STAFF";
 }) {
   const toast = useToast();
   const [rows, setRows] = useState(users);
@@ -77,6 +81,7 @@ export default function UsersManager({
 
   function toggleSuper(u: UserRow) {
     const next = !u.isSuperAdmin;
+    if (u.id === viewerId && !next) { toast.error("Nu îți poți retrage propriul statut de super-admin."); return; }
     if (!next && !confirm(`Retragi statutul de super-admin pentru „${u.name}"?`)) return;
     setRows((r) => r.map((x) => (x.id === u.id ? { ...x, isSuperAdmin: next } : x))); // optimistic
     setSuperAdmin(u.id, next).then((res) => {
@@ -159,22 +164,27 @@ export default function UsersManager({
             {viewerIsSuper && (
               <button
                 onClick={() => toggleSuper(u)}
-                className={`tap rounded-lg border px-2.5 py-1.5 text-xs ${
+                disabled={u.id === viewerId}
+                className={`tap rounded-lg border px-2.5 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
                   u.isSuperAdmin
                     ? "border-brand bg-brand-soft text-brand-strong"
                     : "border-[var(--color-line)] hover:bg-[var(--color-surface-2)]"
                 }`}
-                title={u.isSuperAdmin ? "Retrage super-admin" : "Fă super-admin"}
+                title={u.id === viewerId ? "Nu îți poți modifica propriul statut" : u.isSuperAdmin ? "Retrage super-admin" : "Fă super-admin"}
               >
                 {u.isSuperAdmin ? "Super ✓" : "Super"}
               </button>
             )}
-            <button
-              onClick={() => toggle(u)}
-              className="tap rounded-lg border border-[var(--color-line)] px-2.5 py-1.5 text-xs hover:bg-[var(--color-surface-2)]"
-            >
-              {u.isActive ? "Dezactivează" : "Activează"}
-            </button>
+            {(viewerIsSuper || u.role !== "ADMIN") && (
+              <button
+                onClick={() => toggle(u)}
+                disabled={u.id === viewerId}
+                className="tap rounded-lg border border-[var(--color-line)] px-2.5 py-1.5 text-xs hover:bg-[var(--color-surface-2)] disabled:cursor-not-allowed disabled:opacity-40"
+                title={u.id === viewerId ? "Nu te poți dezactiva pe tine" : undefined}
+              >
+                {u.isActive ? "Dezactivează" : "Activează"}
+              </button>
+            )}
             <button
               onClick={() => setDialog({ open: true, user: u })}
               className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]"
@@ -182,13 +192,15 @@ export default function UsersManager({
             >
               <IconPencil className="size-4" />
             </button>
-            <button
-              onClick={() => remove(u)}
-              className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]"
-              title="Șterge"
-            >
-              <IconTrash className="size-4" />
-            </button>
+            {(viewerIsSuper || u.role !== "ADMIN") && u.id !== viewerId && (
+              <button
+                onClick={() => remove(u)}
+                className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]"
+                title="Șterge"
+              >
+                <IconTrash className="size-4" />
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -199,6 +211,8 @@ export default function UsersManager({
           user={dialog.user}
           allUsers={rows}
           teams={teams}
+          viewerId={viewerId}
+          viewerIsSuper={viewerIsSuper}
           onClose={() => setDialog({ open: false, user: null })}
         />
       )}
@@ -210,11 +224,15 @@ function UserDialog({
   user,
   allUsers,
   teams,
+  viewerId,
+  viewerIsSuper,
   onClose,
 }: {
   user: UserRow | null;
   allUsers: UserRow[];
   teams: Opt[];
+  viewerId: string;
+  viewerIsSuper: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -222,6 +240,9 @@ function UserDialog({
   const [state, formAction, pending] = useActionState<UserState, FormData>(action, undefined);
   const [role, setRole] = useState<"ADMIN" | "STAFF">(user?.role ?? "STAFF");
   const [notifyScope, setNotifyScope] = useState<string>(user?.notifyScope ?? "ALL");
+
+  // Rolul e blocat dacă: editezi pe tine însuți (nu te poți retrogrада) SAU editezi alt admin și nu ești super
+  const roleLocked = !!user && (user.id === viewerId || (!viewerIsSuper && user.role === "ADMIN"));
   const staffOptions = allUsers.filter((u) => u.id !== user?.id);
 
   useEffect(() => {
@@ -270,7 +291,14 @@ function UserDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <select name="role" value={role} onChange={(e) => setRole(e.target.value as "ADMIN" | "STAFF")} className={input}>
+            <select
+              name="role"
+              value={role}
+              onChange={(e) => !roleLocked && setRole(e.target.value as "ADMIN" | "STAFF")}
+              disabled={roleLocked}
+              title={roleLocked ? "Rolul nu poate fi modificat" : undefined}
+              className={`${input} disabled:cursor-not-allowed disabled:opacity-60`}
+            >
               <option value="STAFF">Angajat (permisiuni)</option>
               <option value="ADMIN">Administrator (tot)</option>
             </select>

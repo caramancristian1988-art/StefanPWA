@@ -112,6 +112,76 @@ export async function sendTaskReminderEmail(d: TaskReminderEmailData): Promise<v
   });
 }
 
+export type InvoiceEmailData = {
+  to: string;
+  clientName: string;
+  invoiceNumber: string;
+  grandTotal: number;
+  currency: string;
+  dueDate: Date | null;
+  publicUrl: string;
+  companyName?: string | null;
+  fromName?: string | null;
+  fromAddr?: string | null;
+};
+
+function invoiceTemplate(d: InvoiceEmailData): string {
+  const fmt = (n: number) =>
+    n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const dueLine = d.dueDate
+    ? `<p style="margin:0 0 8px;font-size:14px;color:#475569">Scadență: <b>${d.dueDate.toLocaleDateString("ro-RO")}</b></p>`
+    : "";
+  const company = d.companyName ? `<b>${d.companyName}</b>` : "furnizorul dumneavoastră";
+  return `<!doctype html>
+<html lang="ro"><body style="margin:0;background:#f5f6f8;font-family:Segoe UI,Arial,sans-serif;color:#0f172a">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0">
+    <tr><td align="center">
+      <table role="presentation" width="100%" style="max-width:520px;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">
+        <tr><td style="background:#6366f1;padding:20px 28px;color:#fff;font-size:19px;font-weight:700">
+          🧾 Factură nouă
+        </td></tr>
+        <tr><td style="padding:28px">
+          <p style="margin:0 0 16px;font-size:16px">Bună, <b>${d.clientName}</b>.</p>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.6">
+            ${company} v-a emis o factură nouă.
+          </p>
+          <div style="background:#f1f5f9;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+            <p style="margin:0 0 8px;font-size:14px;color:#475569">Nr. factură: <b>${d.invoiceNumber}</b></p>
+            ${dueLine}
+            <p style="margin:0;font-size:18px;font-weight:700;color:#0f172a">
+              Total: ${fmt(d.grandTotal)} ${d.currency}
+            </p>
+          </div>
+          <a href="${d.publicUrl}" style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;padding:13px 24px;border-radius:10px;font-weight:600;font-size:15px">
+            Vizualizează factura
+          </a>
+        </td></tr>
+        <tr><td style="padding:14px 28px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8">
+          Mesaj automat — te rugăm să nu răspunzi la acest email.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+export async function sendInvoiceEmail(d: InvoiceEmailData): Promise<void> {
+  const transporter = getTransporter();
+  if (!transporter) throw new Error("SMTP neconfigurat.");
+  const from =
+    d.fromName && d.fromAddr ? `${d.fromName} <${d.fromAddr}>` : env.smtp.from;
+  const subject = d.companyName
+    ? `Factură ${d.invoiceNumber} — ${d.companyName}`
+    : `Factură ${d.invoiceNumber}`;
+  await transporter.sendMail({
+    from,
+    to: d.to,
+    subject,
+    text: `Bună, ${d.clientName}. Aveți o factură nouă (${d.invoiceNumber}) în valoare de ${d.grandTotal} ${d.currency}. Vizualizați: ${d.publicUrl}`,
+    html: invoiceTemplate(d),
+  });
+}
+
 /** Trimite reminder-ul. Aruncă eroare la eșec (pentru logica de retry). */
 export async function sendReminderEmail(d: ReminderEmailData): Promise<void> {
   const transporter = getTransporter();

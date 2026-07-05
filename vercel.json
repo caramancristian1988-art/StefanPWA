@@ -4,15 +4,15 @@
   "crons": [
     {
       "path": "/api/cron",
-      "schedule": "0 */3 * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/reminders",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/cron/imap",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }

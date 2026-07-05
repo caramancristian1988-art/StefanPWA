@@ -40,10 +40,15 @@ export async function listProjects(
   if (filter.status) where.status = filter.status;
   if (filter.search?.trim()) {
     const s = filter.search.trim();
-    where.OR = [
-      { name: { contains: s, mode: "insensitive" } },
-      { description: { contains: s, mode: "insensitive" } },
-    ];
+    const seqMatch = s.match(/^#?(\d+)$/);
+    if (seqMatch) {
+      where.seq = parseInt(seqMatch[1], 10);
+    } else {
+      where.OR = [
+        { name: { contains: s, mode: "insensitive" } },
+        { description: { contains: s, mode: "insensitive" } },
+      ];
+    }
   }
 
   const [rows, total] = await Promise.all([

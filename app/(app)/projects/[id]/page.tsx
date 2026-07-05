@@ -86,7 +86,7 @@ export default async function ProjectDetailPage({
           <div className="min-w-0">
             {project.seq != null && (
               <span className="mb-1 inline-block rounded bg-brand/10 px-2 py-0.5 font-mono text-xs font-bold text-brand">
-                #{project.seq}
+                #{String(project.seq).padStart(3, "0")}
               </span>
             )}
             <h1 className="break-words text-xl font-bold">{project.name}</h1>

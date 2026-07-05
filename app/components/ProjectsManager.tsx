@@ -222,8 +222,16 @@ export default function ProjectsManager({
                 <Link href={`/projects/${p.id}`} className="tap min-w-0 flex-1 text-left">
                   <div className="flex min-w-0 items-center gap-1.5">
                     {p.seq != null && (
-                      <span className="shrink-0 rounded-md bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[11px] font-mono font-semibold text-ink-soft">
-                        #{p.seq}
+                      <span
+                        className="shrink-0 cursor-copy rounded-md bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[11px] font-mono font-semibold text-ink-soft hover:bg-brand/10 hover:text-brand"
+                        title="Click pentru copiere"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigator.clipboard.writeText(`#${String(p.seq).padStart(3, "0")}`);
+                          toast.success(`Copiat: #${String(p.seq).padStart(3, "0")}`);
+                        }}
+                      >
+                        #{String(p.seq).padStart(3, "0")}
                       </span>
                     )}
                     <p className="truncate font-semibold">{p.name}</p>

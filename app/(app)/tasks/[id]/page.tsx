@@ -272,7 +272,7 @@ export default async function TaskDetailPage({
           )}
         </div>
 
-        <h1 className="mb-3 text-xl font-bold leading-tight">{task.title}</h1>
+        <h1 className="mb-3 break-words text-xl font-bold leading-tight">{task.title}</h1>
 
         {task.description && (
           <p className="mb-3 whitespace-pre-wrap rounded-xl bg-[var(--color-surface-2)] px-3 py-2.5 text-sm">
@@ -488,9 +488,9 @@ function MetaRow({
   alert?: boolean;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-soft">{label}</p>
-      <p className={`text-sm font-medium ${alert ? "text-st-cancelled" : ""}`}>{value}</p>
+      <p className={`break-all text-sm font-medium ${alert ? "text-st-cancelled" : ""}`}>{value}</p>
     </div>
   );
 }

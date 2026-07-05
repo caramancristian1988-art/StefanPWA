@@ -1,8 +1,10 @@
+import { after } from "next/server";
 import { requirePermission } from "@/lib/dal";
 import { listProjects } from "@/lib/queries/projects";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { invoiceClientOptions } from "@/lib/queries/invoices";
+import { backfillProjectSeq } from "@/app/actions/projects";
 import ProjectsManager from "@/app/components/ProjectsManager";
 import type { ProjectStatus } from "@prisma/client";
 
@@ -16,6 +18,7 @@ export default async function ProjectsPage({
   searchParams: Promise<{ create?: string; q?: string; status?: string; page?: string; ps?: string }>;
 }) {
   await requirePermission("projects.view");
+  after(() => backfillProjectSeq());
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);
   const pageSize = sp.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(sp.ps) || 20));

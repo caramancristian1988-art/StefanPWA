@@ -206,15 +206,21 @@ export default function ProjectsManager({
             <div key={p.id} className="card overflow-hidden">
               {/* ── Rând principal ── */}
               <div className="flex items-center gap-2.5 p-3.5">
+                {/* Chevron expand — doar toggle, nu navigare */}
                 <button
                   type="button"
                   onClick={() => toggleExpand(p.id)}
-                  className="tap min-w-0 flex-1 text-left"
+                  className="tap grid size-7 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]"
+                  title={expandedId === p.id ? "Restrânge" : "Extinde task-uri"}
                 >
+                  <IconChevronRight
+                    className={`size-3.5 transition-transform ${expandedId === p.id ? "rotate-90" : ""}`}
+                  />
+                </button>
+
+                {/* Numele proiectului — navighează la pagina lui */}
+                <Link href={`/projects/${p.id}`} className="tap min-w-0 flex-1 text-left">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <IconChevronRight
-                      className={`size-3.5 shrink-0 text-ink-soft transition-transform ${expandedId === p.id ? "rotate-90" : ""}`}
-                    />
                     {p.seq != null && (
                       <span className="shrink-0 rounded-md bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[11px] font-mono font-semibold text-ink-soft">
                         #{p.seq}
@@ -222,14 +228,14 @@ export default function ProjectsManager({
                     )}
                     <p className="truncate font-semibold">{p.name}</p>
                   </div>
-                  <p className="truncate pl-5 text-xs text-ink-soft">
+                  <p className="truncate text-xs text-ink-soft">
                     {STATUS_RO[p.status]} · {p.taskCount} task-uri
                     {p.clientId && ` · ${nameOf(p.clientId, clients) ?? "?"}`}
                     {p.assigneeId && ` · → ${nameOf(p.assigneeId, users) ?? "?"}`}
                     {p.teamId && ` · echipă ${nameOf(p.teamId, teams) ?? "?"}`}
                     {p.lat != null && ` · 📍`}
                   </p>
-                </button>
+                </Link>
                 {p.lat != null && p.lng != null && (
                   <Link href={`/projects/${p.id}`} className="tap grid size-9 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]" title="Hartă proiect">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8Z"/></svg>

@@ -353,6 +353,21 @@ export async function getTask(id: string) {
         },
         orderBy: { createdAt: "asc" },
       },
+      emailSource: true,
+      fromEmail: true,
+      fromName: true,
+      emailMessages: {
+        select: {
+          id: true,
+          direction: true,
+          fromEmail: true,
+          fromName: true,
+          toEmail: true,
+          body: true,
+          sentAt: true,
+        },
+        orderBy: { sentAt: "asc" },
+      },
     },
   });
 }

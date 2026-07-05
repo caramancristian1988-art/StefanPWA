@@ -67,7 +67,7 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
           <label className={label}>Sfârșit zi</label>
           <input type="time" name="workdayEnd" defaultValue={settings.workdayEnd} className={input} />
         </div>
-        <div>
+        <div className="col-span-2 sm:col-span-1">
           <label className={label}>Slot (min)</label>
           <input type="number" name="slotMinutes" min={0} step="any" inputMode="decimal" defaultValue={settings.slotMinutes} className={input} />
         </div>

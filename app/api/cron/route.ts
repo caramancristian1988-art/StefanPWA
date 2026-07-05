@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { processDueReminders } from "@/lib/services/reminders";
 import { checkOverdueTasks, checkTaskReminders } from "@/lib/services/tasks";
 import { notifyUsers, filteredAdminRecipients } from "@/lib/services/notifications";
+import { checkUnansweredEmailTickets, checkAutoCloseEmailTickets } from "@/lib/services/email-ticket";
+import { pollInbox } from "@/lib/services/imap-poller";
 import { TASK_STATUS_RO, TASK_TYPE_RO } from "@/lib/telegram";
 import { formatTime, DEFAULT_TZ } from "@/lib/date";
 import type { TaskStatus } from "@prisma/client";
@@ -30,20 +32,26 @@ async function run() {
   const since = ckpt.lastRunAt;
 
   // ── Toate job-urile în paralel ───────────────────────────────────────────
-  const [remindersR, , , statusR, newTasksR, apptR] = await Promise.allSettled([
+  const [remindersR, , , statusR, newTasksR, apptR, unansweredR, autoCloseR, imapR] = await Promise.allSettled([
     processDueReminders(),
     checkTaskReminders(),
     checkOverdueTasks(),
     processStatusChanges(since, now),
     processNewAdminTasks(since, now),
     processUpcomingAppointments(since, now),
+    checkUnansweredEmailTickets(),
+    checkAutoCloseEmailTickets(),
+    pollInbox(),
   ]);
 
   const processed =
     (remindersR.status === "fulfilled" ? remindersR.value.processed : 0) +
     (statusR.status === "fulfilled" ? statusR.value : 0) +
     (newTasksR.status === "fulfilled" ? newTasksR.value : 0) +
-    (apptR.status === "fulfilled" ? apptR.value : 0);
+    (apptR.status === "fulfilled" ? apptR.value : 0) +
+    (unansweredR.status === "fulfilled" ? unansweredR.value : 0) +
+    (autoCloseR.status === "fulfilled" ? autoCloseR.value : 0) +
+    (imapR.status === "fulfilled" ? imapR.value.processed : 0);
 
   // ── Actualizează checkpoint ──────────────────────────────────────────────
   await prisma.cronState.update({

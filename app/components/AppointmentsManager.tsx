@@ -154,15 +154,17 @@ export default function AppointmentsManager({
                 ))}
               </select>
             )}
-            <button
-              onClick={() => {
-                if (searchDebounce.current) clearTimeout(searchDebounce.current);
-                applyFilter({ q: "", status: "", category: "" });
-              }}
-              className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
-            >
-              ✕ Filtre
-            </button>
+            {(localQ || localStatus || localCategory) && (
+              <button
+                onClick={() => {
+                  if (searchDebounce.current) clearTimeout(searchDebounce.current);
+                  applyFilter({ q: "", status: "", category: "" });
+                }}
+                className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+              >
+                ✕ Filtre
+              </button>
+            )}
           </div>
         </div>
 

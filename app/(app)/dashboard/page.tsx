@@ -97,6 +97,7 @@ async function TasksSection({
   page,
   pageSize,
   ps,
+  scope,
 }: {
   userId: string;
   teamIds: string[];
@@ -105,9 +106,11 @@ async function TasksSection({
   page: number;
   pageSize: number;
   ps: string;
+  scope: string;
 }) {
+  const effectiveScope = (scope === "all" ? "all" : "mine") as "all" | "mine";
   const result = await listTasks({
-    scope: "mine",
+    scope: effectiveScope,
     userId,
     teamIds,
     priority: (prio as TaskPriority) || undefined,
@@ -157,6 +160,7 @@ async function TasksSection({
         <div className="mt-3 flex flex-wrap items-center justify-center gap-1">
           {pageButtons.map((b, i) => {
             const params = new URLSearchParams();
+            if (scope && scope !== "mine") params.set("scope", scope);
             if (prio) params.set("prio", prio);
             if (sort) params.set("sort", sort);
             if (ps && ps !== "20") params.set("ps", ps);
@@ -210,6 +214,11 @@ export default async function DashboardPage({
   const ps = sp.ps ?? "";
   const page = Math.max(1, Number(sp.page) || 1);
   const pageSize = ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(ps) || 10));
+  const isAdmin = user.role === "ADMIN";
+  const scope = isAdmin && sp.scope === "all" ? "all" : "mine";
+
+  const heading = scope === "all" ? "Toate task-urile" : "Task-urile mele";
+  const tasksHref = scope === "all" ? "/tasks?scope=all" : "/tasks?scope=mine";
 
   return (
     <div className="w-full">
@@ -219,16 +228,16 @@ export default async function DashboardPage({
 
       <div className="mt-6">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Task-urile mele</h2>
-          <Link href="/tasks" className="text-xs font-medium text-brand hover:underline">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-soft">{heading}</h2>
+          <Link href={tasksHref} className="text-xs font-medium text-brand hover:underline">
             Vezi toate
           </Link>
         </div>
 
-        <DashboardFilters prio={prio} sort={sort} ps={ps} />
+        <DashboardFilters prio={prio} sort={sort} ps={ps} scope={scope} isAdmin={isAdmin} />
 
         <Suspense fallback={<TasksSkeleton />}>
-          <TasksSection userId={user.id} teamIds={user.teamIds} prio={prio} sort={sort} page={page} pageSize={pageSize} ps={ps} />
+          <TasksSection userId={user.id} teamIds={user.teamIds} prio={prio} sort={sort} page={page} pageSize={pageSize} ps={ps} scope={scope} />
         </Suspense>
       </div>
     </div>

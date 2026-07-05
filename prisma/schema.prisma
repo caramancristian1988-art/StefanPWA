@@ -218,6 +218,7 @@ model Team {
 
 model Project {
   id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  seq         Int?
   name        String
   description String?
   status      ProjectStatus @default(ACTIVE)
@@ -306,13 +307,24 @@ model Task {
   reminderMsgChatId String?
   reminderMsgId     Int?
 
+  // --- Email → Tichet ---
+  // Câmpuri populate când tichetul a fost creat dintr-un email primit
+  emailSource       Boolean   @default(false)
+  fromEmail         String?   // adresa expeditorului
+  fromName          String?   // numele expeditorului
+  emailMessageId    String?   // Message-ID al primului email (pentru threading)
+  emailThreadId     String?   // thread ID (= emailMessageId al primului email din conversație)
+  lastClientEmailAt DateTime? // când a scris ultima dată clientul (pt. nerăspuns + auto-close)
+  autoCloseWarnedAt DateTime? // când am trimis avertismentul de auto-închidere (2 zile)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  activities  TaskActivity[]
-  comments    TaskComment[]
-  attachments TaskAttachment[]
-  invoices    Invoice[]
+  activities    TaskActivity[]
+  comments      TaskComment[]
+  attachments   TaskAttachment[]
+  invoices      Invoice[]
+  emailMessages EmailMessage[]
 
   @@index([assigneeId, status])
   @@index([creatorId, status])
@@ -325,6 +337,26 @@ model Task {
   @@index([clientId, status])
   @@index([type, status])
   @@index([updatedAt])
+  @@index([emailThreadId])
+  @@index([emailSource, status])
+}
+
+// Mesaje email legate de un tichet (inbound = de la client, outbound = răspuns staff)
+model EmailMessage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String   @db.ObjectId
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  direction String   // INBOUND | OUTBOUND
+  fromEmail String
+  fromName  String?
+  toEmail   String
+  subject   String?
+  body      String
+  messageId String?  // Message-ID header (pentru threading)
+  sentAt    DateTime @default(now())
+
+  @@index([taskId, sentAt])
+  @@index([messageId])
 }
 
 model TaskAttachment {

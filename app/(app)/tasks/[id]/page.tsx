@@ -13,6 +13,7 @@ import TaskCommentSection from "@/app/components/TaskCommentSection";
 import TaskAttachmentSection from "@/app/components/TaskAttachmentSection";
 import TaskStatusChanger from "@/app/components/TaskStatusChanger";
 import TaskDetailActions from "@/app/components/TaskDetailActions";
+import EmailThread from "@/app/components/EmailThread";
 import type { TaskStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -344,6 +345,20 @@ export default async function TaskDetailPage({
           blobEnabled={env.blob.enabled}
         />
       </div>
+
+      {/* ── Email thread (only for email-sourced tickets) ─── */}
+      {task.emailSource && task.fromEmail && (
+        <EmailThread
+          taskId={id}
+          messages={(task.emailMessages ?? []).map((m) => ({
+            ...m,
+            sentAt: m.sentAt.toISOString(),
+          }))}
+          fromEmail={task.fromEmail}
+          fromName={task.fromName ?? null}
+          canReply={canEdit}
+        />
+      )}
 
       {/* ── Comments ──────────────────────────────────────── */}
       <div className="mb-3">

@@ -176,13 +176,15 @@ export default function CalendarControls({
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
-        <button
-          onClick={clearFilters}
-          className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
-          title="Șterge toate filtrele și resetează la Azi"
-        >
-          ✕ Filtre
-        </button>
+        {(assigneeId || teamId || projectId || clientId || categoryId) && (
+          <button
+            onClick={clearFilters}
+            className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+            title="Șterge toate filtrele și resetează la Azi"
+          >
+            ✕ Filtre
+          </button>
+        )}
       </div>
     </div>
   );

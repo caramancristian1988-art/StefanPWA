@@ -12,6 +12,7 @@ import {
   changeTaskStatus,
   changeTaskProgress,
   notifyNewTask,
+  notifyAttachmentTelegram,
   addTaskComment,
   listTaskComments,
   updateTask,
@@ -373,6 +374,8 @@ export async function addAttachmentAction(
   await prisma.taskActivity
     .create({ data: { taskId, userId: user.id, action: "ATTACHMENT_ADDED", meta: { fileName: file.name, size: file.size } } })
     .catch(() => {});
+
+  after(() => notifyAttachmentTelegram(taskId, blob.url, file.name, file.type || null));
 
   revalidatePath(`/tasks/${taskId}`);
   return { ok: true, attachment: { ...att, userName: att.user.name, userId: att.user.id } };

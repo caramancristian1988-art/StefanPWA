@@ -54,6 +54,36 @@ export function sendMessage(
   });
 }
 
+export function sendPhoto(
+  chatId: string | number,
+  photoUrl: string,
+  caption?: string,
+  keyboard?: InlineButton[][],
+) {
+  return tgCall("sendPhoto", {
+    chat_id: chatId,
+    photo: photoUrl,
+    caption,
+    parse_mode: "HTML",
+    reply_markup: keyboard ? { inline_keyboard: keyboard } : undefined,
+  });
+}
+
+export function sendDocument(
+  chatId: string | number,
+  documentUrl: string,
+  caption?: string,
+  keyboard?: InlineButton[][],
+) {
+  return tgCall("sendDocument", {
+    chat_id: chatId,
+    document: documentUrl,
+    caption,
+    parse_mode: "HTML",
+    reply_markup: keyboard ? { inline_keyboard: keyboard } : undefined,
+  });
+}
+
 export function editMessageText(
   chatId: string | number,
   messageId: number,

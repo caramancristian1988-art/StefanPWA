@@ -7,6 +7,7 @@ import { projectOptions } from "@/lib/queries/projects";
 import { invoiceClientOptions } from "@/lib/queries/invoices";
 import { listCategories } from "@/lib/queries/categories";
 import { getQuietHoursSettings } from "@/lib/queries/company";
+import { env } from "@/lib/env";
 import TasksManager from "@/app/components/TasksManager";
 import type { TaskStatus, TaskType, TaskPriority } from "@prisma/client";
 
@@ -119,6 +120,7 @@ export default async function TasksPage({
         canDelete={can(user, "tasks.delete")}
         canEdit={can(user, "tasks.edit")}
         quietHoursEnabled={quietHoursSettings.quietHoursEnabled}
+        blobEnabled={env.blob.enabled}
         canCreateProject={can(user, "projects.create")}
         initialCreate={can(user, "tasks.create") ? initialCreate : undefined}
         initialProjectId={can(user, "tasks.create") ? initialProjectId : undefined}

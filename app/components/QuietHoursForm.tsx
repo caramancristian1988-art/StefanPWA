@@ -62,7 +62,7 @@ export default function QuietHoursForm({
             Activează orele de somn
           </label>
 
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <span className="text-xs text-ink-soft">De la</span>
               <input
@@ -83,7 +83,7 @@ export default function QuietHoursForm({
                 className={inp}
               />
             </div>
-            <div className="flex flex-col gap-1 min-w-48">
+            <div className="col-span-2 flex flex-col gap-1">
               <span className="text-xs text-ink-soft">Fus orar</span>
               <input
                 type="text"

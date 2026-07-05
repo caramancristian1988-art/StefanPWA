@@ -56,8 +56,15 @@ export async function createProject(
   if (DEMO) return { error: "Mod demo." };
   const d = parse(formData);
   if (!d.name) return { error: "Numele e obligatoriu." };
+  const counter = await prisma.counter.upsert({
+    where: { name: "project-seq" },
+    create: { name: "project-seq", value: 1 },
+    update: { value: { increment: 1 } },
+    select: { value: true },
+  });
   const p = await prisma.project.create({
     data: {
+      seq: counter.value,
       name: d.name,
       description: d.description,
       status: d.status,
@@ -89,8 +96,14 @@ export async function quickCreateProject(name: string): Promise<QuickCreateResul
   if (DEMO) return { ok: false, error: "Mod demo." };
   const n = name.trim();
   if (!n) return { ok: false, error: "Numele e obligatoriu." };
+  const counter = await prisma.counter.upsert({
+    where: { name: "project-seq" },
+    create: { name: "project-seq", value: 1 },
+    update: { value: { increment: 1 } },
+    select: { value: true },
+  });
   const p = await prisma.project.create({
-    data: { name: n, status: "ACTIVE", ownerId: user.id },
+    data: { seq: counter.value, name: n, status: "ACTIVE", ownerId: user.id },
     select: { id: true, name: true },
   });
   await logAudit(actor(user), { action: "project.create", module: "Projects", objectId: p.id, objectName: p.name });

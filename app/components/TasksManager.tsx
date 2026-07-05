@@ -13,10 +13,12 @@ import {
   getTaskHistory,
   getTaskComments,
   addTaskCommentAction,
+  addAttachmentAction,
   listTasksAction,
   type TaskState,
 } from "@/app/actions/tasks";
 import { dateKeyOf, formatTime } from "@/lib/date";
+import { optimizeImage } from "@/lib/image-optimize";
 import { useToast } from "./toast";
 import { IconTrash, IconX, IconChevronLeft, IconChevronRight, IconPencil } from "./icons";
 import QuickSelect from "./QuickSelect";
@@ -152,6 +154,7 @@ export default function TasksManager({
   canEdit = false,
   canCreateProject = false,
   quietHoursEnabled = false,
+  blobEnabled = false,
   initialCreate,
   initialProjectId,
   initialOpenId,
@@ -175,6 +178,7 @@ export default function TasksManager({
   canEdit?: boolean;
   canCreateProject?: boolean;
   quietHoursEnabled?: boolean;
+  blobEnabled?: boolean;
   initialCreate?: "TASK" | "TICKET" | "WORK_ORDER";
   initialProjectId?: string;
   initialOpenId?: string;
@@ -458,18 +462,20 @@ export default function TasksManager({
           <option value="dueDesc">Deadline ↓</option>
         </select>
 
-        <button
-          onClick={() => {
-            try { localStorage.removeItem(storageKey); } catch {}
-            const emptyFilters: TaskFilters = { q:"", status:"", type:"", assignee:"", team:"", proj:"", client:"", prio:"", due:"", sort:"", category:"", ps:"" };
-            setLocalFilters(emptyFilters);
-            setSearchInput("");
-            applyFilter(emptyFilters, localScope, 1);
-          }}
-          className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
-        >
-          ✕ Filtre
-        </button>
+        {activeFilters && (
+          <button
+            onClick={() => {
+              try { localStorage.removeItem(storageKey); } catch {}
+              const emptyFilters: TaskFilters = { q:"", status:"", type:"", assignee:"", team:"", proj:"", client:"", prio:"", due:"", sort:"", category:"", ps:"" };
+              setLocalFilters(emptyFilters);
+              setSearchInput("");
+              applyFilter(emptyFilters, localScope, 1);
+            }}
+            className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+          >
+            ✕ Filtre
+          </button>
+        )}
         <ExportButton
           entity={basePath === "/tickets" ? "tickets" : "tasks"}
           params={{
@@ -728,6 +734,7 @@ export default function TasksManager({
           categories={categories}
           canCreateProject={canCreateProject}
           quietHoursEnabled={quietHoursEnabled}
+          blobEnabled={blobEnabled}
           initialProjectId={initialProjectId}
           onClose={() => setCreateType(null)}
           onCreated={() => router.refresh()}
@@ -1117,8 +1124,14 @@ function EditDialog({
   );
 }
 
+function fmtFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function CreateDialog({
-  initialType, users, teams, projects, clients, categories, canCreateProject, quietHoursEnabled, initialProjectId, onClose, onCreated,
+  initialType, users, teams, projects, clients, categories, canCreateProject, quietHoursEnabled, blobEnabled, initialProjectId, onClose, onCreated,
 }: {
   initialType: "TASK" | "TICKET" | "WORK_ORDER";
   users: Opt[];
@@ -1128,31 +1141,73 @@ function CreateDialog({
   categories: CategoryLite[];
   canCreateProject: boolean;
   quietHoursEnabled?: boolean;
+  blobEnabled?: boolean;
   initialProjectId?: string;
   onClose: () => void;
   onCreated: () => void;
 }) {
   const toast = useToast();
-  const [state, action, pending] = useActionState<TaskState, FormData>(createTaskAction, undefined);
+  const formRef = useRef<HTMLFormElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [categoryId, setCategoryId] = useState("");
-  useEffect(() => {
-    if (state?.ok) { toast.success("Creat"); onCreated(); onClose(); }
-    else if (state?.error) toast.error(state.error);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const title = initialType === "TICKET" ? "Tichet nou" : "Task nou";
+  const dialogTitle = initialType === "TICKET" ? "Tichet nou" : "Task nou";
+
+  async function stageFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.files?.[0];
+    if (!raw) return;
+    if (raw.size > 20 * 1024 * 1024) { toast.error("Fișierul depășește 20 MB"); return; }
+    if (fileRef.current) fileRef.current.value = "";
+    const file = await optimizeImage(raw);
+    setStagedFiles((prev) => [...prev, file]);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formRef.current || submitting) return;
+    setFormError(null);
+    setSubmitting(true);
+    setProgress("Se creează...");
+    try {
+      const fd = new FormData(formRef.current);
+      const result = await createTaskAction(undefined, fd);
+      if (!result?.ok || !result.id) {
+        setFormError(result?.error ?? "Eroare la creare.");
+        return;
+      }
+      if (stagedFiles.length > 0 && blobEnabled) {
+        for (let i = 0; i < stagedFiles.length; i++) {
+          setProgress(`Fișier ${i + 1} / ${stagedFiles.length}…`);
+          const afd = new FormData();
+          afd.append("file", stagedFiles[i]);
+          await addAttachmentAction(result.id, afd).catch(() => {});
+        }
+      }
+      toast.success("Creat");
+      onCreated();
+      onClose();
+    } catch {
+      setFormError("Eroare la creare. Încearcă din nou.");
+    } finally {
+      setSubmitting(false);
+      setProgress(null);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-b-none rounded-t-2xl p-5 sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold">{title}</h2>
+          <h2 className="text-base font-bold">{dialogTitle}</h2>
           <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">
             <IconX className="size-4" />
           </button>
         </div>
-        <form action={action} className="flex flex-col gap-3">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input name="title" placeholder="Titlu *" required autoFocus className={dlgInput} />
           <textarea name="description" placeholder="Descriere" rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
           <div className="grid gap-2 sm:grid-cols-2">
@@ -1212,9 +1267,43 @@ function CreateDialog({
               <span>Trimite notificări și în orele de somn</span>
             </label>
           )}
-          {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
-          <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
-            {pending ? "Se salvează…" : "Creează"}
+
+          {/* ── Atașamente ─────────────────────────────────── */}
+          {blobEnabled && (
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-xs font-semibold text-ink-soft">
+                  Atașamente {stagedFiles.length > 0 && `(${stagedFiles.length})`}
+                </span>
+                <label className="tap cursor-pointer rounded-lg border border-[var(--color-line)] px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand-soft">
+                  + Adaugă fișier
+                  <input ref={fileRef} type="file" className="sr-only" onChange={stageFile} disabled={submitting} />
+                </label>
+              </div>
+              {stagedFiles.length > 0 && (
+                <ul className="flex flex-col gap-1">
+                  {stagedFiles.map((f, i) => (
+                    <li key={i} className="flex items-center gap-2 rounded-lg border border-[var(--color-line)] px-2.5 py-1.5">
+                      <span className="min-w-0 flex-1 truncate text-xs">{f.name}</span>
+                      <span className="shrink-0 text-[11px] text-ink-soft">{fmtFileSize(f.size)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setStagedFiles((prev) => prev.filter((_, j) => j !== i))}
+                        className="tap shrink-0 text-xs text-st-cancelled hover:text-red-600"
+                        disabled={submitting}
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {formError && <p className="text-sm text-st-cancelled">{formError}</p>}
+          <button type="submit" disabled={submitting} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
+            {progress ?? "Creează"}
           </button>
         </form>
       </div>

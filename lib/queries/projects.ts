@@ -6,6 +6,7 @@ import type { ProjectStatus } from "@prisma/client";
 
 export type ProjectRow = {
   id: string;
+  seq: number | null;
   name: string;
   description: string | null;
   status: ProjectStatus;
@@ -50,6 +51,7 @@ export async function listProjects(
       where,
       select: {
         id: true,
+        seq: true,
         name: true,
         description: true,
         status: true,
@@ -74,6 +76,7 @@ export async function listProjects(
   return {
     items: rows.map((r) => ({
       id: r.id,
+      seq: r.seq ?? null,
       name: r.name,
       description: r.description,
       status: r.status,

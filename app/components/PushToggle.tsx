@@ -93,17 +93,17 @@ export default function PushToggle() {
           : "Acest browser nu suportă notificări push."}
       </p>
       {supported && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {!subscribed ? (
-            <button onClick={enable} disabled={busy} className="tap h-11 rounded-xl bg-brand px-4 font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
+            <button onClick={enable} disabled={busy} className="tap h-11 w-full rounded-xl bg-brand px-4 font-semibold text-white hover:bg-brand-strong disabled:opacity-60 sm:w-auto">
               {busy ? "…" : "Activează notificările"}
             </button>
           ) : (
             <>
-              <button onClick={test} className="tap h-11 rounded-xl bg-[var(--color-surface-2)] px-4 font-medium hover:bg-brand-soft">
+              <button onClick={test} className="tap h-11 w-full rounded-xl bg-[var(--color-surface-2)] px-4 font-medium hover:bg-brand-soft sm:w-auto">
                 Trimite test
               </button>
-              <button onClick={disable} disabled={busy} className="tap h-11 rounded-xl border border-[var(--color-line)] px-4 font-medium text-ink-soft">
+              <button onClick={disable} disabled={busy} className="tap h-11 w-full rounded-xl border border-[var(--color-line)] px-4 font-medium text-ink-soft sm:w-auto">
                 Dezactivează
               </button>
             </>

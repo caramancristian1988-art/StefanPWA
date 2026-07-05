@@ -47,6 +47,7 @@ export const env = {
   },
 
   cronSecret: optional("CRON_SECRET"),
+  emailInboundSecret: optional("EMAIL_INBOUND_SECRET"),
 
   smtp: {
     host: optional("SMTP_HOST"),
@@ -57,6 +58,18 @@ export const env = {
     from: optional("EMAIL_FROM", "Programări <no-reply@example.com>"),
     get enabled() {
       return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER);
+    },
+  },
+
+  imap: {
+    host: optional("IMAP_HOST"),
+    port: int("IMAP_PORT", 993),
+    secure: optional("IMAP_SECURE", "true") === "true",
+    user: optional("IMAP_USER"),
+    pass: optional("IMAP_PASS"),
+    mailbox: optional("IMAP_MAILBOX", "INBOX"),
+    get enabled() {
+      return Boolean(process.env.IMAP_HOST && process.env.IMAP_USER);
     },
   },
 

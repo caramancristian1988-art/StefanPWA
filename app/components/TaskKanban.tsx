@@ -226,12 +226,14 @@ export default function TaskKanban({
             {q.label}
           </button>
         ))}
-        <button
-          onClick={resetAll}
-          className="tap ml-auto rounded-full border border-[var(--color-line)] px-4 py-1.5 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
-        >
-          ✕ Filtre
-        </button>
+        {hasFilters && (
+          <button
+            onClick={resetAll}
+            className="tap ml-auto rounded-full border border-[var(--color-line)] px-4 py-1.5 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
+          >
+            ✕ Filtre
+          </button>
+        )}
       </div>
 
       {/* Filter bar */}

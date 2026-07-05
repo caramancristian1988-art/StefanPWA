@@ -95,12 +95,14 @@ export default function AppointmentsControls({
             ))}
           </select>
         )}
-        <button
-          onClick={() => { patch({ q: "", status: "", category: "" }); clearFilters(); }}
-          className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
-        >
-          ✕ Filtre
-        </button>
+        {hasFilters && (
+          <button
+            onClick={() => { patch({ q: "", status: "", category: "" }); clearFilters(); }}
+            className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
+          >
+            ✕ Filtre
+          </button>
+        )}
       </div>
     </div>
   );

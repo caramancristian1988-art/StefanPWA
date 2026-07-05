@@ -5,6 +5,8 @@ import {
   sendMessage,
   editMessageText,
   deleteMessage,
+  sendPhoto,
+  sendDocument,
   taskStatusButtons,
   taskOpenButton,
   TASK_STATUS_RO,
@@ -1103,4 +1105,63 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Trimite un atașament (imagine sau fișier) pe Telegram către toți
+ * destinatarii task-ului (asignat + echipă + extra).
+ */
+export async function notifyAttachmentTelegram(
+  taskId: string,
+  attUrl: string,
+  attName: string,
+  mimeType: string | null,
+): Promise<void> {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: {
+        seq: true, title: true, type: true,
+        assigneeId: true, teamId: true,
+        extraAssigneeIds: true, extraTeamIds: true,
+      },
+    });
+    if (!task) return;
+
+    // Colectează destinatarii
+    const recipients = new Set<string>();
+    if (task.assigneeId) recipients.add(task.assigneeId);
+    if (task.teamId) {
+      const team = await prisma.team.findUnique({ where: { id: task.teamId }, select: { memberIds: true } });
+      team?.memberIds.forEach((id) => recipients.add(id));
+    }
+    for (const uid of (task.extraAssigneeIds ?? [])) recipients.add(uid);
+    for (const tid of (task.extraTeamIds ?? [])) {
+      const team = await prisma.team.findUnique({ where: { id: tid }, select: { memberIds: true } });
+      team?.memberIds.forEach((id) => recipients.add(id));
+    }
+    if (!recipients.size) return;
+
+    const typeLabel = TASK_TYPE_RO[task.type] ?? "Task";
+    const ref = task.seq != null ? `#${task.seq}` : taskId.slice(-6);
+    const caption = `📎 <b>${escapeHtml(attName)}</b>\n${typeLabel} ${ref}: ${escapeHtml(task.title)}`;
+    const keyboard = taskOpenButton(task.seq, taskId);
+    const isImage = mimeType?.startsWith("image/") && !mimeType.includes("svg");
+
+    for (const uid of recipients) {
+      try {
+        const chatId = await telegramChatFor(uid);
+        if (!chatId) continue;
+        if (isImage) {
+          await sendPhoto(chatId, attUrl, caption, keyboard);
+        } else {
+          await sendDocument(chatId, attUrl, caption, keyboard);
+        }
+      } catch {
+        // ignoră eșecul per-destinatar
+      }
+    }
+  } catch (e) {
+    console.error("[tasks] notifyAttachmentTelegram eșuat:", e);
+  }
 }

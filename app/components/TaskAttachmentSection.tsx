@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { addAttachmentAction, deleteAttachmentAction, type AttachmentRow } from "@/app/actions/tasks";
+import { optimizeImage } from "@/lib/image-optimize";
 import { useToast } from "./toast";
 import { IconTrash } from "./icons";
 
@@ -44,13 +45,14 @@ export default function TaskAttachmentSection({
   const [uploading, setUploading] = useState(false);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 20 * 1024 * 1024) {
+    const raw = e.target.files?.[0];
+    if (!raw) return;
+    if (raw.size > 20 * 1024 * 1024) {
       toast.error("Fișierul depășește 20 MB");
       return;
     }
     setUploading(true);
+    const file = await optimizeImage(raw);
     const fd = new FormData();
     fd.append("file", file);
     try {

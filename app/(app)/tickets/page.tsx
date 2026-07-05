@@ -6,6 +6,7 @@ import { teamOptions } from "@/lib/queries/teams";
 import { projectOptions } from "@/lib/queries/projects";
 import { invoiceClientOptions } from "@/lib/queries/invoices";
 import { listCategories } from "@/lib/queries/categories";
+import { env } from "@/lib/env";
 import TasksManager from "@/app/components/TasksManager";
 import type { TaskStatus, TaskPriority } from "@prisma/client";
 
@@ -114,6 +115,7 @@ export default async function TicketsPage({
         canCreate={can(user, "tasks.create")}
         canDelete={can(user, "tasks.delete")}
         canEdit={can(user, "tasks.edit")}
+        blobEnabled={env.blob.enabled}
         canCreateProject={can(user, "projects.create")}
         initialCreate={can(user, "tasks.create") ? initialCreate : undefined}
         initialProjectId={can(user, "tasks.create") ? initialProjectId : undefined}

@@ -19,6 +19,7 @@ import ProjectFilesPanel from "./ProjectFilesPanel";
 type Opt = { id: string; name: string };
 type Project = {
   id: string;
+  seq: number | null;
   name: string;
   description: string | null;
   status: "ACTIVE" | "ON_HOLD" | "DONE" | "ARCHIVED";
@@ -214,6 +215,11 @@ export default function ProjectsManager({
                     <IconChevronRight
                       className={`size-3.5 shrink-0 text-ink-soft transition-transform ${expandedId === p.id ? "rotate-90" : ""}`}
                     />
+                    {p.seq != null && (
+                      <span className="shrink-0 rounded-md bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[11px] font-mono font-semibold text-ink-soft">
+                        #{p.seq}
+                      </span>
+                    )}
                     <p className="truncate font-semibold">{p.name}</p>
                   </div>
                   <p className="truncate pl-5 text-xs text-ink-soft">

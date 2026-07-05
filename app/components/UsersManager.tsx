@@ -144,63 +144,69 @@ export default function UsersManager({
       ) : (
       <div className="flex flex-col gap-2.5">
         {filtered.map((u) => (
-          <div key={u.id} className="card flex items-center gap-3 p-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-bold text-brand-strong">
-              {u.name.slice(0, 1).toUpperCase()}
+          <div key={u.id} className="card flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3">
+            {/* Avatar + info — linie proprie pe mobil */}
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <div className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-bold text-brand-strong">
+                {u.name.slice(0, 1).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">
+                  {u.name}
+                  {u.isSuperAdmin && (
+                    <span className="ml-2 rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-strong">Super</span>
+                  )}
+                  {!u.isActive && <span className="ml-2 text-xs text-st-cancelled">dezactivat</span>}
+                </p>
+                <p className="truncate text-xs text-ink-soft">
+                  {u.email} · {u.role === "ADMIN" ? "Administrator" : `${u.permissions.length} permisiuni`}
+                  {u.telegramChatId ? " · ✈ Telegram" : ""}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold">
-                {u.name}
-                {u.isSuperAdmin && (
-                  <span className="ml-2 rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-strong">Super</span>
-                )}
-                {!u.isActive && <span className="ml-2 text-xs text-st-cancelled">dezactivat</span>}
-              </p>
-              <p className="truncate text-xs text-ink-soft">
-                {u.email} · {u.role === "ADMIN" ? "Administrator" : `${u.permissions.length} permisiuni`}
-                {u.telegramChatId ? " · ✈ Telegram" : ""}
-              </p>
+            {/* Butoane — sub info pe mobil, aliniate dreapta */}
+            <div className="flex items-center justify-end gap-2">
+              {viewerIsSuper && (
+                <button
+                  onClick={() => toggleSuper(u)}
+                  disabled={u.id === viewerId}
+                  className={`tap rounded-lg border px-2.5 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
+                    u.isSuperAdmin
+                      ? "border-brand bg-brand-soft text-brand-strong"
+                      : "border-[var(--color-line)] hover:bg-[var(--color-surface-2)]"
+                  }`}
+                  title={u.id === viewerId ? "Nu îți poți modifica propriul statut" : u.isSuperAdmin ? "Retrage super-admin" : "Fă super-admin"}
+                >
+                  {u.isSuperAdmin ? "Super ✓" : "Super"}
+                </button>
+              )}
+              {(viewerIsSuper || u.role !== "ADMIN") && (
+                <button
+                  onClick={() => toggle(u)}
+                  disabled={u.id === viewerId}
+                  className="tap rounded-lg border border-[var(--color-line)] px-2.5 py-1.5 text-xs hover:bg-[var(--color-surface-2)] disabled:cursor-not-allowed disabled:opacity-40"
+                  title={u.id === viewerId ? "Nu te poți dezactiva pe tine" : undefined}
+                >
+                  {u.isActive ? "Dezactivează" : "Activează"}
+                </button>
+              )}
+              <button
+                onClick={() => setDialog({ open: true, user: u })}
+                className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]"
+                title="Editează"
+              >
+                <IconPencil className="size-4" />
+              </button>
+              {(viewerIsSuper || u.role !== "ADMIN") && u.id !== viewerId && (
+                <button
+                  onClick={() => remove(u)}
+                  className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]"
+                  title="Șterge"
+                >
+                  <IconTrash className="size-4" />
+                </button>
+              )}
             </div>
-            {viewerIsSuper && (
-              <button
-                onClick={() => toggleSuper(u)}
-                disabled={u.id === viewerId}
-                className={`tap rounded-lg border px-2.5 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
-                  u.isSuperAdmin
-                    ? "border-brand bg-brand-soft text-brand-strong"
-                    : "border-[var(--color-line)] hover:bg-[var(--color-surface-2)]"
-                }`}
-                title={u.id === viewerId ? "Nu îți poți modifica propriul statut" : u.isSuperAdmin ? "Retrage super-admin" : "Fă super-admin"}
-              >
-                {u.isSuperAdmin ? "Super ✓" : "Super"}
-              </button>
-            )}
-            {(viewerIsSuper || u.role !== "ADMIN") && (
-              <button
-                onClick={() => toggle(u)}
-                disabled={u.id === viewerId}
-                className="tap rounded-lg border border-[var(--color-line)] px-2.5 py-1.5 text-xs hover:bg-[var(--color-surface-2)] disabled:cursor-not-allowed disabled:opacity-40"
-                title={u.id === viewerId ? "Nu te poți dezactiva pe tine" : undefined}
-              >
-                {u.isActive ? "Dezactivează" : "Activează"}
-              </button>
-            )}
-            <button
-              onClick={() => setDialog({ open: true, user: u })}
-              className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]"
-              title="Editează"
-            >
-              <IconPencil className="size-4" />
-            </button>
-            {(viewerIsSuper || u.role !== "ADMIN") && u.id !== viewerId && (
-              <button
-                onClick={() => remove(u)}
-                className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]"
-                title="Șterge"
-              >
-                <IconTrash className="size-4" />
-              </button>
-            )}
           </div>
         ))}
       </div>

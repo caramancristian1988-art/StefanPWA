@@ -71,7 +71,7 @@ export default function EmailThread({
             Array.from(atob(data), (c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
           );
         }
-        return data.replace(/_/g, " ").replace(/=([0-9A-Fa-f]{2})/g, (__, h) => String.fromCharCode(parseInt(h, 16)));
+        return data.replace(/_/g, " ").replace(/=([0-9A-Fa-f]{2})/g, (_: string, h: string) => String.fromCharCode(parseInt(h, 16)));
       } catch {
         return str;
       }

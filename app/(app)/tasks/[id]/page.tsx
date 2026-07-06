@@ -220,10 +220,10 @@ export default async function TaskDetailPage({
     <div className="mx-auto w-full max-w-2xl">
       <div className="mb-4 flex items-center justify-between gap-2">
         <Link
-          href="/tasks"
+          href={task.type === "TICKET" ? "/tickets" : "/tasks"}
           className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink"
         >
-          ← Înapoi la task-uri
+          {task.type === "TICKET" ? "← Înapoi la tichete" : "← Înapoi la task-uri"}
         </Link>
         <TaskDetailActions
           task={{

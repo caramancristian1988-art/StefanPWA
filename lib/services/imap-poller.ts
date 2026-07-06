@@ -113,7 +113,7 @@ async function parseMessage(msg: import("imapflow").FetchMessageObject) {
     : "");
 
   const fromEmail = extractEmail(fromRaw);
-  const fromName = extractName(fromRaw) || msg.envelope?.from?.[0]?.name || "";
+  const fromName = decodeWords(extractName(fromRaw) || msg.envelope?.from?.[0]?.name || "");
   const subject = decodeWords(getHeader("Subject") || msg.envelope?.subject || "(fără subiect)");
   const messageId = cleanId(getHeader("Message-ID") || getHeader("Message-Id") || "");
   const inReplyTo = cleanId(getHeader("In-Reply-To") || "");

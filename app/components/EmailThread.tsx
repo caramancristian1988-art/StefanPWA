@@ -62,12 +62,28 @@ export default function EmailThread({
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" });
 
+  function decodeRfc2047(str: string): string {
+    if (!str || !str.includes("=?")) return str;
+    return str.replace(/=\?([^?]+)\?([BQbq])\?([^?]*)\?=/g, (_, _charset, enc, data) => {
+      try {
+        if (enc.toUpperCase() === "B") {
+          return decodeURIComponent(
+            Array.from(atob(data), (c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+          );
+        }
+        return data.replace(/_/g, " ").replace(/=([0-9A-Fa-f]{2})/g, (__, h) => String.fromCharCode(parseInt(h, 16)));
+      } catch {
+        return str;
+      }
+    });
+  }
+
   return (
     <div className="card mb-3 p-4">
       <h2 className="mb-4 text-sm font-bold">
         📧 Conversație email
         <span className="ml-2 text-xs font-normal text-ink-soft">
-          {fromName ? `${fromName} ` : ""}&lt;{fromEmail}&gt;
+          {fromName ? `${decodeRfc2047(fromName)} ` : ""}&lt;{fromEmail}&gt;
         </span>
       </h2>
 
@@ -88,8 +104,8 @@ export default function EmailThread({
                 >
                   <p className="font-semibold text-[11px] mb-1 opacity-70">
                     {isIn
-                      ? (m.fromName || m.fromEmail)
-                      : (m.fromName || "Echipa")}
+                      ? decodeRfc2047(m.fromName || m.fromEmail)
+                      : decodeRfc2047(m.fromName || "Echipa")}
                     {" · "}{fmtDate(m.sentAt)}
                   </p>
                   <p className="whitespace-pre-wrap break-words leading-relaxed">{m.body}</p>

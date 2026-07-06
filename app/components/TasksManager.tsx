@@ -550,7 +550,7 @@ export default function TasksManager({
                   <div className="flex min-w-0 items-center gap-2">
                     {t.seq != null && (
                       <Link
-                        href={`/tasks/${t.id}`}
+                        href={`/${t.type === "TICKET" ? "tickets" : "tasks"}/${t.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="shrink-0 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-brand hover:bg-brand/20"
                       >

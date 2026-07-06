@@ -8,11 +8,18 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Programări",
-  description: "Programări și task-uri pentru clienți — rapid și simplu.",
+  title: "CRM Proiecte",
+  description: "Gestionare proiecte, task-uri și tichete — rapid și simplu.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Programări" },
-  icons: { icon: "/icons/icon.svg", apple: "/icons/icon.svg" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "CRM" },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {

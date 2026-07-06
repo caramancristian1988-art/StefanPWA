@@ -369,7 +369,8 @@ export default function TasksManager({
 
   const activeFilters = Boolean(
     localFilters.status || localFilters.type || localFilters.assignee || localFilters.team ||
-    localFilters.proj || localFilters.client || localFilters.prio || localFilters.due || localFilters.q || localFilters.category,
+    localFilters.proj || localFilters.client || localFilters.prio || localFilters.due ||
+    localFilters.q || localFilters.category || localFilters.sort,
   );
 
   const pageButtons = buildPageButtons(currentPage, totalPagesState);

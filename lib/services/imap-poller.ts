@@ -15,13 +15,21 @@ export async function pollInbox(): Promise<{ processed: number; errors: number }
     secure: env.imap.secure,
     auth: { user: env.imap.user, pass: env.imap.pass },
     logger: false,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
   });
 
   let processed = 0;
   let errors = 0;
 
   try {
-    await client.connect();
+    await Promise.race([
+      client.connect(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("IMAP connect timeout")), 12000),
+      ),
+    ]);
 
     const lock = await client.getMailboxLock(env.imap.mailbox);
     try {

@@ -102,6 +102,22 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
   const subject = email.subject.trim() || "(fără subiect)";
   const body = email.bodyText.trim() || email.bodyHtml?.replace(/<[^>]+>/g, " ").trim() || "";
 
+  // Idempotency: skip if this exact messageId was already stored
+  if (email.messageId) {
+    const exists = await prisma.emailMessage.findFirst({
+      where: { messageId: email.messageId },
+      select: { id: true },
+    });
+    if (exists) {
+      console.log(`[email] mesaj duplicat, ignorat: ${email.messageId}`);
+      const task = await prisma.emailMessage.findFirst({
+        where: { messageId: email.messageId },
+        select: { taskId: true, task: { select: { seq: true } } },
+      });
+      return { action: "updated", ticketId: task!.taskId, seq: task?.task?.seq ?? null };
+    }
+  }
+
   // Find system user for email-sourced tickets (first admin)
   const systemUser = await prisma.user.findFirst({
     where: { role: "ADMIN", isActive: true },

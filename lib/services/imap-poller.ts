@@ -61,15 +61,14 @@ export async function pollInbox(): Promise<{ processed: number; errors: number }
           const spamReason = detectSpam(fromEmail, parsed.subject, parsed.bodyText);
           if (spamReason) {
             console.log(`[imap] spam blocat: ${fromEmail} — ${spamReason}`);
-            // Marchează ca văzut ca să nu-l reprocesăm
             await client.messageFlagsAdd({ uid: msg.uid }, ["\\Seen"], { uid: true });
             continue;
           }
 
-          await processInboundEmail(parsed);
-
-          // Marchează ca văzut după procesare cu succes
+          // Marchează SEEN înainte de procesare — evită re-procesarea dacă
+          // conexiunea pică după processInboundEmail dar înainte de flags add
           await client.messageFlagsAdd({ uid: msg.uid }, ["\\Seen"], { uid: true });
+          await processInboundEmail(parsed);
           processed++;
         } catch (err) {
           console.error("[imap] eroare la procesarea mesajului:", err);

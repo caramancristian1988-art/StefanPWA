@@ -35,7 +35,7 @@ export default async function AppLayout({
   return (
     <AppShell userName={user.name} demo={DEMO} perms={perms} unread={unread} appointmentsLabel={company.appointmentsLabel}>
       {children}
-      <PWARegister />
+      <PWARegister unread={unread} />
       <OpenInApp />
     </AppShell>
   );

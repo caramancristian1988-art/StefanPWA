@@ -2,7 +2,19 @@
 
 import { useEffect } from "react";
 
-export default function PWARegister() {
+export default function PWARegister({ unread = 0 }: { unread?: number }) {
+  useEffect(() => {
+    // Sync badge count with app icon (Badging API)
+    if ("setAppBadge" in navigator) {
+      (unread > 0
+        ? (navigator as Navigator & { setAppBadge(n: number): Promise<void> }).setAppBadge(unread)
+        : (navigator as Navigator & { clearAppBadge(): Promise<void> }).clearAppBadge()
+      ).catch(() => {});
+    }
+    // Also tell SW so it can update badge from push events
+    navigator.serviceWorker?.controller?.postMessage({ type: "SET_BADGE", count: unread });
+  }, [unread]);
+
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 

@@ -15,21 +15,21 @@ export async function pollInbox(): Promise<{ processed: number; errors: number }
     secure: env.imap.secure,
     auth: { user: env.imap.user, pass: env.imap.pass },
     logger: false,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 8000,
+  });
+
+  // Absorb stray socket errors that fire after we've already given up
+  client.on("error", (err: Error) => {
+    console.error("[imap] client error (absorbed):", err.message);
   });
 
   let processed = 0;
   let errors = 0;
 
   try {
-    await Promise.race([
-      client.connect(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("IMAP connect timeout")), 12000),
-      ),
-    ]);
+    await client.connect();
 
     const lock = await client.getMailboxLock(env.imap.mailbox);
     try {
@@ -79,6 +79,11 @@ export async function pollInbox(): Promise<{ processed: number; errors: number }
     } finally {
       lock.release();
     }
+  } catch (err) {
+    const msg = (err as Error)?.message ?? String(err);
+    console.error("[imap] conectare eșuată:", msg);
+    await client.logout().catch(() => {});
+    return { processed: 0, errors: 1 };
   } finally {
     await client.logout().catch(() => {});
   }

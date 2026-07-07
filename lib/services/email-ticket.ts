@@ -16,6 +16,21 @@ function getTransport() {
   });
 }
 
+// ── RFC 2047 word decoding (subiect/fromName din email headers) ──────────────
+function decodeRfc2047(str: string): string {
+  if (!str || !str.includes("=?")) return str;
+  return str.replace(/=\?([^?]+)\?([BQbq])\?([^?]*)\?=/g, (_, _charset, enc, data) => {
+    try {
+      if (enc.toUpperCase() === "B") {
+        return Buffer.from(data, "base64").toString("utf-8");
+      }
+      // Quoted-printable word (Q encoding)
+      const qp = data.replace(/_/g, " ").replace(/=([0-9A-Fa-f]{2})/g, "%$1");
+      try { return decodeURIComponent(qp); } catch { return data; }
+    } catch { return str; }
+  });
+}
+
 // ── Normalize subject pentru threading ──────────────────────────────────────
 export function normalizeSubject(subject: string): string {
   return subject
@@ -99,7 +114,9 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
   if (DEMO) throw new Error("Mod demo.");
 
   const fromEmail = email.fromEmail.toLowerCase().trim();
-  const subject = email.subject.trim() || "(fără subiect)";
+  // Decodează RFC 2047 în caz că vine ne-decodat din webhook (IMAP îl decodează deja)
+  const subject = decodeRfc2047(email.subject.trim()) || "(fără subiect)";
+  const fromName = email.fromName ? decodeRfc2047(email.fromName) : email.fromName;
   const body = email.bodyText.trim() || email.bodyHtml?.replace(/<[^>]+>/g, " ").trim() || "";
 
   // Idempotency: skip if this exact messageId was already stored
@@ -146,7 +163,7 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
         taskId: existingId,
         direction: "INBOUND",
         fromEmail,
-        fromName: email.fromName,
+        fromName: fromName,
         toEmail: env.smtp.from || "info@scada.md",
         subject,
         body,
@@ -159,12 +176,12 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
       data: {
         taskId: existingId,
         userId: systemUser.id,
-        body: `📧 **${email.fromName || fromEmail}:** ${body.slice(0, 2000)}`,
+        body: `📧 **${fromName || fromEmail}:** ${body.slice(0, 2000)}`,
         source: "WEB",
       },
     });
 
-    await notifyStaff(existingId, ticket.seq, ticket.title, "reply", fromEmail, email.fromName);
+    await notifyStaff(existingId, ticket.seq, ticket.title, "reply", fromEmail, fromName);
     return { action: "updated", ticketId: existingId, seq: ticket.seq ?? null };
   }
 
@@ -188,7 +205,7 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
       createdFrom: "WEB",
       emailSource: true,
       fromEmail,
-      fromName: email.fromName,
+      fromName: fromName,
       emailMessageId: email.messageId,
       emailThreadId: email.messageId,
       lastClientEmailAt: new Date(),
@@ -202,7 +219,7 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
       taskId: ticket.id,
       direction: "INBOUND",
       fromEmail,
-      fromName: email.fromName,
+      fromName: fromName,
       toEmail: env.smtp.from || "info@scada.md",
       subject,
       body,
@@ -210,7 +227,7 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
     },
   });
 
-  await notifyStaff(ticket.id, ticket.seq, subject, "new", fromEmail, email.fromName);
+  await notifyStaff(ticket.id, ticket.seq, subject, "new", fromEmail, fromName);
   return { action: "created", ticketId: ticket.id, seq: ticket.seq ?? null };
 }
 
@@ -319,7 +336,7 @@ function replyTemplate(d: {
   companyName: string;
   staffName: string;
 }): string {
-  const bodyHtml = d.body.replace(/\n/g, "<br>");
+  const bodyHtml = escHtml(d.body).replace(/\n/g, "<br>");
   return `<!doctype html>
 <html lang="ro"><body style="margin:0;background:#f5f6f8;font-family:Segoe UI,Arial,sans-serif;color:#0f172a">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0">

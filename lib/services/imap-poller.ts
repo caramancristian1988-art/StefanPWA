@@ -163,9 +163,23 @@ function extractTextBody(raw: string): string {
 }
 
 function decodeQuotedPrintable(str: string): string {
-  return str
-    .replace(/=\r?\n/g, "")
-    .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  // Remove soft line breaks, then decode QP bytes as UTF-8 (not Latin-1)
+  const unfolded = str.replace(/=\r?\n/g, "");
+  const bytes: number[] = [];
+  let i = 0;
+  while (i < unfolded.length) {
+    if (unfolded[i] === "=" && i + 2 < unfolded.length && /[0-9A-Fa-f]{2}/.test(unfolded.slice(i + 1, i + 3))) {
+      bytes.push(parseInt(unfolded.slice(i + 1, i + 3), 16));
+      i += 3;
+    } else {
+      const code = unfolded.charCodeAt(i);
+      if (code < 0x80) { bytes.push(code); }
+      else if (code < 0x800) { bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f)); }
+      else { bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f)); }
+      i++;
+    }
+  }
+  return Buffer.from(bytes).toString("utf-8");
 }
 
 function decodeWords(str: string): string {

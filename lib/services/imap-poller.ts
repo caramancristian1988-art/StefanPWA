@@ -15,9 +15,9 @@ export async function pollInbox(): Promise<{ processed: number; errors: number }
     secure: env.imap.secure,
     auth: { user: env.imap.user, pass: env.imap.pass },
     logger: false,
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 8000,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 60000,   // idle timeout — mai lung ca să acomodeze query-urile DB
   });
 
   // Absorb stray socket errors that fire after we've already given up
@@ -37,41 +37,50 @@ export async function pollInbox(): Promise<{ processed: number; errors: number }
       const uids = await client.search({ seen: false }, { uid: true });
       if (!uids || !Array.isArray(uids) || uids.length === 0) return { processed: 0, errors: 0 };
 
-      for await (const msg of client.fetch(uids as number[], {
-        uid: true,
-        envelope: true,
-        bodyStructure: true,
-        source: true,
-      }, { uid: true })) {
-        if (!msg) continue;
+      // Procesăm câte un email pe rând — serverul scada.md taie conexiunea
+      // dacă facem fetch bulk cu source:true pe multe mesaje simultan
+      for (const uid of uids as number[]) {
         try {
-          const parsed = await parseMessage(msg as import("imapflow").FetchMessageObject);
+          // Fetch individual cu timeout propriu
+          let msg: import("imapflow").FetchMessageObject | null = null;
+          for await (const m of client.fetch([uid], {
+            uid: true,
+            envelope: true,
+            bodyStructure: true,
+            source: true,
+          }, { uid: true })) {
+            msg = m as import("imapflow").FetchMessageObject;
+          }
+          if (!msg) continue;
+
+          const parsed = await parseMessage(msg);
           if (!parsed) continue;
 
           const fromEmail = parsed.fromEmail.toLowerCase().trim();
           if (!fromEmail) continue;
 
-          // Skip mesaje trimise de noi (din același cont)
-          if (fromEmail === env.imap.user.toLowerCase()) continue;
-
-          // Rate limiting
-          if (isRateLimited(fromEmail, 10, 60 * 60 * 1000)) continue;
-
-          // Spam filter
-          const spamReason = detectSpam(fromEmail, parsed.subject, parsed.bodyText);
-          if (spamReason) {
-            console.log(`[imap] spam blocat: ${fromEmail} — ${spamReason}`);
-            await client.messageFlagsAdd({ uid: msg.uid }, ["\\Seen"], { uid: true });
+          if (fromEmail === env.imap.user.toLowerCase()) {
+            await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true }).catch(() => {});
             continue;
           }
 
-          // Marchează SEEN înainte de procesare — evită re-procesarea dacă
-          // conexiunea pică după processInboundEmail dar înainte de flags add
-          await client.messageFlagsAdd({ uid: msg.uid }, ["\\Seen"], { uid: true });
+          if (isRateLimited(fromEmail, 10, 60 * 60 * 1000)) {
+            await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true }).catch(() => {});
+            continue;
+          }
+
+          const spamReason = detectSpam(fromEmail, parsed.subject, parsed.bodyText);
+          if (spamReason) {
+            console.log(`[imap] spam blocat: ${fromEmail} — ${spamReason}`);
+            await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true }).catch(() => {});
+            continue;
+          }
+
+          await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true });
           await processInboundEmail(parsed);
           processed++;
         } catch (err) {
-          console.error("[imap] eroare la procesarea mesajului:", err);
+          console.error("[imap] eroare la procesarea mesajului uid=" + uid + ":", (err as Error).message);
           errors++;
         }
       }

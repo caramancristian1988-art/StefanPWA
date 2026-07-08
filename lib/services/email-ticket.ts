@@ -68,7 +68,7 @@ async function findExistingTicket(email: InboundEmail): Promise<string | null> {
     if (t) return t.id;
   }
 
-  // 2. Match by References header
+  // 2. Match by References header against task emailMessageId/emailThreadId
   if (email.references) {
     const ids = email.references.split(/\s+/).filter(Boolean);
     for (const ref of ids) {
@@ -84,36 +84,33 @@ async function findExistingTicket(email: InboundEmail): Promise<string | null> {
     }
   }
 
-  // 3. Match by fromEmail + normalized subject
-  const normSubject = normalizeSubject(email.subject);
-  if (normSubject) {
-    const candidates = await prisma.task.findMany({
+  // 3. Match by In-Reply-To against orice mesaj trimis/primit din EmailMessage
+  //    (prinde răspunsurile la reply-urile staff, nu doar la emailul original)
+  if (email.inReplyTo) {
+    const msg = await prisma.emailMessage.findFirst({
       where: {
-        emailSource: true,
-        fromEmail: email.fromEmail.toLowerCase(),
-        status: { notIn: ["DONE", "CANCELLED"] },
+        messageId: email.inReplyTo,
+        task: { emailSource: true, status: { notIn: ["DONE", "CANCELLED"] } },
       },
-      select: { id: true, title: true },
-      orderBy: { createdAt: "desc" },
-      take: 5,
+      select: { taskId: true },
     });
-    for (const c of candidates) {
-      if (normalizeSubject(c.title) === normSubject) return c.id;
-    }
+    if (msg) return msg.taskId;
   }
 
-  // 4. Orice tichet deschis de la același expeditor — nu creăm un tichet nou
-  //    atâta timp cât există unul activ, indiferent de subiect.
-  const openTicket = await prisma.task.findFirst({
-    where: {
-      emailSource: true,
-      fromEmail: email.fromEmail.toLowerCase(),
-      status: { notIn: ["DONE", "CANCELLED"] },
-    },
-    select: { id: true },
-    orderBy: { createdAt: "desc" },
-  });
-  if (openTicket) return openTicket.id;
+  // 4. Match by References against orice mesaj din EmailMessage
+  if (email.references) {
+    const ids = email.references.split(/\s+/).filter(Boolean);
+    for (const ref of ids) {
+      const msg = await prisma.emailMessage.findFirst({
+        where: {
+          messageId: ref,
+          task: { emailSource: true, status: { notIn: ["DONE", "CANCELLED"] } },
+        },
+        select: { taskId: true },
+      });
+      if (msg) return msg.taskId;
+    }
+  }
 
   return null;
 }

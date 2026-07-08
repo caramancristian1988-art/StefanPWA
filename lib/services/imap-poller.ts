@@ -128,11 +128,24 @@ async function parseMessage(msg: import("imapflow").FetchMessageObject) {
   const references = getHeader("References") || "";
 
   // Body: încearcă text/plain, fallback la curățare HTML
-  const bodyText = extractTextBody(raw) || body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const rawBody = extractTextBody(raw) || body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const bodyText = stripQuoted(rawBody);
 
   if (!fromEmail) return null;
 
   return { fromEmail, fromName, subject, bodyText, messageId, inReplyTo, references };
+}
+
+function stripQuoted(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const result: string[] = [];
+  for (const line of lines) {
+    // Stop at quoted reply block (lines starting with ">") or "On ... wrote:" separator
+    if (/^>/.test(line)) break;
+    if (/^(On .+wrote:|----+ ?Original Message ?----+)/i.test(line)) break;
+    result.push(line);
+  }
+  return result.join("\n").trim();
 }
 
 function extractTextBody(raw: string): string {

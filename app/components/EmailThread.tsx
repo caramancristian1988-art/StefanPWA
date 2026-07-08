@@ -80,34 +80,41 @@ export default function EmailThread({
 
   return (
     <div className="card mb-3 p-4">
-      <h2 className="mb-4 text-sm font-bold">
-        📧 Conversație email
-        <span className="ml-2 text-xs font-normal text-ink-soft">
-          {fromName ? `${decodeRfc2047(fromName)} ` : ""}&lt;{fromEmail}&gt;
-        </span>
-      </h2>
+      <h2 className="mb-1 text-sm font-bold">📧 Conversație email</h2>
+      <p className="mb-4 text-sm text-ink-soft">
+        {fromName ? (
+          <>
+            <span className="font-semibold text-ink">{decodeRfc2047(fromName)}</span>
+            {" "}
+          </>
+        ) : null}
+        <span className="font-mono text-xs">{fromEmail}</span>
+      </p>
 
       {localMessages.length === 0 ? (
         <p className="text-xs text-ink-soft">Niciun mesaj în conversație.</p>
       ) : (
-        <div className="flex flex-col gap-3 mb-4">
+        <div className="flex flex-col gap-4 mb-4">
           {localMessages.map((m) => {
             const isIn = m.direction === "INBOUND";
+            const senderName = isIn
+              ? decodeRfc2047(m.fromName || m.fromEmail)
+              : decodeRfc2047(m.fromName || "Echipa");
             return (
-              <div key={m.id} className={`flex ${isIn ? "justify-start" : "justify-end"}`}>
+              <div key={m.id} className={`flex flex-col gap-1 ${isIn ? "items-start" : "items-end"}`}>
+                <div className={`flex items-baseline gap-2 px-1 ${isIn ? "" : "flex-row-reverse"}`}>
+                  <span className={`text-sm font-bold ${isIn ? "text-ink" : "text-brand"}`}>
+                    {senderName}
+                  </span>
+                  <span className="text-[11px] text-ink-soft">{fmtDate(m.sentAt)}</span>
+                </div>
                 <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                     isIn
                       ? "bg-[var(--color-surface-2)] text-[var(--color-ink)]"
-                      : "bg-[var(--color-accent)] text-white"
+                      : "bg-brand/10 text-[var(--color-ink)] border border-brand/20"
                   }`}
                 >
-                  <p className="font-semibold text-[11px] mb-1 opacity-70">
-                    {isIn
-                      ? decodeRfc2047(m.fromName || m.fromEmail)
-                      : decodeRfc2047(m.fromName || "Echipa")}
-                    {" · "}{fmtDate(m.sentAt)}
-                  </p>
                   <p className="whitespace-pre-wrap break-words leading-relaxed">{m.body}</p>
                 </div>
               </div>

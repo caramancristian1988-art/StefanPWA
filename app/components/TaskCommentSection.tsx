@@ -18,6 +18,13 @@ function fmt(d: string | Date) {
   return new Date(d).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" });
 }
 
+// Parse legacy email comments stored as "📧 **Name:** body"
+function parseEmailComment(body: string): { emailSender: string; text: string } | null {
+  const m = body.match(/^📧 \*\*(.+?):\*\*\s*([\s\S]*)$/);
+  if (!m) return null;
+  return { emailSender: m[1], text: m[2].trim() };
+}
+
 export default function TaskCommentSection({
   taskId,
   initialComments,
@@ -68,17 +75,29 @@ export default function TaskCommentSection({
       )}
 
       <div className="mb-4 flex flex-col gap-4">
-        {comments.map((c) => (
-          <div key={c.id}>
-            <div className="mb-0.5 flex flex-wrap items-baseline gap-2">
-              <span className="text-sm font-semibold">{c.user?.name ?? "—"}</span>
-              <span className="text-[11px] text-ink-soft">
-                {fmt(c.createdAt)}{SOURCE[c.source] ?? ""}
-              </span>
+        {comments.map((c) => {
+          const email = parseEmailComment(c.body);
+          return (
+            <div key={c.id}>
+              <div className="mb-0.5 flex flex-wrap items-baseline gap-2">
+                {email ? (
+                  <>
+                    <span className="text-sm font-semibold">📧 {email.emailSender}</span>
+                    <span className="text-[11px] text-ink-soft">{fmt(c.createdAt)}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-semibold">{c.user?.name ?? "—"}</span>
+                    <span className="text-[11px] text-ink-soft">
+                      {fmt(c.createdAt)}{SOURCE[c.source] ?? ""}
+                    </span>
+                  </>
+                )}
+              </div>
+              <p className="whitespace-pre-wrap text-sm">{email ? email.text : c.body}</p>
             </div>
-            <p className="whitespace-pre-wrap text-sm">{c.body}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <form onSubmit={submit} className="flex flex-col gap-2">

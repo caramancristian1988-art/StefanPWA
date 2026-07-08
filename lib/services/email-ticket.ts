@@ -177,15 +177,6 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
       },
     });
 
-    await prisma.taskComment.create({
-      data: {
-        taskId: existingId,
-        userId: systemUser.id,
-        body: `📧 **${fromName || fromEmail}:** ${body.slice(0, 2000)}`,
-        source: "WEB",
-      },
-    });
-
     await notifyStaff(existingId, ticket.seq, ticket.title, "reply", fromEmail, fromName, ticket.assigneeId);
     return { action: "updated", ticketId: existingId, seq: ticket.seq ?? null };
   }

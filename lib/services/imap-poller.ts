@@ -1,13 +1,20 @@
 import "server-only";
 import { ImapFlow } from "imapflow";
 import { env } from "../env";
+import { prisma } from "../prisma";
 import { processInboundEmail } from "./email-ticket";
 import { detectSpam } from "../spam-filter";
 import { isRateLimited } from "../rate-limit";
 
-/** Procesează emailurile nevăzute din INBOX și le convertește în tichete. */
+const LAST_UID_KEY = "imap-last-uid";
+
+/** Procesează emailurile noi din INBOX și le convertește în tichete. */
 export async function pollInbox(): Promise<{ processed: number; errors: number }> {
   if (!env.imap.enabled) return { processed: 0, errors: 0 };
+
+  // Citim ultimul UID procesat din DB — nu mai depindem de flag-ul SEEN
+  const lastUidRecord = await prisma.counter.findUnique({ where: { name: LAST_UID_KEY } });
+  const lastUid = lastUidRecord?.value ?? 0;
 
   const client = new ImapFlow({
     host: env.imap.host,
@@ -17,31 +24,34 @@ export async function pollInbox(): Promise<{ processed: number; errors: number }
     logger: false,
     connectionTimeout: 10000,
     greetingTimeout: 10000,
-    socketTimeout: 60000,   // idle timeout — mai lung ca să acomodeze query-urile DB
+    socketTimeout: 60000,
   });
 
-  // Absorb stray socket errors that fire after we've already given up
   client.on("error", (err: Error) => {
     console.error("[imap] client error (absorbed):", err.message);
   });
 
   let processed = 0;
   let errors = 0;
+  let maxUid = lastUid;
 
   try {
     await client.connect();
 
     const lock = await client.getMailboxLock(env.imap.mailbox);
     try {
-      // Caută emailuri nevăzute (UNSEEN)
-      const uids = await client.search({ seen: false }, { uid: true });
-      if (!uids || !Array.isArray(uids) || uids.length === 0) return { processed: 0, errors: 0 };
+      // Căutăm toate emailurile cu UID mai mare decât ultimul procesat
+      const uids = (await client.search({ uid: `${lastUid + 1}:*` }, { uid: true }) as number[])
+        .filter((u) => u > lastUid)
+        .sort((a, b) => a - b);
+
+      if (!uids || uids.length === 0) return { processed: 0, errors: 0 };
+      console.log(`[imap] emailuri noi (UID>${lastUid}): ${uids.join(", ")}`);
 
       // Procesăm câte un email pe rând — serverul scada.md taie conexiunea
       // dacă facem fetch bulk cu source:true pe multe mesaje simultan
-      for (const uid of uids as number[]) {
+      for (const uid of uids) {
         try {
-          // Fetch individual cu timeout propriu
           let msg: import("imapflow").FetchMessageObject | null = null;
           for await (const m of client.fetch([uid], {
             uid: true,
@@ -51,37 +61,44 @@ export async function pollInbox(): Promise<{ processed: number; errors: number }
           }, { uid: true })) {
             msg = m as import("imapflow").FetchMessageObject;
           }
-          if (!msg) continue;
+          if (!msg) {
+            // UID nu există (posibil șters) — îl marcăm ca procesat oricum
+            if (uid > maxUid) maxUid = uid;
+            continue;
+          }
 
           const parsed = await parseMessage(msg);
-          if (!parsed) continue;
+          if (!parsed) {
+            if (uid > maxUid) maxUid = uid;
+            continue;
+          }
 
           const fromEmail = parsed.fromEmail.toLowerCase().trim();
-          if (!fromEmail) continue;
-
-          if (fromEmail === env.imap.user.toLowerCase()) {
-            await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true }).catch(() => {});
+          if (!fromEmail || fromEmail === env.imap.user.toLowerCase()) {
+            if (uid > maxUid) maxUid = uid;
             continue;
           }
 
           if (isRateLimited(fromEmail, 10, 60 * 60 * 1000)) {
-            await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true }).catch(() => {});
+            if (uid > maxUid) maxUid = uid;
             continue;
           }
 
           const spamReason = detectSpam(fromEmail, parsed.subject, parsed.bodyText);
           if (spamReason) {
             console.log(`[imap] spam blocat: ${fromEmail} — ${spamReason}`);
-            await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true }).catch(() => {});
+            if (uid > maxUid) maxUid = uid;
             continue;
           }
 
-          await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true });
           await processInboundEmail(parsed);
           processed++;
+          if (uid > maxUid) maxUid = uid;
         } catch (err) {
           console.error("[imap] eroare la procesarea mesajului uid=" + uid + ":", (err as Error).message);
           errors++;
+          // Avansăm UID-ul chiar și la eroare — nu blocăm pentru totdeauna
+          if (uid > maxUid) maxUid = uid;
         }
       }
     } finally {
@@ -94,6 +111,16 @@ export async function pollInbox(): Promise<{ processed: number; errors: number }
     return { processed: 0, errors: 1 };
   } finally {
     await client.logout().catch(() => {});
+  }
+
+  // Salvăm noul last UID dacă am avansat
+  if (maxUid > lastUid) {
+    await prisma.counter.upsert({
+      where: { name: LAST_UID_KEY },
+      create: { name: LAST_UID_KEY, value: maxUid },
+      update: { value: maxUid },
+    });
+    console.log(`[imap] last UID avansat: ${lastUid} → ${maxUid}`);
   }
 
   return { processed, errors };

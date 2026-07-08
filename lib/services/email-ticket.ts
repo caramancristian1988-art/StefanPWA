@@ -84,7 +84,7 @@ async function findExistingTicket(email: InboundEmail): Promise<string | null> {
     }
   }
 
-  // 3. Match by fromEmail + normalized subject (last resort)
+  // 3. Match by fromEmail + normalized subject
   const normSubject = normalizeSubject(email.subject);
   if (normSubject) {
     const candidates = await prisma.task.findMany({
@@ -101,6 +101,19 @@ async function findExistingTicket(email: InboundEmail): Promise<string | null> {
       if (normalizeSubject(c.title) === normSubject) return c.id;
     }
   }
+
+  // 4. Orice tichet deschis de la același expeditor — nu creăm un tichet nou
+  //    atâta timp cât există unul activ, indiferent de subiect.
+  const openTicket = await prisma.task.findFirst({
+    where: {
+      emailSource: true,
+      fromEmail: email.fromEmail.toLowerCase(),
+      status: { notIn: ["DONE", "CANCELLED"] },
+    },
+    select: { id: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (openTicket) return openTicket.id;
 
   return null;
 }

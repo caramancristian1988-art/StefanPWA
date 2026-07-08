@@ -152,7 +152,9 @@ export async function notifyUsers(
               if (preview) msgText += `\n\n${escapeHtml(preview)}`;
             }
 
-            const keyboard: InlineButton[][] | undefined = fullUrl
+            // Telegram respinge URL-uri localhost/127.0.0.1 în butoane inline
+            const isValidHttpsUrl = fullUrl && /^https:\/\//i.test(fullUrl);
+            const keyboard: InlineButton[][] | undefined = isValidHttpsUrl
               ? [[{ text: payload.url?.includes("/ticket") ? "🎫 Deschide tichetul" : "🔗 Deschide", url: fullUrl }]]
               : undefined;
 

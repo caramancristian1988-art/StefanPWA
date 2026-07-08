@@ -3,7 +3,7 @@ import { prisma } from "../prisma";
 import { DEMO } from "../demo";
 import { env } from "../env";
 import { sendPushToUser } from "../push";
-import { sendMessage } from "../telegram";
+import { sendMessage, invisibleLink, type InlineButton } from "../telegram";
 
 export type NotifyPayload = {
   title: string;
@@ -12,6 +12,8 @@ export type NotifyPayload = {
   taskId?: string;
   /** Id-ul scurt al task-ului (#123) — afișat + folosit pentru link-ul invizibil din Telegram. */
   seq?: number | null;
+  /** Corpul complet al emailului/tichetului — afișat în mesajul Telegram. */
+  emailBody?: string;
 };
 
 /**
@@ -125,16 +127,36 @@ export async function notifyUsers(
           });
           const chat = u?.telegramChatId || u?.telegramAccounts[0]?.chatId;
           if (chat) {
-            // Înlocuiește "#N" din titlu cu un hyperlink HTML clic-abil (în loc să adaugi un sufix duplicat).
+            const fullUrl = payload.url
+              ? payload.url.startsWith("http") ? payload.url : `${env.appUrl}${payload.url}`
+              : null;
+
             let titleHtml = escapeHtml(payload.title);
-            if (payload.taskId && payload.seq != null) {
-              const seqLink = `<a href="${env.appUrl}/tasks/${payload.taskId}">#${payload.seq}</a>`;
-              titleHtml = titleHtml.replace(`#${payload.seq}`, seqLink);
+            if (payload.seq != null && fullUrl) {
+              const seqTag = `#${payload.seq}`;
+              const seqLink = `<a href="${fullUrl}">${seqTag}</a>`;
+              if (titleHtml.includes(seqTag)) {
+                titleHtml = titleHtml.replace(seqTag, seqLink);
+              } else {
+                // Adaugă link invizibil la final când #N nu apare în titlu
+                titleHtml = titleHtml + invisibleLink(fullUrl);
+              }
+            } else if (fullUrl) {
+              titleHtml = titleHtml + invisibleLink(fullUrl);
             }
-            const res = await sendMessage(
-              chat,
-              `🔔 <b>${titleHtml}</b>${payload.body ? `\n${escapeHtml(payload.body)}` : ""}`,
-            );
+
+            let msgText = `🔔 <b>${titleHtml}</b>`;
+            if (payload.body) msgText += `\n${escapeHtml(payload.body)}`;
+            if (payload.emailBody) {
+              const preview = payload.emailBody.slice(0, 800).trim();
+              if (preview) msgText += `\n\n${escapeHtml(preview)}`;
+            }
+
+            const keyboard: InlineButton[][] | undefined = fullUrl
+              ? [[{ text: payload.url?.includes("/ticket") ? "🎫 Deschide tichetul" : "🔗 Deschide", url: fullUrl }]]
+              : undefined;
+
+            const res = await sendMessage(chat, msgText, keyboard);
             if (!res) console.error(`[notify] telegram: sendMessage a eșuat pentru user ${uid}`);
           } else {
             console.log(`[notify] telegram: user ${uid} nu are chat legat — sărit`);

@@ -177,7 +177,7 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
       },
     });
 
-    await notifyStaff(existingId, ticket.seq, ticket.title, "reply", fromEmail, fromName, ticket.assigneeId);
+    await notifyStaff(existingId, ticket.seq, ticket.title, "reply", fromEmail, fromName, ticket.assigneeId, body);
     return { action: "updated", ticketId: existingId, seq: ticket.seq ?? null };
   }
 
@@ -232,7 +232,7 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
     emailThreadId: email.messageId,
   });
 
-  await notifyStaff(ticket.id, ticket.seq, subject, "new", fromEmail, fromName, null);
+  await notifyStaff(ticket.id, ticket.seq, subject, "new", fromEmail, fromName, null, body);
   return { action: "created", ticketId: ticket.id, seq: ticket.seq ?? null };
 }
 
@@ -245,27 +245,28 @@ async function notifyStaff(
   fromEmail: string,
   fromName?: string | null,
   assigneeId?: string | null,
+  emailBody?: string,
 ) {
   const sender = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
-  const heading = type === "new" ? "📨 Tichet nou din email" : "↩️ Răspuns email pe tichet";
+  const heading = type === "new" ? "📨 Tichet nou" : "↩️ Răspuns tichet";
+  const seqLabel = seq != null ? ` #${seq}` : "";
   const url = `/tickets/${taskId}`;
 
+  const payload = {
+    title: `${heading}${seqLabel}: ${title.slice(0, 60)}`,
+    body: `De la: ${sender}`,
+    taskId,
+    seq: seq ?? null,
+    url,
+    emailBody: emailBody?.slice(0, 800),
+  };
+
   if (type === "reply" && assigneeId) {
-    // Reply client → notifică doar persoana asignată
-    await notifyUsers(
-      [assigneeId],
-      { title: `${heading}: ${title.slice(0, 60)}`, body: `De la: ${sender}`, taskId, seq: seq ?? null, url },
-      { telegram: true },
-    );
+    await notifyUsers([assigneeId], payload, { telegram: true });
   } else {
-    // Tichet nou sau fără assignee → toți adminii
     const admins = await filteredAdminRecipients({ eventKeys: ["ticket.email"] });
     if (!admins.length) return;
-    await notifyUsers(
-      admins,
-      { title: `${heading}: ${title.slice(0, 60)}`, body: `De la: ${sender}`, taskId, seq: seq ?? null, url },
-      { telegram: true },
-    );
+    await notifyUsers(admins, payload, { telegram: true });
   }
 }
 

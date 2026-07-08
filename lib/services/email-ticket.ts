@@ -145,19 +145,25 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
 
   const existingId = await findExistingTicket(email);
 
+  // Fetch company name for auto-ack (best-effort)
+  const company = await prisma.companySettings.findFirst({
+    where: { singleton: "main" },
+    select: { companyName: true },
+  }).catch(() => null);
+  const companyName = company?.companyName || "Echipa noastră";
+
   if (existingId) {
     // ── Continue existing ticket ──────────────────────────────────────────
     const ticket = await prisma.task.update({
       where: { id: existingId },
       data: {
         lastClientEmailAt: new Date(),
-        autoCloseWarnedAt: null, // reset warning on new reply
-        status: "NEW", // re-open if it was on hold
+        autoCloseWarnedAt: null,
+        status: "NEW",
       },
-      select: { id: true, seq: true, title: true, status: true },
+      select: { id: true, seq: true, title: true, status: true, assigneeId: true },
     });
 
-    // Save inbound message
     await prisma.emailMessage.create({
       data: {
         taskId: existingId,
@@ -171,7 +177,6 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
       },
     });
 
-    // Add as task comment (visible in UI)
     await prisma.taskComment.create({
       data: {
         taskId: existingId,
@@ -181,7 +186,7 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
       },
     });
 
-    await notifyStaff(existingId, ticket.seq, ticket.title, "reply", fromEmail, fromName);
+    await notifyStaff(existingId, ticket.seq, ticket.title, "reply", fromEmail, fromName, ticket.assigneeId);
     return { action: "updated", ticketId: existingId, seq: ticket.seq ?? null };
   }
 
@@ -213,7 +218,6 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
     select: { id: true, seq: true },
   });
 
-  // Save raw message
   await prisma.emailMessage.create({
     data: {
       taskId: ticket.id,
@@ -227,36 +231,96 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
     },
   });
 
-  await notifyStaff(ticket.id, ticket.seq, subject, "new", fromEmail, fromName);
+  // Trimite confirmare automată clientului
+  await sendAutoAck({
+    toEmail: fromEmail,
+    toName: fromName,
+    subject,
+    companyName,
+    ticketSeq: ticket.seq,
+    emailThreadId: email.messageId,
+  });
+
+  await notifyStaff(ticket.id, ticket.seq, subject, "new", fromEmail, fromName, null);
   return { action: "created", ticketId: ticket.id, seq: ticket.seq ?? null };
 }
 
-// ── Notify all admins (in-app + Telegram) ───────────────────────────────────
+// ── Notifică admini (tichet nou) sau persoana asignată (reply client) ────────
 async function notifyStaff(
   taskId: string,
   seq: number | null | undefined,
   title: string,
   type: "new" | "reply",
   fromEmail: string,
-  fromName?: string,
+  fromName?: string | null,
+  assigneeId?: string | null,
 ) {
-  const admins = await filteredAdminRecipients({ eventKeys: ["ticket.email"] });
-  if (!admins.length) return;
-
   const sender = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
   const heading = type === "new" ? "📨 Tichet nou din email" : "↩️ Răspuns email pe tichet";
+  const url = `/tickets/${taskId}`;
 
-  await notifyUsers(
-    admins,
-    {
-      title: `${heading}: ${title.slice(0, 60)}`,
-      body: `De la: ${sender}`,
-      taskId,
-      seq: seq ?? null,
-      url: `/tickets?open=${taskId}`,
-    },
-    { telegram: true },
-  );
+  if (type === "reply" && assigneeId) {
+    // Reply client → notifică doar persoana asignată
+    await notifyUsers(
+      [assigneeId],
+      { title: `${heading}: ${title.slice(0, 60)}`, body: `De la: ${sender}`, taskId, seq: seq ?? null, url },
+      { telegram: true },
+    );
+  } else {
+    // Tichet nou sau fără assignee → toți adminii
+    const admins = await filteredAdminRecipients({ eventKeys: ["ticket.email"] });
+    if (!admins.length) return;
+    await notifyUsers(
+      admins,
+      { title: `${heading}: ${title.slice(0, 60)}`, body: `De la: ${sender}`, taskId, seq: seq ?? null, url },
+      { telegram: true },
+    );
+  }
+}
+
+// ── Auto-confirmare recepție tichet → client ──────────────────────────────────
+async function sendAutoAck(opts: {
+  toEmail: string;
+  toName: string | null | undefined;
+  subject: string;
+  companyName: string;
+  ticketSeq: number | null;
+  emailThreadId: string | null | undefined;
+}): Promise<void> {
+  const transport = getTransport();
+  if (!transport) return;
+
+  const seqLabel = opts.ticketSeq != null ? ` (#${opts.ticketSeq})` : "";
+  const clientName = opts.toName || opts.toEmail;
+  const msgId = `<ack-${Date.now()}@scada.md>`;
+
+  const bodyText = `Bună, ${clientName},\n\nAm primit mesajul tău${seqLabel}. Un coleg te va contacta în cel mai scurt timp.\n\n— ${opts.companyName}`;
+  const bodyHtml = `<!doctype html><html lang="ro"><body style="margin:0;background:#f5f6f8;font-family:Segoe UI,Arial,sans-serif;color:#0f172a">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0">
+    <tr><td align="center">
+      <table role="presentation" width="100%" style="max-width:520px;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">
+        <tr><td style="background:#0d9488;padding:20px 28px;color:#fff;font-size:18px;font-weight:700">${escHtml(opts.companyName)}</td></tr>
+        <tr><td style="padding:28px">
+          <p style="margin:0 0 14px;font-size:15px">Bună, <b>${escHtml(clientName)}</b>.</p>
+          <p style="margin:0 0 18px;font-size:15px;line-height:1.6">Am primit mesajul tău${seqLabel ? ` <b>${escHtml(seqLabel.trim())}</b>` : ""}. Un coleg te va contacta în cel mai scurt timp.</p>
+          <p style="margin:0;font-size:13px;color:#64748b">— ${escHtml(opts.companyName)}</p>
+        </td></tr>
+        <tr><td style="padding:14px 28px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8">Mesaj automat de confirmare.</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  await transport.sendMail({
+    from: env.smtp.from,
+    to: opts.toEmail,
+    subject: `Re: ${opts.subject}`,
+    text: bodyText,
+    html: bodyHtml,
+    messageId: msgId,
+    inReplyTo: opts.emailThreadId ? `<${opts.emailThreadId}>` : undefined,
+    references: opts.emailThreadId ? `<${opts.emailThreadId}>` : undefined,
+  }).catch((err: Error) => console.error("[email] auto-ack eșuat:", err.message));
 }
 
 function escHtml(s: string): string {
@@ -266,6 +330,7 @@ function escHtml(s: string): string {
 // ── Reply from staff → email to client ──────────────────────────────────────
 export async function sendEmailReply(opts: {
   taskId: string;
+  staffUserId?: string;
   staffName: string;
   replyBody: string;
   companyName?: string | null;
@@ -282,12 +347,30 @@ export async function sendEmailReply(opts: {
       title: true,
       seq: true,
       emailThreadId: true,
+      assigneeId: true,
     },
   });
   if (!ticket?.fromEmail) throw new Error("Tichetul nu are email client asociat.");
 
   const transport = getTransport();
   if (!transport) throw new Error("SMTP neconfigurat.");
+
+  // Auto-asignare: dacă nu e asignat, asignează staff-ul care răspunde
+  if (!ticket.assigneeId && opts.staffUserId) {
+    await prisma.task.update({
+      where: { id: opts.taskId },
+      data: { assigneeId: opts.staffUserId, status: "ASSIGNED" },
+    });
+    await prisma.taskActivity.create({
+      data: {
+        taskId: opts.taskId,
+        userId: opts.staffUserId,
+        action: "STATUS_CHANGED",
+        fromStatus: "NEW",
+        toStatus: "ASSIGNED",
+      },
+    }).catch(() => {});
+  }
 
   const company = opts.companyName || "Echipa noastră";
   const from = opts.fromName && opts.fromAddr
@@ -311,11 +394,10 @@ export async function sendEmailReply(opts: {
     html,
     text: opts.replyBody,
     messageId: msgId,
-    inReplyTo: ticket.emailThreadId || undefined,
-    references: ticket.emailThreadId || undefined,
+    inReplyTo: ticket.emailThreadId ? `<${ticket.emailThreadId}>` : undefined,
+    references: ticket.emailThreadId ? `<${ticket.emailThreadId}>` : undefined,
   });
 
-  // Log outbound message
   await prisma.emailMessage.create({
     data: {
       taskId: opts.taskId,

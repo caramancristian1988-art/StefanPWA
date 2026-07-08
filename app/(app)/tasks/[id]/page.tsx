@@ -15,6 +15,7 @@ import TaskStatusChanger from "@/app/components/TaskStatusChanger";
 import TaskDetailActions from "@/app/components/TaskDetailActions";
 import EmailThread from "@/app/components/EmailThread";
 import type { TaskStatus } from "@prisma/client";
+import CloseTicketButton from "@/app/components/CloseTicketButton";
 
 export const dynamic = "force-dynamic";
 
@@ -330,8 +331,13 @@ export default async function TaskDetailPage({
           <MetaRow label="Creat de" value={task.creator.name} />
         </div>
 
-        <div className="mt-4 border-t border-[var(--color-line)] pt-4">
-          <TaskStatusChanger taskId={id} initialStatus={task.status} />
+        <div className="mt-4 border-t border-[var(--color-line)] pt-4 flex items-center gap-3">
+          <div className="flex-1">
+            <TaskStatusChanger taskId={id} initialStatus={task.status} />
+          </div>
+          {task.type === "TICKET" && task.status !== "DONE" && task.status !== "CANCELLED" && canEdit && (
+            <CloseTicketButton taskId={id} />
+          )}
         </div>
       </div>
 

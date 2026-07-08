@@ -105,6 +105,7 @@ function toRow(t: Prisma.TaskGetPayload<{ select: typeof TASK_SELECT }>): TaskRo
 export type TaskFilter = {
   scope?: "all" | "mine" | "created";
   status?: TaskStatus;
+  statuses?: TaskStatus[];   // filtrare multi-status (de ex. tab "Active")
   type?: TaskType;
   types?: TaskType[];
   priority?: TaskPriority;
@@ -143,7 +144,8 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
     where.creatorId = filter.userId;
   }
   if (filter.teamId) where.teamId = filter.teamId;
-  if (filter.status) where.status = filter.status;
+  if (filter.statuses?.length) where.status = { in: filter.statuses };
+  else if (filter.status) where.status = filter.status;
   if (filter.types?.length) where.type = { in: filter.types };
   else if (filter.type) where.type = filter.type;
   if (filter.priority) where.priority = filter.priority;

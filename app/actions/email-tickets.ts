@@ -23,6 +23,7 @@ export async function sendEmailReplyAction(
   try {
     await sendEmailReply({
       taskId,
+      staffUserId: user.id,
       staffName: user.name,
       replyBody: replyBody.trim(),
       companyName: company?.companyName,

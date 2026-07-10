@@ -51,45 +51,52 @@ export type InboundEmail = {
 };
 
 // ── Find existing open ticket for this email thread ────────────────────────
+// Scoate <> din Message-ID (pentru comparare uniformă cu valorile din DB)
+function stripMsgBrackets(id: string): string {
+  return id.replace(/^<|>$/g, "").trim();
+}
+
+// Extrage lista de Message-ID-uri din headerul References (scoate <> din fiecare)
+function parseRefs(refs: string): string[] {
+  return refs.split(/\s+/).map(stripMsgBrackets).filter(Boolean);
+}
+
 async function findExistingTicket(email: InboundEmail): Promise<string | null> {
-  // 1. Match by In-Reply-To header (most reliable)
-  if (email.inReplyTo) {
+  const inReplyTo = email.inReplyTo ? stripMsgBrackets(email.inReplyTo) : null;
+  const refs = email.references ? parseRefs(email.references) : [];
+
+  // 1. Match by In-Reply-To → task.emailMessageId / emailThreadId
+  if (inReplyTo) {
     const t = await prisma.task.findFirst({
       where: {
         emailSource: true,
         status: { notIn: ["DONE", "CANCELLED"] },
-        OR: [
-          { emailMessageId: email.inReplyTo },
-          { emailThreadId: email.inReplyTo },
-        ],
+        OR: [{ emailMessageId: inReplyTo }, { emailThreadId: inReplyTo }],
       },
       select: { id: true },
     });
     if (t) return t.id;
   }
 
-  // 2. Match by References header against task emailMessageId/emailThreadId
-  if (email.references) {
-    const ids = email.references.split(/\s+/).filter(Boolean);
-    for (const ref of ids) {
-      const t = await prisma.task.findFirst({
-        where: {
-          emailSource: true,
-          status: { notIn: ["DONE", "CANCELLED"] },
-          OR: [{ emailMessageId: ref }, { emailThreadId: ref }],
-        },
-        select: { id: true },
-      });
-      if (t) return t.id;
-    }
+  // 2. Match by References → task.emailMessageId / emailThreadId
+  for (const ref of refs) {
+    const t = await prisma.task.findFirst({
+      where: {
+        emailSource: true,
+        status: { notIn: ["DONE", "CANCELLED"] },
+        OR: [{ emailMessageId: ref }, { emailThreadId: ref }],
+      },
+      select: { id: true },
+    });
+    if (t) return t.id;
   }
 
-  // 3. Match by In-Reply-To against orice mesaj trimis/primit din EmailMessage
-  //    (prinde răspunsurile la reply-urile staff, nu doar la emailul original)
-  if (email.inReplyTo) {
+  // 3. Match by In-Reply-To → orice mesaj din EmailMessage
+  //    (prinde răspunsurile la reply-urile staff sau la auto-ack)
+  if (inReplyTo) {
     const msg = await prisma.emailMessage.findFirst({
       where: {
-        messageId: email.inReplyTo,
+        messageId: inReplyTo,
         task: { emailSource: true, status: { notIn: ["DONE", "CANCELLED"] } },
       },
       select: { taskId: true },
@@ -97,19 +104,16 @@ async function findExistingTicket(email: InboundEmail): Promise<string | null> {
     if (msg) return msg.taskId;
   }
 
-  // 4. Match by References against orice mesaj din EmailMessage
-  if (email.references) {
-    const ids = email.references.split(/\s+/).filter(Boolean);
-    for (const ref of ids) {
-      const msg = await prisma.emailMessage.findFirst({
-        where: {
-          messageId: ref,
-          task: { emailSource: true, status: { notIn: ["DONE", "CANCELLED"] } },
-        },
-        select: { taskId: true },
-      });
-      if (msg) return msg.taskId;
-    }
+  // 4. Match by References → orice mesaj din EmailMessage
+  for (const ref of refs) {
+    const msg = await prisma.emailMessage.findFirst({
+      where: {
+        messageId: ref,
+        task: { emailSource: true, status: { notIn: ["DONE", "CANCELLED"] } },
+      },
+      select: { taskId: true },
+    });
+    if (msg) return msg.taskId;
   }
 
   return null;
@@ -232,8 +236,8 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
     },
   });
 
-  // Trimite confirmare automată clientului
-  await sendAutoAck({
+  // Trimite confirmare automată clientului și salvează Message-ID-ul pentru threading
+  const autoAckMsgId = await sendAutoAck({
     toEmail: fromEmail,
     toName: fromName,
     subject,
@@ -241,6 +245,25 @@ export async function processInboundEmail(email: InboundEmail): Promise<{
     ticketSeq: ticket.seq,
     emailThreadId: email.messageId,
   });
+  if (autoAckMsgId) {
+    await Promise.all([
+      // Actualizăm emailMessageId să pointeze la auto-ack (clientul va Reply la el)
+      prisma.task.update({ where: { id: ticket.id }, data: { emailMessageId: autoAckMsgId } }),
+      // Salvăm auto-ack-ul în EmailMessage pentru strategy 3 din findExistingTicket
+      prisma.emailMessage.create({
+        data: {
+          taskId: ticket.id,
+          direction: "OUTBOUND",
+          fromEmail: env.smtp.user || "",
+          toEmail: fromEmail,
+          subject: `Re: ${subject}`,
+          body: `Confirmare automată recepție tichet #${ticket.seq ?? ""}`,
+          messageId: autoAckMsgId,
+          sentAt: new Date(),
+        },
+      }),
+    ]);
+  }
 
   await notifyStaff(ticket.id, ticket.seq, subject, "new", fromEmail, fromName, null, body);
   return { action: "created", ticketId: ticket.id, seq: ticket.seq ?? null };
@@ -288,9 +311,9 @@ async function sendAutoAck(opts: {
   companyName: string;
   ticketSeq: number | null;
   emailThreadId: string | null | undefined;
-}): Promise<void> {
+}): Promise<string | null> {
   const transport = getTransport();
-  if (!transport) return;
+  if (!transport) return null;
 
   const seqLabel = opts.ticketSeq != null ? ` (#${opts.ticketSeq})` : "";
   const clientName = opts.toName || opts.toEmail;
@@ -313,16 +336,22 @@ async function sendAutoAck(opts: {
   </table>
 </body></html>`;
 
-  await transport.sendMail({
-    from: env.smtp.from,
-    to: opts.toEmail,
-    subject: `Re: ${opts.subject}`,
-    text: bodyText,
-    html: bodyHtml,
-    messageId: msgId,
-    inReplyTo: opts.emailThreadId ? `<${opts.emailThreadId}>` : undefined,
-    references: opts.emailThreadId ? `<${opts.emailThreadId}>` : undefined,
-  }).catch((err: Error) => console.error("[email] auto-ack eșuat:", err.message));
+  try {
+    await transport.sendMail({
+      from: env.smtp.from,
+      to: opts.toEmail,
+      subject: `Re: ${opts.subject}`,
+      text: bodyText,
+      html: bodyHtml,
+      messageId: msgId,
+      inReplyTo: opts.emailThreadId ? `<${opts.emailThreadId}>` : undefined,
+      references: opts.emailThreadId ? `<${opts.emailThreadId}>` : undefined,
+    });
+    return stripMsgBrackets(msgId);
+  } catch (err: unknown) {
+    console.error("[email] auto-ack eșuat:", (err as Error).message);
+    return null;
+  }
 }
 
 function escHtml(s: string): string {

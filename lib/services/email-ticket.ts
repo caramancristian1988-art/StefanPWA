@@ -499,48 +499,69 @@ export async function checkUnansweredEmailTickets(): Promise<number> {
   return count;
 }
 
-// ── Cron: auto-close after 2 days no client reply ────────────────────────────
+// ── Cron: auto-close 48h după ultimul răspuns al operatorului fără reply client ─
 export async function checkAutoCloseEmailTickets(): Promise<number> {
   if (DEMO) return 0;
-  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  // Phase 1: Send warning (2 days no client activity)
-  const toWarn = await prisma.task.findMany({
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+  // Tichete deschise care au cel puțin un mesaj OUTBOUND trimis acum >48h
+  const openTickets = await prisma.task.findMany({
     where: {
       emailSource: true,
       status: { notIn: ["DONE", "CANCELLED"] },
-      lastClientEmailAt: { not: null, lte: twoDaysAgo },
-      autoCloseWarnedAt: null,
     },
-    select: { id: true, seq: true, title: true, fromEmail: true, fromName: true, emailThreadId: true },
+    select: { id: true, seq: true, title: true, fromEmail: true, emailThreadId: true, lastClientEmailAt: true },
   });
 
-  const transport = getTransport();
+  if (!openTickets.length) return 0;
+
   const company = await prisma.companySettings.findFirst({
     where: { singleton: "main" },
     select: { companyName: true },
   }).catch(() => null);
   const fromAddr = env.smtp.from?.match(/<(.+)>/)?.[1] ?? env.smtp.from ?? "";
   const fromName = company?.companyName || "Suport";
+  const transport = getTransport();
 
   let count = 0;
-  for (const t of toWarn) {
-    if (!t.fromEmail) continue;
 
-    // Send warning email to client
-    if (transport) {
-      const msgId = `<autoclose-warn-${t.id}-${Date.now()}@scada.md>`;
+  for (const t of openTickets) {
+    // Găsim ultimul mesaj OUTBOUND (răspuns operator)
+    const lastOutbound = await prisma.emailMessage.findFirst({
+      where: { taskId: t.id, direction: "OUTBOUND" },
+      orderBy: { sentAt: "desc" },
+      select: { sentAt: true },
+    });
+
+    // Nu închidem dacă operatorul nu a răspuns niciodată
+    if (!lastOutbound) continue;
+
+    // Nu închidem dacă ultimul răspuns operator e mai recent de 48h
+    if (lastOutbound.sentAt > fortyEightHoursAgo) continue;
+
+    // Nu închidem dacă clientul a mai scris DUPĂ ultimul răspuns al operatorului
+    if (t.lastClientEmailAt && t.lastClientEmailAt > lastOutbound.sentAt) continue;
+
+    // Închidem tichetul
+    await prisma.task.update({
+      where: { id: t.id },
+      data: { status: "DONE", autoCloseWarnedAt: null },
+    });
+
+    // Notificăm clientul că tichetul a fost închis
+    if (transport && t.fromEmail) {
       const subject = `Re: ${t.title}`;
-      const body = `Bună,\n\nTichetul dumneavoastră de suport va fi închis automat în 24 de ore dacă nu primiți niciun mesaj.\n\nDacă problema nu a fost rezolvată, vă rugăm să ne scrieți și vom continua conversația.\n\n— ${fromName}`;
+      const body = `Bună,\n\nTichetul dumneavoastră a fost închis automat deoarece nu am primit niciun răspuns în ultimele 48 de ore.\n\nDacă mai aveți nevoie de ajutor, scrieți-ne oricând și vom deschide un nou tichet.\n\n— ${fromName}`;
+      const msgId = `<autoclose-${t.id}-${Date.now()}@scada.md>`;
       await transport.sendMail({
         from: `${fromName} <${fromAddr}>`,
         to: t.fromEmail,
         subject,
         text: body,
         messageId: msgId,
-        inReplyTo: t.emailThreadId || undefined,
-        references: t.emailThreadId || undefined,
+        inReplyTo: t.emailThreadId ? `<${t.emailThreadId}>` : undefined,
+        references: t.emailThreadId ? `<${t.emailThreadId}>` : undefined,
       }).catch(() => {});
 
       await prisma.emailMessage.create({
@@ -549,42 +570,6 @@ export async function checkAutoCloseEmailTickets(): Promise<number> {
           fromEmail: fromAddr, fromName,
           toEmail: t.fromEmail, subject, body, messageId: msgId,
         },
-      }).catch(() => {});
-    }
-
-    await prisma.task.update({
-      where: { id: t.id },
-      data: { autoCloseWarnedAt: new Date() },
-    });
-    count++;
-  }
-
-  // Phase 2: Auto-close (warned > 24h ago, still no client reply)
-  const toClose = await prisma.task.findMany({
-    where: {
-      emailSource: true,
-      status: { notIn: ["DONE", "CANCELLED"] },
-      autoCloseWarnedAt: { not: null, lte: oneDayAgo },
-    },
-    select: { id: true, seq: true, title: true, fromEmail: true, fromName: true, lastClientEmailAt: true, autoCloseWarnedAt: true },
-  });
-
-  for (const t of toClose) {
-    // Check if client replied after warning
-    if (t.lastClientEmailAt && t.autoCloseWarnedAt && t.lastClientEmailAt > t.autoCloseWarnedAt) continue;
-
-    await prisma.task.update({
-      where: { id: t.id },
-      data: { status: "DONE", autoCloseWarnedAt: null },
-    });
-
-    // Notify client
-    if (transport && t.fromEmail) {
-      const subject = `Re: ${t.title} — închis`;
-      const body = `Bună,\n\nTichetul dumneavoastră a fost închis automat din cauza lipsei de activitate. Dacă mai aveți nevoie de ajutor, scrieți-ne oricând.\n\n— ${fromName}`;
-      await transport.sendMail({
-        from: `${fromName} <${fromAddr}>`,
-        to: t.fromEmail, subject, text: body,
       }).catch(() => {});
     }
     count++;

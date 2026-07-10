@@ -747,30 +747,29 @@ export async function listTaskComments(taskId: string) {
 export async function checkOverdueTasks(): Promise<{ checked: number; notified: number }> {
   if (DEMO) return { checked: 0, notified: 0 };
   const now = new Date();
-  // Notă: pe MongoDB, filtrul Prisma „overdueNotifiedAt: null" NU se potrivește cu
-  // documentele unde câmpul e absent (nescris încă) — doar cu cele unde e explicit
-  // null. Ca să prindem și task-urile vechi (fără câmpul scris), filtrăm în JS.
+
+  // Filtrăm în JS pentru că MongoDB nu potrivește câmpuri absente cu { equals: null }
   const candidates = await prisma.task.findMany({
-    where: { dueAt: { lt: now }, status: { notIn: ["DONE", "CANCELLED"] } },
+    where: {
+      dueAt: { lt: now },
+      status: { notIn: ["DONE", "CANCELLED"] },
+    },
     select: {
-      id: true,
-      seq: true,
-      title: true,
-      creatorId: true,
-      assigneeId: true,
-      teamId: true,
+      id: true, seq: true, title: true,
+      creatorId: true, assigneeId: true, teamId: true,
       overdueNotifiedAt: true,
       assignee: { select: { teamIds: true } },
     },
   });
   const tasks = candidates.filter((t) => !t.overdueNotifiedAt);
-  console.log(
-    `[tasks] checkOverdueTasks: ${candidates.length} cu termen trecut, ${tasks.length} încă nenotificate`,
-  );
+  console.log(`[tasks] checkOverdueTasks: ${candidates.length} cu termen trecut, ${tasks.length} nenotificate`);
 
   let notified = 0;
   for (const task of tasks) {
     try {
+      // Marcăm ÎNAINTE de trimitere — previne trimiteri duble dacă cron-ul rulează în paralel
+      await prisma.task.update({ where: { id: task.id }, data: { overdueNotifiedAt: now } });
+
       const admins = await filteredAdminRecipients({
         eventKeys: ["task.overdue"],
         teamIds: [task.teamId, ...(task.assignee?.teamIds ?? [])],
@@ -795,8 +794,6 @@ export async function checkOverdueTasks(): Promise<{ checked: number; notified: 
         { telegram: false },
       );
       await notifyTaskOverdueTelegram(recipientIds, task.title, task.id, task.seq);
-
-      await prisma.task.update({ where: { id: task.id }, data: { overdueNotifiedAt: now } });
       notified++;
     } catch (e) {
       console.error(`[tasks] checkOverdueTasks: eșuat pentru task ${task.id}`, e);
@@ -978,6 +975,10 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
   let notified = 0;
   for (const task of tasks) {
     try {
+      // Actualizăm nextReminderAt ÎNAINTE de trimitere — previne duble la rulare paralelă
+      const nextAt = new Date(now.getTime() + task.reminderIntervalMinutes! * 60_000);
+      await prisma.task.update({ where: { id: task.id }, data: { nextReminderAt: nextAt } });
+
       const isOverdue = task.dueAt && task.dueAt < now;
 
       // ── Destinatari ──────────────────────────────────────────────────────────
@@ -1083,16 +1084,16 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
         );
       }
 
-      // ── Programează reamintirea următoare + salvează ID mesaj ─────────────────
-      const nextAt = new Date(now.getTime() + task.reminderIntervalMinutes! * 60_000);
-      await prisma.task.update({
-        where: { id: task.id },
-        data: {
-          nextReminderAt: nextAt,
-          reminderMsgChatId: newReminderChatId,
-          reminderMsgId: newReminderMsgId,
-        },
-      });
+      // ── Salvează ID mesaj Telegram (nextReminderAt a fost setat la start) ────────
+      if (newReminderChatId || newReminderMsgId) {
+        await prisma.task.update({
+          where: { id: task.id },
+          data: {
+            reminderMsgChatId: newReminderChatId,
+            reminderMsgId: newReminderMsgId,
+          },
+        });
+      }
       notified++;
     } catch (e) {
       console.error(`[tasks] checkTaskReminders: eșuat pentru task ${task.id}`, e);

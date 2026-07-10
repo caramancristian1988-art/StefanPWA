@@ -7,10 +7,26 @@ import { useToast } from "./toast";
 
 type Status = "NEW" | "ASSIGNED" | "READ" | "IN_PROGRESS" | "ON_HOLD" | "REVIEW" | "DONE" | "CANCELLED";
 
-const ALL: Status[] = ["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED"];
-const LABEL: Record<Status, string> = {
-  NEW: "Nou", ASSIGNED: "Asignat", READ: "Citit", IN_PROGRESS: "În lucru",
-  ON_HOLD: "În așteptare", REVIEW: "În verificare", DONE: "Finalizat", CANCELLED: "Anulat",
+const STATUSES: { value: Status; label: string; color: string }[] = [
+  { value: "NEW",         label: "Nou",           color: "bg-st-new/15 text-st-new border-st-new/40 hover:bg-st-new/30" },
+  { value: "ASSIGNED",   label: "Asignat",        color: "bg-st-new/15 text-st-new border-st-new/40 hover:bg-st-new/30" },
+  { value: "READ",       label: "Citit",          color: "bg-st-confirmed/15 text-st-confirmed border-st-confirmed/40 hover:bg-st-confirmed/30" },
+  { value: "IN_PROGRESS",label: "În lucru",       color: "bg-st-progress/15 text-st-progress border-st-progress/40 hover:bg-st-progress/30" },
+  { value: "ON_HOLD",    label: "În așteptare",   color: "bg-st-noshow/15 text-st-noshow border-st-noshow/40 hover:bg-st-noshow/30" },
+  { value: "REVIEW",     label: "Verificare",     color: "bg-st-confirmed/15 text-st-confirmed border-st-confirmed/40 hover:bg-st-confirmed/30" },
+  { value: "DONE",       label: "Finalizat",      color: "bg-st-done/15 text-st-done border-st-done/40 hover:bg-st-done/30" },
+  { value: "CANCELLED",  label: "Anulat",         color: "bg-st-cancelled/15 text-st-cancelled border-st-cancelled/40 hover:bg-st-cancelled/30" },
+];
+
+const ACTIVE_RING: Record<Status, string> = {
+  NEW:         "!bg-st-new !text-white !border-st-new",
+  ASSIGNED:    "!bg-st-new !text-white !border-st-new",
+  READ:        "!bg-st-confirmed !text-white !border-st-confirmed",
+  IN_PROGRESS: "!bg-st-progress !text-white !border-st-progress",
+  ON_HOLD:     "!bg-st-noshow !text-white !border-st-noshow",
+  REVIEW:      "!bg-st-confirmed !text-white !border-st-confirmed",
+  DONE:        "!bg-st-done !text-white !border-st-done",
+  CANCELLED:   "!bg-st-cancelled !text-white !border-st-cancelled",
 };
 
 export default function TaskStatusChanger({
@@ -26,8 +42,6 @@ export default function TaskStatusChanger({
   const [status, setStatus] = useState(initialStatus as Status);
   const [busy, setBusy] = useState(false);
 
-  const closed = status === "DONE" || status === "CANCELLED";
-
   async function change(next: Status) {
     if (next === status || busy) return;
     const prev = status;
@@ -39,7 +53,7 @@ export default function TaskStatusChanger({
         setStatus(prev);
         toast.error(res.error);
       } else {
-        toast.success(`Status: ${LABEL[next]}`);
+        toast.success(`Status: ${STATUSES.find(s => s.value === next)?.label}`);
         startTransition(() => router.refresh());
       }
     } finally {
@@ -47,30 +61,26 @@ export default function TaskStatusChanger({
     }
   }
 
-  const fld =
-    "h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-sm outline-none focus:border-brand disabled:opacity-60";
-
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {closed && (
-        <button
-          onClick={() => change("IN_PROGRESS")}
-          disabled={busy}
-          className="tap h-9 rounded-xl border border-brand px-4 text-sm font-semibold text-brand hover:bg-brand/10 disabled:opacity-60"
-        >
-          ↩️ Redeschide task
-        </button>
-      )}
-      <select
-        value={status}
-        onChange={(e) => change(e.target.value as Status)}
-        disabled={busy}
-        className={fld}
-      >
-        {ALL.map((s) => (
-          <option key={s} value={s}>{LABEL[s]}</option>
-        ))}
-      </select>
+    <div className="flex flex-wrap gap-1.5">
+      {STATUSES.map((s) => {
+        const isActive = s.value === status;
+        return (
+          <button
+            key={s.value}
+            onClick={() => change(s.value)}
+            disabled={busy}
+            className={[
+              "rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-50",
+              s.color,
+              isActive ? ACTIVE_RING[s.value] : "",
+              isActive ? "scale-105 shadow-sm" : "opacity-70",
+            ].join(" ")}
+          >
+            {s.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

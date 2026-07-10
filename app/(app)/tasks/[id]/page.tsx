@@ -331,12 +331,12 @@ export default async function TaskDetailPage({
           <MetaRow label="Creat de" value={task.creator.name} />
         </div>
 
-        <div className="mt-4 border-t border-[var(--color-line)] pt-4 flex items-center gap-3">
-          <div className="flex-1">
-            <TaskStatusChanger taskId={id} initialStatus={task.status} />
-          </div>
+        <div className="mt-4 border-t border-[var(--color-line)] pt-4 flex flex-col gap-3">
+          <TaskStatusChanger taskId={id} initialStatus={task.status} />
           {task.type === "TICKET" && task.status !== "DONE" && task.status !== "CANCELLED" && canEdit && (
-            <CloseTicketButton taskId={id} />
+            <div className="flex justify-end">
+              <CloseTicketButton taskId={id} />
+            </div>
           )}
         </div>
       </div>

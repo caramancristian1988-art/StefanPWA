@@ -379,6 +379,7 @@ export async function sendEmailReply(opts: {
       seq: true,
       emailThreadId: true,
       assigneeId: true,
+      status: true,
     },
   });
   if (!ticket?.fromEmail) throw new Error("Tichetul nu are email client asociat.");
@@ -386,19 +387,19 @@ export async function sendEmailReply(opts: {
   const transport = getTransport();
   if (!transport) throw new Error("SMTP neconfigurat.");
 
-  // Auto-asignare: dacă nu e asignat, asignează staff-ul care răspunde
-  if (!ticket.assigneeId && opts.staffUserId) {
+  // Asignează operatorul care răspunde și setează statusul IN_PROGRESS
+  if (opts.staffUserId) {
     await prisma.task.update({
       where: { id: opts.taskId },
-      data: { assigneeId: opts.staffUserId, status: "ASSIGNED" },
+      data: { assigneeId: opts.staffUserId, status: "IN_PROGRESS" },
     });
     await prisma.taskActivity.create({
       data: {
         taskId: opts.taskId,
         userId: opts.staffUserId,
         action: "STATUS_CHANGED",
-        fromStatus: "NEW",
-        toStatus: "ASSIGNED",
+        fromStatus: ticket.status,
+        toStatus: "IN_PROGRESS",
       },
     }).catch(() => {});
   }

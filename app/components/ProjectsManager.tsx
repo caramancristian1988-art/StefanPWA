@@ -15,6 +15,7 @@ import { IconX, IconPencil, IconTrash, IconPlus, IconChevronLeft, IconChevronRig
 import ExportButton from "./ExportButton";
 import ImportButton from "./ImportButton";
 import ProjectFilesPanel from "./ProjectFilesPanel";
+import ProjectMapPickerDynamic from "./ProjectMapPickerDynamic";
 
 type Opt = { id: string; name: string };
 type Project = {
@@ -386,19 +387,6 @@ export default function ProjectsManager({
   );
 }
 
-function CoordInput({ name, defaultValue, placeholder }: { name: string; defaultValue?: number | null; placeholder: string }) {
-  return (
-    <input
-      name={name}
-      type="number"
-      step="any"
-      defaultValue={defaultValue ?? ""}
-      placeholder={placeholder}
-      className="h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
-    />
-  );
-}
-
 function ProjectDialog({
   project,
   users,
@@ -467,9 +455,11 @@ function ProjectDialog({
               placeholder="Adresă"
               className={input}
             />
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <CoordInput name="lat" defaultValue={project?.lat} placeholder="Latitudine (ex: 44.4268)" />
-              <CoordInput name="lng" defaultValue={project?.lng} placeholder="Longitudine (ex: 26.1025)" />
+            <div className="mt-2">
+              <ProjectMapPickerDynamic
+                initialLat={project?.lat}
+                initialLng={project?.lng}
+              />
             </div>
           </div>
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}

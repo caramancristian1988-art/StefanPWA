@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateProject, deleteProject, type ProjectState } from "@/app/actions/projects";
 import { IconPencil, IconTrash, IconX } from "./icons";
+import ProjectMapPickerDynamic from "./ProjectMapPickerDynamic";
 
 type Opt = { id: string; name: string };
 
@@ -196,22 +197,10 @@ function EditDialog({
               placeholder="Adresă"
               className={inputCls}
             />
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <input
-                name="lat"
-                type="number"
-                step="any"
-                defaultValue={project.lat ?? ""}
-                placeholder="Latitudine (ex: 44.4268)"
-                className={inputCls}
-              />
-              <input
-                name="lng"
-                type="number"
-                step="any"
-                defaultValue={project.lng ?? ""}
-                placeholder="Longitudine (ex: 26.1025)"
-                className={inputCls}
+            <div className="mt-2">
+              <ProjectMapPickerDynamic
+                initialLat={project.lat}
+                initialLng={project.lng}
               />
             </div>
           </div>

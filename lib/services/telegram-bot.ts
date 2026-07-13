@@ -535,13 +535,22 @@ async function handleCallback(cb: Cb) {
   // Schimbare status TASK (din butoanele de notificare)
   const taskMatch = data.match(/^TST:(\w+):(.+)$/);
   if (taskMatch) {
+    const newStatus = taskMatch[1] as TaskStatus;
     const res = await changeTaskStatus(
       taskMatch[2],
       user.userId,
-      taskMatch[1] as TaskStatus,
+      newStatus,
       { fromTelegram: true },
     );
-    if (!res.ok) await sendMessage(chatId, `❌ ${res.error}`);
+    if (!res.ok) {
+      await sendMessage(chatId, `❌ ${res.error}`);
+    } else if (res.changed) {
+      // Dacă mesajul original nu a fost editat (task fără notificare Telegram), trimite confirmare
+      const hadTgMessage = res.hadTelegramMessage;
+      if (!hadTgMessage) {
+        await sendMessage(chatId, `✅ Status actualizat: <b>${TASK_STATUS_RO[newStatus] ?? newStatus}</b>`, menuFor(user));
+      }
+    }
     return;
   }
 

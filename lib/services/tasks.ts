@@ -437,33 +437,23 @@ export async function changeTaskStatus(
   }
   if (task.status === newStatus) {
     console.log(`[tasks] changeTaskStatus: deja ${newStatus}, nimic de făcut`);
-    return { ok: true as const, changed: false, fromStatus: task.status, title: task.title, type: task.type };
+    return { ok: true as const, changed: false, fromStatus: task.status, title: task.title, type: task.type, hadTelegramMessage: false };
   }
 
-  // Verifică dacă actorul mai este asignat la acest task (relevant pentru callback Telegram)
+  // Verifică dacă actorul are dreptul să modifice task-ul (din callback Telegram)
   if (opts.fromTelegram) {
     const actorUser = await prisma.user.findUnique({ where: { id: actorId }, select: { teamIds: true, role: true } });
     const actorTeams = actorUser?.teamIds ?? [];
     const isAdmin = actorUser?.role === "ADMIN";
+    const isCreator = task.creatorId === actorId;
     const isDirectlyAssigned =
       task.assigneeId === actorId ||
       (task.extraAssigneeIds ?? []).includes(actorId);
     const isTeamAssigned =
       (task.teamId && actorTeams.includes(task.teamId)) ||
       (task.extraTeamIds ?? []).some((tid) => actorTeams.includes(tid));
-    if (!isAdmin && !isDirectlyAssigned && !isTeamAssigned) {
-      if (task.telegramChatId && task.telegramMessageId) {
-        const actorChatId = await telegramChatFor(actorId);
-        if (actorChatId) {
-          await editMessageText(
-            actorChatId,
-            task.telegramMessageId,
-            `ℹ️ Nu mai ești asignat la acest task: <b>${escapeHtml(task.title)}</b>`,
-            undefined,
-          ).catch(() => {});
-        }
-      }
-      return { ok: false as const, error: "Nu mai ești asignat la acest task." };
+    if (!isAdmin && !isCreator && !isDirectlyAssigned && !isTeamAssigned) {
+      return { ok: false as const, error: "Nu ai acces la acest task." };
     }
   }
 
@@ -571,7 +561,7 @@ export async function changeTaskStatus(
     console.error(`[tasks] changeTaskStatus: pipeline-ul de notificare a eșuat pentru task ${taskId}`, e);
   }
 
-  return { ok: true as const, changed: true, fromStatus: task.status, title: task.title, type: task.type };
+  return { ok: true as const, changed: true, fromStatus: task.status, title: task.title, type: task.type, hadTelegramMessage: !!(task.telegramChatId && task.telegramMessageId) };
 }
 
 /** Schimbă progresul (0-100) + jurnal + notificare admin/creator (best-effort, logat). */

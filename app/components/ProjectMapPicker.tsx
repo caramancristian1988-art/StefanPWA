@@ -104,22 +104,18 @@ export default function ProjectMapPicker({
       {/* Inputuri ascunse trimise cu formularul */}
       <input type="hidden" name={latName} value={coords?.lat ?? ""} />
       <input type="hidden" name={lngName} value={coords?.lng ?? ""} />
-      {/* Afișare coordonate curente + posibilitate editare manuală */}
+      {/* Afișare coordonate curente */}
       <div className="grid grid-cols-2 gap-2">
         <input
-          type="number"
-          step="any"
-          value={coords?.lat ?? ""}
-          onChange={(e) => setCoords((c) => ({ lat: parseFloat(e.target.value) || 0, lng: c?.lng ?? defaultLng }))}
+          type="text"
+          value={coords ? coords.lat.toFixed(6) : ""}
           placeholder="Latitudine"
           className={inputCls}
           readOnly
         />
         <input
-          type="number"
-          step="any"
-          value={coords?.lng ?? ""}
-          onChange={(e) => setCoords((c) => ({ lat: c?.lat ?? defaultLat, lng: parseFloat(e.target.value) || 0 }))}
+          type="text"
+          value={coords ? coords.lng.toFixed(6) : ""}
           placeholder="Longitudine"
           className={inputCls}
           readOnly

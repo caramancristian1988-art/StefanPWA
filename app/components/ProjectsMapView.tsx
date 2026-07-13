@@ -146,7 +146,7 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
           source: "projects",
           filter: ["has", "point_count"],
           layout: {
-            "text-field": "{point_count_abbreviated}",
+            "text-field": ["get", "point_count_abbreviated"],
             "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
             "text-size": 14,
           },
@@ -175,19 +175,21 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
         });
 
         // ── Click pe cluster → popup cu lista proiectelor ──
-        map.on("click", "clusters", (e) => {
+        map.on("click", "clusters", async (e) => {
           const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
           if (!features.length) return;
           const clusterId = features[0].properties?.cluster_id as number;
           const source = map.getSource("projects") as import("mapbox-gl").GeoJSONSource;
 
-          source.getClusterLeaves(clusterId, 100, 0, (err, leaves) => {
-            if (err || !leaves) return;
+          try {
+            const leaves = await source.getClusterLeaves(clusterId, 100, 0);
             new mbgl.default.Popup({ maxWidth: "280px" })
               .setLngLat(e.lngLat)
               .setHTML(clusterPopupHtml(leaves as { properties: Record<string, unknown> }[]))
               .addTo(map);
-          });
+          } catch {
+            // ignoră erori de cluster
+          }
         });
 
         // ── Click pe punct individual → popup ──

@@ -442,14 +442,16 @@ export async function changeTaskStatus(
 
   // Verifică dacă actorul mai este asignat la acest task (relevant pentru callback Telegram)
   if (opts.fromTelegram) {
-    const actorTeams = (await prisma.user.findUnique({ where: { id: actorId }, select: { teamIds: true } }))?.teamIds ?? [];
+    const actorUser = await prisma.user.findUnique({ where: { id: actorId }, select: { teamIds: true, role: true } });
+    const actorTeams = actorUser?.teamIds ?? [];
+    const isAdmin = actorUser?.role === "ADMIN";
     const isDirectlyAssigned =
       task.assigneeId === actorId ||
       (task.extraAssigneeIds ?? []).includes(actorId);
     const isTeamAssigned =
       (task.teamId && actorTeams.includes(task.teamId)) ||
       (task.extraTeamIds ?? []).some((tid) => actorTeams.includes(tid));
-    if (!isDirectlyAssigned && !isTeamAssigned) {
+    if (!isAdmin && !isDirectlyAssigned && !isTeamAssigned) {
       if (task.telegramChatId && task.telegramMessageId) {
         const actorChatId = await telegramChatFor(actorId);
         if (actorChatId) {

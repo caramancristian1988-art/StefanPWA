@@ -748,7 +748,8 @@ export async function checkOverdueTasks(): Promise<{ checked: number; notified: 
   if (DEMO) return { checked: 0, notified: 0 };
   const now = new Date();
 
-  const { loadStatusConfigs, getStatusConfig } = await import("../ticket-status-config");
+  const { loadStatusConfigs } = await import("../queries/ticket-status-config");
+  const { getStatusConfig } = await import("../ticket-status-config");
   const statusCfgs = await loadStatusConfigs();
 
   // Filtrăm în JS pentru că MongoDB nu potrivește câmpuri absente cu { equals: null }
@@ -965,7 +966,8 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
   if (DEMO) return { checked: 0, notified: 0 };
   const now = new Date();
 
-  const { loadStatusConfigs, getStatusConfig } = await import("../ticket-status-config");
+  const { loadStatusConfigs } = await import("../queries/ticket-status-config");
+  const { getStatusConfig } = await import("../ticket-status-config");
   const statusCfgs = await loadStatusConfigs();
 
   const candidates = await prisma.task.findMany({

@@ -26,13 +26,3 @@ export function parseStatusConfigs(raw: unknown): StatusConfig[] {
 export function getStatusConfig(configs: StatusConfig[], key: string): StatusConfig | undefined {
   return configs.find((c) => c.key === key);
 }
-
-/** Returnează config-ul salvat din DB sau default-urile */
-export async function loadStatusConfigs(): Promise<StatusConfig[]> {
-  const { prisma } = await import("./prisma");
-  const settings = await prisma.companySettings.findFirst({
-    where: { singleton: "main" },
-    select: { ticketStatusConfig: true },
-  });
-  return parseStatusConfigs(settings?.ticketStatusConfig);
-}

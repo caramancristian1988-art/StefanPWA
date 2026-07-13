@@ -11,7 +11,7 @@ import QuietHoursForm from "@/app/components/QuietHoursForm";
 import PushToggle from "@/app/components/PushToggle";
 import TicketStatusConfigEditor from "@/app/components/TicketStatusConfigEditor";
 import { IconChevronRight } from "@/app/components/icons";
-import { loadStatusConfigs } from "@/lib/ticket-status-config";
+import { loadStatusConfigs } from "@/lib/queries/ticket-status-config";
 
 export const dynamic = "force-dynamic";
 

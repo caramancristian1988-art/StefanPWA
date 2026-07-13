@@ -183,7 +183,8 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
           const source = map.getSource("projects") as import("mapbox-gl").GeoJSONSource;
 
           try {
-            const leaves = await source.getClusterLeaves(clusterId, 100, 0);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const leaves = await (source as any).getClusterLeaves(clusterId, 100, 0);
             new mbgl.default.Popup({ maxWidth: "280px" })
               .setLngLat(e.lngLat)
               .setHTML(clusterPopupHtml(leaves as { properties: Record<string, unknown> }[]))

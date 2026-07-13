@@ -748,6 +748,9 @@ export async function checkOverdueTasks(): Promise<{ checked: number; notified: 
   if (DEMO) return { checked: 0, notified: 0 };
   const now = new Date();
 
+  const { loadStatusConfigs, getStatusConfig } = await import("../ticket-status-config");
+  const statusCfgs = await loadStatusConfigs();
+
   // Filtrăm în JS pentru că MongoDB nu potrivește câmpuri absente cu { equals: null }
   const candidates = await prisma.task.findMany({
     where: {
@@ -755,13 +758,19 @@ export async function checkOverdueTasks(): Promise<{ checked: number; notified: 
       status: { notIn: ["DONE", "CANCELLED"] },
     },
     select: {
-      id: true, seq: true, title: true,
+      id: true, seq: true, title: true, status: true,
       creatorId: true, assigneeId: true, teamId: true,
       overdueNotifiedAt: true,
       assignee: { select: { teamIds: true } },
     },
   });
-  const tasks = candidates.filter((t) => !t.overdueNotifiedAt);
+  const tasks = candidates.filter((t) => {
+    if (t.overdueNotifiedAt) return false;
+    // Nu trimite dacă statusul curent are suppressAll activ
+    const cfg = getStatusConfig(statusCfgs, t.status);
+    if (cfg?.suppressAll) return false;
+    return true;
+  });
   console.log(`[tasks] checkOverdueTasks: ${candidates.length} cu termen trecut, ${tasks.length} nenotificate`);
 
   let notified = 0;
@@ -956,6 +965,9 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
   if (DEMO) return { checked: 0, notified: 0 };
   const now = new Date();
 
+  const { loadStatusConfigs, getStatusConfig } = await import("../ticket-status-config");
+  const statusCfgs = await loadStatusConfigs();
+
   const candidates = await prisma.task.findMany({
     where: { status: { notIn: ["DONE", "CANCELLED"] }, nextReminderAt: { lte: now } },
     select: {
@@ -968,7 +980,12 @@ export async function checkTaskReminders(): Promise<{ checked: number; notified:
       project: { select: { name: true, lat: true, lng: true, address: true } },
     },
   });
-  const tasks = candidates.filter((t) => t.reminderIntervalMinutes);
+  const tasks = candidates.filter((t) => {
+    if (!t.reminderIntervalMinutes) return false;
+    const cfg = getStatusConfig(statusCfgs, t.status);
+    if (cfg?.suppressAll) return false;
+    return true;
+  });
 
   console.log(`[tasks] checkTaskReminders: ${tasks.length}/${candidates.length} task-uri cu reamintire scadentă`);
 

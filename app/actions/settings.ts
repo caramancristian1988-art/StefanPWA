@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/dal";
 import { settingsSchema, categorySchema } from "@/lib/validation";
 import { DEMO } from "@/lib/demo";
 import { sanitizeReminderPresets } from "@/lib/reminder-presets";
+import type { StatusConfig } from "@/lib/ticket-status-config";
 
 export type SettingsState = { ok?: boolean; error?: string } | undefined;
 
@@ -156,5 +157,27 @@ export async function updateSettings(
   });
 
   revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function saveTicketStatusConfig(
+  configs: StatusConfig[],
+): Promise<SettingsState> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") return { error: "Doar administratorii pot edita statusurile." };
+  if (DEMO) return { error: DEMO_MSG };
+
+  // Validare minimă
+  if (!Array.isArray(configs) || configs.length === 0)
+    return { error: "Configurare invalidă." };
+
+  await prisma.companySettings.upsert({
+    where: { singleton: "main" },
+    create: { singleton: "main", ticketStatusConfig: configs as object[] },
+    update: { ticketStatusConfig: configs as object[] },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/tickets");
   return { ok: true };
 }

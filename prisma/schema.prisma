@@ -438,6 +438,9 @@ model CompanySettings {
   // Token pentru link public de invitație Telegram (null = link dezactivat)
   telegramInviteToken String?
 
+  // Configurare per-status pentru notificări tichete (JSON array de StatusConfig)
+  ticketStatusConfig Json?
+
   // Ore de somn — botul nu răspunde și reminderele sunt suspendate în acest interval
   quietHoursEnabled Boolean @default(false)
   quietHoursStart   String  @default("22:00")

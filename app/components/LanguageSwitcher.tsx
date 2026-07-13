@@ -1,37 +1,88 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { setLocale } from "@/app/actions/locale";
 import { useLocale } from "@/lib/i18n/context";
 import type { Locale } from "@/lib/i18n";
 
-const FLAGS: Record<Locale, string> = { ro: "🇷🇴", en: "🇬🇧", ru: "🇷🇺" };
-const LABELS: Record<Locale, string> = { ro: "RO", en: "EN", ru: "RU" };
+const OPTIONS: { locale: Locale; flag: string; label: string }[] = [
+  { locale: "ro", flag: "🇷🇴", label: "Română" },
+  { locale: "en", flag: "🇬🇧", label: "English" },
+  { locale: "ru", flag: "🇷🇺", label: "Русский" },
+];
 
 export default function LanguageSwitcher() {
   const locale = useLocale();
+  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const locales: Locale[] = ["ro", "en", "ru"];
+  const ref = useRef<HTMLDivElement>(null);
+
+  const current = OPTIONS.find((o) => o.locale === locale) ?? OPTIONS[0];
+
+  // Închide la click în afara componentei
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  function choose(l: Locale) {
+    setOpen(false);
+    if (l === locale) return;
+    startTransition(() => setLocale(l));
+  }
 
   return (
-    <div className="flex items-center gap-1 rounded-xl bg-[var(--color-surface-2)] px-1 py-0.5">
-      {locales.map((l) => (
-        <button
-          key={l}
-          type="button"
-          disabled={pending || l === locale}
-          onClick={() => startTransition(() => setLocale(l))}
-          title={l === "ro" ? "Română" : l === "en" ? "English" : "Русский"}
-          className={[
-            "tap rounded-lg px-2 py-1 text-xs font-semibold transition-colors",
-            l === locale
-              ? "bg-brand text-white"
-              : "text-ink-soft hover:text-ink disabled:opacity-50",
-          ].join(" ")}
+    <div ref={ref} className="relative">
+      {/* Buton principal */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={pending}
+        className="tap flex items-center gap-1.5 rounded-xl bg-[var(--color-surface-2)] px-3 py-2 text-sm font-medium text-ink hover:bg-brand-soft disabled:opacity-50 transition-colors"
+      >
+        <span>{current.flag}</span>
+        <span>{current.label}</span>
+        <svg
+          width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+          className={`transition-transform text-ink-soft ${open ? "rotate-180" : ""}`}
         >
-          {FLAGS[l]} {LABELS[l]}
-        </button>
-      ))}
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-50 min-w-[140px] rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] shadow-lg overflow-hidden">
+          {OPTIONS.map((opt) => (
+            <button
+              key={opt.locale}
+              type="button"
+              onClick={() => choose(opt.locale)}
+              className={[
+                "tap flex w-full items-center gap-2.5 px-4 py-2.5 text-sm transition-colors",
+                opt.locale === locale
+                  ? "bg-brand/10 text-brand font-semibold"
+                  : "text-ink hover:bg-[var(--color-surface-2)]",
+              ].join(" ")}
+            >
+              <span className="text-base">{opt.flag}</span>
+              <span>{opt.label}</span>
+              {opt.locale === locale && (
+                <svg className="ml-auto" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

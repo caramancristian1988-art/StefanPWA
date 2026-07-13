@@ -117,6 +117,7 @@ export const projectOptions = unstable_cache(
 
 export type ProjectPin = {
   id: string;
+  seq: number | null;
   name: string;
   status: ProjectStatus;
   address: string | null;
@@ -131,6 +132,7 @@ export async function listProjectsWithLocation(): Promise<ProjectPin[]> {
     where: { lat: { not: null }, lng: { not: null } },
     select: {
       id: true,
+      seq: true,
       name: true,
       status: true,
       address: true,
@@ -144,6 +146,7 @@ export async function listProjectsWithLocation(): Promise<ProjectPin[]> {
     .filter((r) => r.lat != null && r.lng != null)
     .map((r) => ({
       id: r.id,
+      seq: r.seq,
       name: r.name,
       status: r.status,
       address: r.address ?? null,

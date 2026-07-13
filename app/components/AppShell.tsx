@@ -7,25 +7,28 @@ import { logout } from "@/app/actions/auth";
 import { ToastProvider } from "./toast";
 import CreateMenu from "./CreateMenu";
 import VoiceTaskButton from "./VoiceTaskButton";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { I18nProvider, useMessages } from "@/lib/i18n/context";
+import type { Messages, Locale } from "@/lib/i18n";
 
-type NavItem = { href: string; label: string; icon: ReactNode; perm?: string };
+type NavItem = { href: string; labelKey: keyof Messages["nav"]; icon: ReactNode; perm?: string };
 
 const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: gridIcon() },
-  { href: "/tasks", label: "Task-uri", icon: checklistIcon(), perm: "tasks.view" },
-  { href: "/tickets", label: "Tichete", icon: ticketIcon(), perm: "tasks.view" },
-  { href: "/kanban", label: "Kanban", icon: kanbanIcon(), perm: "tasks.view" },
-  { href: "/calendar", label: "Calendar", icon: calIcon(), perm: "tasks.view" },
-  { href: "/appointments", label: "Programări", icon: apptIcon(), perm: "appointments.view" },
-  { href: "/projects", label: "Proiecte", icon: folderIcon(), perm: "projects.view" },
-  { href: "/harta", label: "Hartă", icon: mapIcon(), perm: "projects.view" },
-  { href: "/team", label: "Echipă", icon: usersIcon(), perm: "teams.view" },
-  { href: "/invoices", label: "Facturi", icon: invoiceIcon(), perm: "invoices.view" },
-  { href: "/clients", label: "Clienți", icon: usersIcon(), perm: "clients.view" },
-  { href: "/users", label: "Utilizatori", icon: userIcon(), perm: "users.manage" },
-  { href: "/admin/audit-logs", label: "Audit Logs", icon: shieldIcon(), perm: "audit.view" },
-  { href: "/telegram", label: "Telegram", icon: sendIcon() },
-  { href: "/settings", label: "Setări", icon: gearIcon() },
+  { href: "/dashboard",        labelKey: "dashboard",  icon: gridIcon() },
+  { href: "/tasks",            labelKey: "tasks",       icon: checklistIcon(), perm: "tasks.view" },
+  { href: "/tickets",          labelKey: "tickets",     icon: ticketIcon(),    perm: "tasks.view" },
+  { href: "/kanban",           labelKey: "kanban",      icon: kanbanIcon(),    perm: "tasks.view" },
+  { href: "/calendar",         labelKey: "calendar",    icon: calIcon(),       perm: "tasks.view" },
+  { href: "/appointments",     labelKey: "dashboard",   icon: apptIcon(),      perm: "appointments.view" },
+  { href: "/projects",         labelKey: "projects",    icon: folderIcon(),    perm: "projects.view" },
+  { href: "/harta",            labelKey: "map",         icon: mapIcon(),       perm: "projects.view" },
+  { href: "/team",             labelKey: "team",        icon: usersIcon(),     perm: "teams.view" },
+  { href: "/invoices",         labelKey: "invoices",    icon: invoiceIcon(),   perm: "invoices.view" },
+  { href: "/clients",          labelKey: "clients",     icon: usersIcon(),     perm: "clients.view" },
+  { href: "/users",            labelKey: "users",       icon: userIcon(),      perm: "users.manage" },
+  { href: "/admin/audit-logs", labelKey: "auditLogs",   icon: shieldIcon(),    perm: "audit.view" },
+  { href: "/telegram",         labelKey: "telegram",    icon: sendIcon() },
+  { href: "/settings",         labelKey: "settings",    icon: gearIcon() },
 ];
 
 function visibleNav(items: NavItem[], perms?: Record<string, boolean>): NavItem[] {
@@ -36,16 +39,22 @@ function NavList({
   onNavigate,
   perms,
   items = NAV,
+  appointmentsLabel,
 }: {
   onNavigate?: () => void;
   perms?: Record<string, boolean>;
   items?: NavItem[];
+  appointmentsLabel?: string;
 }) {
   const path = usePathname();
+  const m = useMessages();
   return (
     <nav className="flex flex-col gap-1">
       {visibleNav(items, perms).map((item) => {
         const active = path === item.href || path.startsWith(`${item.href}/`);
+        const label = item.href === "/appointments"
+          ? (appointmentsLabel ?? m.nav[item.labelKey])
+          : m.nav[item.labelKey];
         return (
           <Link
             key={item.href}
@@ -59,7 +68,7 @@ function NavList({
             }`}
           >
             <span className="grid size-5 place-items-center">{item.icon}</span>
-            {item.label}
+            {label}
           </Link>
         );
       })}
@@ -92,7 +101,41 @@ export default function AppShell({
   demo = false,
   perms,
   unread = 0,
-  appointmentsLabel = "Programări",
+  appointmentsLabel,
+  messages,
+  locale,
+  children,
+}: {
+  userName: string;
+  demo?: boolean;
+  perms?: Record<string, boolean>;
+  unread?: number;
+  appointmentsLabel?: string;
+  messages: Messages;
+  locale: Locale;
+  children: ReactNode;
+}) {
+  return (
+    <I18nProvider messages={messages} locale={locale}>
+      <AppShellInner
+        userName={userName}
+        demo={demo}
+        perms={perms}
+        unread={unread}
+        appointmentsLabel={appointmentsLabel}
+      >
+        {children}
+      </AppShellInner>
+    </I18nProvider>
+  );
+}
+
+function AppShellInner({
+  userName,
+  demo = false,
+  perms,
+  unread = 0,
+  appointmentsLabel,
   children,
 }: {
   userName: string;
@@ -104,10 +147,12 @@ export default function AppShell({
 }) {
   const [drawer, setDrawer] = useState(false);
   const path = usePathname();
-  const nav = NAV.map((n) =>
-    n.href === "/appointments" ? { ...n, label: appointmentsLabel } : n,
-  );
-  const current = nav.find((n) => path.startsWith(n.href))?.label ?? "Dashboard";
+  const m = useMessages();
+  const current = NAV.find((n) => path.startsWith(n.href))
+    ? (path.startsWith("/appointments")
+        ? (appointmentsLabel ?? m.nav.dashboard)
+        : m.nav[NAV.find((n) => path.startsWith(n.href))!.labelKey])
+    : "Dashboard";
 
   return (
     <ToastProvider>
@@ -116,7 +161,7 @@ export default function AppShell({
         <aside className="sticky top-0 hidden h-dvh flex-col border-r border-[var(--color-line)] bg-[var(--color-surface)] p-4 lg:flex">
           <Brand label={appointmentsLabel} />
           <div className="mt-6 flex-1">
-            <NavList perms={perms} items={nav} />
+            <NavList perms={perms} items={NAV} appointmentsLabel={appointmentsLabel} />
           </div>
           <Account userName={userName} />
         </aside>
@@ -128,7 +173,7 @@ export default function AppShell({
             <aside className="absolute left-0 top-0 flex h-full w-72 flex-col bg-[var(--color-surface)] p-4">
               <Brand label={appointmentsLabel} />
               <div className="mt-6 flex-1">
-                <NavList onNavigate={() => setDrawer(false)} perms={perms} items={nav} />
+                <NavList onNavigate={() => setDrawer(false)} perms={perms} items={NAV} appointmentsLabel={appointmentsLabel} />
               </div>
               <Account userName={userName} />
             </aside>
@@ -141,7 +186,7 @@ export default function AppShell({
             <button
               onClick={() => setDrawer(true)}
               className="tap grid size-10 place-items-center rounded-xl bg-[var(--color-surface-2)] lg:hidden"
-              aria-label="Meniu"
+              aria-label={m.menu}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <path d="M4 6h16M4 12h16M4 18h16" />
@@ -149,12 +194,13 @@ export default function AppShell({
             </button>
             <h1 className="text-lg font-bold lg:text-xl">{current}</h1>
             <div className="ml-auto flex items-center gap-2">
+              <LanguageSwitcher />
               <VoiceTaskButton />
               <Link
                 href="/notificari"
                 prefetch={false}
                 className="tap relative grid size-11 place-items-center rounded-xl bg-[var(--color-surface-2)] text-ink hover:bg-brand-soft"
-                aria-label="Notificări"
+                aria-label={m.notifications.title}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
@@ -171,7 +217,7 @@ export default function AppShell({
 
           {demo && (
             <div className="border-b border-amber-300/40 bg-amber-100 px-4 py-2 text-center text-xs font-medium text-amber-900 dark:bg-amber-500/15 dark:text-amber-300">
-              Mod demo — date de exemplu. Conectează o bază de date ca să salvezi.
+              {m.demo}
             </div>
           )}
           <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 lg:px-8 lg:pb-10">{children}</main>
@@ -181,18 +227,22 @@ export default function AppShell({
       <CreateMenu />
 
       {/* Bottom nav mobil */}
-      <BottomNav perms={perms} nav={nav} />
+      <BottomNav perms={perms} appointmentsLabel={appointmentsLabel} />
     </ToastProvider>
   );
 }
 
-function BottomNav({ perms, nav = NAV }: { perms?: Record<string, boolean>; nav?: NavItem[] }) {
+function BottomNav({ perms, appointmentsLabel }: { perms?: Record<string, boolean>; appointmentsLabel?: string }) {
   const path = usePathname();
-  const items = visibleNav(nav, perms).slice(0, 5);
+  const m = useMessages();
+  const items = visibleNav(NAV, perms).slice(0, 5);
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch border-t border-[var(--color-line)] bg-[var(--color-surface)] pb-[env(safe-area-inset-bottom)] lg:hidden">
       {items.map((item) => {
         const active = path.startsWith(item.href);
+        const label = item.href === "/appointments"
+          ? (appointmentsLabel ?? m.nav[item.labelKey])
+          : m.nav[item.labelKey];
         return (
           <Link
             key={item.href}
@@ -203,7 +253,7 @@ function BottomNav({ perms, nav = NAV }: { perms?: Record<string, boolean>; nav?
             }`}
           >
             <span className="grid size-5 place-items-center">{item.icon}</span>
-            {item.label}
+            {label}
           </Link>
         );
       })}
@@ -226,6 +276,7 @@ function Brand({ label = "Programări" }: { label?: string }) {
 }
 
 function Account({ userName }: { userName: string }) {
+  const m = useMessages();
   return (
     <div className="mt-3 border-t border-[var(--color-line)] pt-3">
       <div className="mb-2 flex items-center gap-2 px-1">
@@ -236,7 +287,7 @@ function Account({ userName }: { userName: string }) {
       </div>
       <form action={logout}>
         <button className="tap w-full rounded-lg px-3 py-2 text-left text-sm text-ink-soft hover:bg-[var(--color-surface-2)]">
-          Deconectare
+          {m.auth.logout}
         </button>
       </form>
     </div>

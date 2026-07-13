@@ -120,6 +120,17 @@ export default function ProjectsManager({
   const [searchInput, setSearchInput] = useState(filters.q);
   useEffect(() => setSearchInput(filters.q), [filters.q]);
 
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (searchInput === filters.q) return;
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      router.push(buildUrl({ q: searchInput }));
+    }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
+
   function buildUrl(patch: { q?: string; status?: string; page?: number; ps?: string }) {
     const merged = { q: filters.q, status: filters.status, ps: filters.ps ?? "", ...patch } as Record<string, string | number | undefined>;
     const usp = new URLSearchParams();
@@ -165,7 +176,7 @@ export default function ProjectsManager({
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Caută proiect… (Enter)"
+            placeholder="Caută proiect…"
             className="h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
           />
         </form>

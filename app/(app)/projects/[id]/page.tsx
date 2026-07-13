@@ -1,18 +1,16 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
+import { can } from "@/lib/permissions";
 import { getProject } from "@/lib/queries/projects";
 import { listTasks } from "@/lib/queries/tasks";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { invoiceClientOptions } from "@/lib/queries/invoices";
 import ProjectMap from "@/app/components/ProjectMapDynamic";
+import ProjectDetailHeader from "@/app/components/ProjectDetailHeader";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_RO: Record<string, string> = {
-  ACTIVE: "Activ", ON_HOLD: "În așteptare", DONE: "Finalizat", ARCHIVED: "Arhivat",
-};
 
 const TASK_STATUS_RO: Record<string, string> = {
   NEW: "Nou", ASSIGNED: "Asignat", READ: "Citit",
@@ -44,6 +42,7 @@ export default async function ProjectDetailPage({
 }) {
   const user = await requirePermission("projects.view");
   const { id } = await params;
+  const canEdit = can(user, "projects.edit");
 
   const [project, users, teams, clients, tasksResult] = await Promise.all([
     getProject(id),
@@ -82,19 +81,13 @@ export default async function ProjectDetailPage({
 
       {/* ── Info proiect ── */}
       <div className="card mb-4 p-5">
-        <div className="mb-2 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            {project.seq != null && (
-              <span className="mb-1 inline-block rounded bg-brand/10 px-2 py-0.5 font-mono text-xs font-bold text-brand">
-                #{String(project.seq).padStart(3, "0")}
-              </span>
-            )}
-            <h1 className="break-words text-xl font-bold">{project.name}</h1>
-          </div>
-          <span className="shrink-0 rounded-full bg-[var(--color-surface-2)] px-3 py-1 text-xs font-semibold text-ink-soft">
-            {STATUS_RO[project.status as keyof typeof STATUS_RO] ?? project.status}
-          </span>
-        </div>
+        <ProjectDetailHeader
+          project={project}
+          users={users}
+          teams={teams}
+          clients={clients}
+          canEdit={canEdit}
+        />
 
         {project.description && (
           <p className="mb-3 text-sm text-ink-soft">{project.description}</p>

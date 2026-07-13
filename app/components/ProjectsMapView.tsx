@@ -176,7 +176,8 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
 
         // ── Click pe cluster → popup cu lista proiectelor ──
         map.on("click", "clusters", async (e) => {
-          const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] }) as any[];
           if (!features.length) return;
           const clusterId = features[0].properties?.cluster_id as number;
           const source = map.getSource("projects") as import("mapbox-gl").GeoJSONSource;
@@ -194,7 +195,8 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
 
         // ── Click pe punct individual → popup ──
         map.on("click", "unclustered-point", (e) => {
-          const features = map.queryRenderedFeatures(e.point, { layers: ["unclustered-point"] });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const features = map.queryRenderedFeatures(e.point, { layers: ["unclustered-point"] }) as any[];
           if (!features.length) return;
           const p = features[0].properties as Record<string, unknown>;
           new mbgl.default.Popup({ maxWidth: "280px" })

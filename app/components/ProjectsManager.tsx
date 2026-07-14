@@ -217,25 +217,25 @@ export default function ProjectsManager({
           {rows.map((p) => (
             <div key={p.id} className="card overflow-hidden">
               {/* ── Rând principal ── */}
-              <div className="flex items-center gap-2.5 p-3.5">
-                {/* Chevron expand — doar toggle, nu navigare */}
+              <div className="flex items-center gap-1.5 p-2.5 sm:gap-2.5 sm:p-3.5">
+                {/* Chevron expand */}
                 <button
                   type="button"
                   onClick={() => toggleExpand(p.id)}
-                  className="tap grid size-7 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]"
+                  className="tap grid size-6 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)] sm:size-7"
                   title={expandedId === p.id ? "Restrânge" : "Extinde task-uri"}
                 >
                   <IconChevronRight
-                    className={`size-3.5 transition-transform ${expandedId === p.id ? "rotate-90" : ""}`}
+                    className={`size-3 transition-transform sm:size-3.5 ${expandedId === p.id ? "rotate-90" : ""}`}
                   />
                 </button>
 
-                {/* Numele proiectului — navighează la pagina lui */}
+                {/* Numele proiectului */}
                 <Link href={`/projects/${p.id}`} className="tap min-w-0 flex-1 text-left">
-                  <div className="flex min-w-0 items-center gap-1.5">
+                  <div className="flex min-w-0 items-center gap-1">
                     {p.seq != null && (
                       <span
-                        className="shrink-0 cursor-copy rounded-md bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[11px] font-mono font-semibold text-ink-soft hover:bg-brand/10 hover:text-brand"
+                        className="shrink-0 cursor-copy rounded bg-[var(--color-surface-2)] px-1 py-0.5 text-[10px] font-mono font-semibold text-ink-soft hover:bg-brand/10 hover:text-brand"
                         title="Click pentru copiere"
                         onClick={(e) => {
                           e.preventDefault();
@@ -246,37 +246,38 @@ export default function ProjectsManager({
                         #{String(p.seq).padStart(3, "0")}
                       </span>
                     )}
-                    <p className="truncate font-semibold">{p.name}</p>
+                    <p className="truncate text-sm font-semibold leading-tight">{p.name}</p>
                   </div>
-                  <p className="truncate text-xs text-ink-soft">
+                  <p className="truncate text-[11px] text-ink-soft">
                     {STATUS_RO[p.status]} · {p.taskCount} task-uri
                     {p.clientId && ` · ${nameOf(p.clientId, clients) ?? "?"}`}
-                    {p.assigneeId && ` · → ${nameOf(p.assigneeId, users) ?? "?"}`}
-                    {p.teamId && ` · echipă ${nameOf(p.teamId, teams) ?? "?"}`}
+                    {p.assigneeId && ` · ${nameOf(p.assigneeId, users) ?? "?"}`}
+                    {p.teamId && ` · ${nameOf(p.teamId, teams) ?? "?"}`}
                     {p.lat != null && ` · 📍`}
                   </p>
                 </Link>
+                {/* Buton hartă — ascuns pe mobile, vizibil pe desktop */}
                 {p.lat != null && p.lng != null && (
-                  <Link href={`/projects/${p.id}`} className="tap grid size-9 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]" title="Hartă proiect">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8Z"/></svg>
+                  <Link href={`/projects/${p.id}`} className="tap hidden size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)] sm:grid" title="Hartă proiect">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8Z"/></svg>
                   </Link>
                 )}
                 <button
                   type="button"
                   onClick={() => setFilesOpenId((id) => id === p.id ? null : p.id)}
-                  className={`tap grid size-9 shrink-0 place-items-center rounded-lg border text-sm ${filesOpenId === p.id ? "border-brand bg-brand/10 text-brand" : "border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"}`}
+                  className={`tap grid size-8 shrink-0 place-items-center rounded-lg border text-sm sm:size-9 ${filesOpenId === p.id ? "border-brand bg-brand/10 text-brand" : "border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"}`}
                   title="Fișiere atașate"
                 >
                   📎
                 </button>
-                <Link href={`/tasks?create=task&project=${p.id}`} className="tap inline-flex h-9 shrink-0 items-center gap-1 rounded-lg border border-[var(--color-line)] px-2.5 text-xs font-medium text-brand hover:bg-brand-soft" title="Adaugă task în proiect">
-                  <IconPlus className="size-3.5" /> Task
+                <Link href={`/tasks?create=task&project=${p.id}`} className="tap inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-[var(--color-line)] px-2 text-xs font-medium text-brand hover:bg-brand-soft sm:h-9 sm:px-2.5" title="Adaugă task în proiect">
+                  <IconPlus className="size-3 sm:size-3.5" /> Task
                 </Link>
-                <button onClick={() => setDialog({ open: true, project: p })} className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]" title="Editează">
-                  <IconPencil className="size-4" />
+                <button onClick={() => setDialog({ open: true, project: p })} className="tap grid size-8 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)] sm:size-9" title="Editează">
+                  <IconPencil className="size-3.5 sm:size-4" />
                 </button>
-                <button onClick={() => remove(p.id)} className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title="Șterge">
-                  <IconTrash className="size-4" />
+                <button onClick={() => remove(p.id)} className="tap grid size-8 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)] sm:size-9" title="Șterge">
+                  <IconTrash className="size-3.5 sm:size-4" />
                 </button>
               </div>
 

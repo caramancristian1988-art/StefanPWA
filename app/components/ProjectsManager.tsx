@@ -246,7 +246,7 @@ export default function ProjectsManager({
                         #{String(p.seq).padStart(3, "0")}
                       </span>
                     )}
-                    <p className="truncate text-sm font-semibold leading-tight">{p.name}</p>
+                    <p className="truncate text-[12px] font-semibold leading-tight sm:text-sm">{p.name}</p>
                   </div>
                   <p className="truncate text-[11px] text-ink-soft">
                     {STATUS_RO[p.status]} · {p.taskCount} task-uri
@@ -262,11 +262,10 @@ export default function ProjectsManager({
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8Z"/></svg>
                   </Link>
                 )}
-                {/* Fișiere — ascuns pe mobile */}
                 <button
                   type="button"
                   onClick={() => setFilesOpenId((id) => id === p.id ? null : p.id)}
-                  className={`tap hidden size-9 shrink-0 place-items-center rounded-lg border text-sm sm:grid ${filesOpenId === p.id ? "border-brand bg-brand/10 text-brand" : "border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"}`}
+                  className={`tap grid size-8 shrink-0 place-items-center rounded-lg border text-sm sm:size-9 ${filesOpenId === p.id ? "border-brand bg-brand/10 text-brand" : "border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"}`}
                   title="Fișiere atașate"
                 >
                   📎

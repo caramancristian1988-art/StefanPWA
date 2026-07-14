@@ -44,17 +44,9 @@ export default function LanguageSwitcher() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={pending}
-        className="tap flex items-center gap-1.5 rounded-xl bg-[var(--color-surface-2)] px-3 py-2 text-sm font-medium text-ink hover:bg-brand-soft disabled:opacity-50 transition-colors"
+        className="tap grid size-9 place-items-center rounded-xl bg-[var(--color-surface-2)] text-lg hover:bg-brand-soft disabled:opacity-50 transition-colors"
       >
-        <span>{current.flag}</span>
-        <span>{current.label}</span>
-        <svg
-          width="12" height="12" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-          className={`transition-transform text-ink-soft ${open ? "rotate-180" : ""}`}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
+        {current.flag}
       </button>
 
       {/* Dropdown */}

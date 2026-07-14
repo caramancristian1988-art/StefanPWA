@@ -10,22 +10,7 @@ import { QuickAddProvider } from "./quick-add-context";
 import { humanDay } from "@/lib/date";
 import { listAppointmentsAction } from "@/app/actions/appointments";
 import type { ApptVM, CategoryLite, QuickDefaults } from "./types";
-
-const VIEWS = [
-  { key: "azi", label: "Azi" },
-  { key: "maine", label: "Mâine" },
-  { key: "saptamana", label: "Săptămâna" },
-  { key: "lista", label: "Listă" },
-] as const;
-
-const STATUSES = [
-  { value: "NEW", label: "Nou" },
-  { value: "CONFIRMED", label: "Confirmat" },
-  { value: "IN_PROGRESS", label: "În lucru" },
-  { value: "DONE", label: "Finalizat" },
-  { value: "CANCELLED", label: "Anulat" },
-  { value: "NO_SHOW", label: "Nu a venit" },
-];
+import { useMessages } from "@/lib/i18n/context";
 
 const fldCls = (val: string) =>
   `h-9 appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
@@ -59,6 +44,21 @@ export default function AppointmentsManager({
   today: string;
   tz: string;
 }) {
+  const m = useMessages();
+  const VIEWS = [
+    { key: "azi", label: m.appts.viewToday },
+    { key: "maine", label: m.appts.viewTomorrow },
+    { key: "saptamana", label: m.appts.viewWeek },
+    { key: "lista", label: m.appts.viewList },
+  ] as const;
+  const STATUSES = [
+    { value: "NEW", label: m.status.NEW },
+    { value: "CONFIRMED", label: m.appts.statusConfirmed },
+    { value: "IN_PROGRESS", label: m.status.IN_PROGRESS },
+    { value: "DONE", label: m.status.DONE },
+    { value: "CANCELLED", label: m.status.CANCELLED },
+    { value: "NO_SHOW", label: m.appts.statusNoShow },
+  ];
   const [items, setItems] = useState(initialItems);
   const [grouped, setGrouped] = useState(initialGrouped);
   const [localView, setLocalView] = useState(initialView || "azi");
@@ -137,18 +137,18 @@ export default function AppointmentsManager({
             <input
               value={localQ}
               onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Caută client…"
+              placeholder={m.appts.searchPlaceholder}
               className="h-9 min-w-36 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
             />
             <select value={localStatus} onChange={(e) => applyFilter({ status: e.target.value })} className={fldCls(localStatus)}>
-              <option value="">Status: toate</option>
+              <option value="">{m.appts.filterStatusAll}</option>
               {STATUSES.map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
             {categories.length > 0 && (
               <select value={localCategory} onChange={(e) => applyFilter({ category: e.target.value })} className={fldCls(localCategory)}>
-                <option value="">Categorie: toate</option>
+                <option value="">{m.appts.filterCategoryAll}</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -162,7 +162,7 @@ export default function AppointmentsManager({
                 }}
                 className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
               >
-                ✕ Filtre
+                {m.common.clearFilters}
               </button>
             )}
           </div>
@@ -190,14 +190,14 @@ export default function AppointmentsManager({
 
         {items.length === 0 ? (
           <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
-            Nicio programare în acest interval.
+            {m.appts.noAppts}
           </div>
         ) : grouped ? (
           <div className="flex flex-col gap-5">
             {days.map((day) => (
               <section key={day}>
                 <h3 className="mb-2 capitalize text-xs font-semibold uppercase tracking-wide text-ink-soft">
-                  {day === today ? "Azi · " : ""}
+                  {day === today ? m.appts.todayPrefix : ""}
                   {humanDay(day, tz)}
                 </h3>
                 <div className="flex flex-col gap-2.5">

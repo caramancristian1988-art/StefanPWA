@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { addTaskCommentAction } from "@/app/actions/tasks";
 import { useToast } from "./toast";
+import { useMessages } from "@/lib/i18n/context";
 
 type CommentRow = {
   id: string;
@@ -33,6 +34,7 @@ export default function TaskCommentSection({
   initialComments: CommentRow[];
 }) {
   const toast = useToast();
+  const m = useMessages();
   const [comments, setComments] = useState(initialComments);
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
@@ -57,10 +59,10 @@ export default function TaskCommentSection({
           body,
           source: "WEB",
           createdAt: new Date(),
-          user: { name: "Tu" },
+          user: { name: m.tasks.selfName },
         },
       ]);
-      toast.success("Comentariu adăugat");
+      toast.success(m.tasks.commentAdded);
     } finally {
       setPosting(false);
     }
@@ -68,10 +70,10 @@ export default function TaskCommentSection({
 
   return (
     <div className="card p-4">
-      <h2 className="mb-3 text-sm font-bold">💬 Comentarii {comments.length > 0 && `(${comments.length})`}</h2>
+      <h2 className="mb-3 text-sm font-bold">{m.tasks.commentSection} {comments.length > 0 && `(${comments.length})`}</h2>
 
       {comments.length === 0 && (
-        <p className="mb-3 text-sm text-ink-soft">Niciun comentariu încă.</p>
+        <p className="mb-3 text-sm text-ink-soft">{m.tasks.commentEmpty}</p>
       )}
 
       <div className="mb-4 flex flex-col gap-4">
@@ -104,7 +106,7 @@ export default function TaskCommentSection({
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Scrie un comentariu…"
+          placeholder={m.tasks.commentPlaceholder}
           rows={3}
           className="w-full resize-none rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand"
         />
@@ -113,7 +115,7 @@ export default function TaskCommentSection({
           disabled={posting || !draft.trim()}
           className="tap h-10 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-50"
         >
-          {posting ? "Se trimite…" : "Adaugă comentariu"}
+          {posting ? m.tasks.commentSubmitting : m.tasks.commentSubmit}
         </button>
       </form>
     </div>

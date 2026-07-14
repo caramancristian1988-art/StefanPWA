@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { IconX } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -13,6 +14,7 @@ const SK = "oiab_v1";
 type View = "ios" | "android-webview" | "android-install";
 
 export default function OpenInApp() {
+  const m = useMessages();
   const [view, setView] = useState<View | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showGuide, setShowGuide] = useState(false);
@@ -86,7 +88,7 @@ export default function OpenInApp() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-bold">Adaugă la ecranul principal</h3>
+              <h3 className="font-bold">{m.pwa.addToHome}</h3>
               <button
                 onClick={() => setShowGuide(false)}
                 className="tap grid size-8 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]"
@@ -99,25 +101,19 @@ export default function OpenInApp() {
                 <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand text-xs font-bold text-white">
                   1
                 </span>
-                <span>
-                  Apasă butonul <strong>Share</strong> (📤) din bara de jos a Safari
-                </span>
+                <span>{m.pwa.iosStep1}</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand text-xs font-bold text-white">
                   2
                 </span>
-                <span>
-                  Derulează și alege <strong>„Adaugă la ecranul principal"</strong>
-                </span>
+                <span>{m.pwa.iosStep2}</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand text-xs font-bold text-white">
                   3
                 </span>
-                <span>
-                  Apasă <strong>Adaugă</strong> în colțul din dreapta sus
-                </span>
+                <span>{m.pwa.iosStep3}</span>
               </li>
             </ol>
             <button
@@ -127,7 +123,7 @@ export default function OpenInApp() {
               }}
               className="tap mt-5 w-full rounded-xl border border-[var(--color-line)] py-2.5 text-sm text-ink-soft"
             >
-              Am înțeles
+              {m.pwa.understood}
             </button>
           </div>
         </div>
@@ -143,20 +139,20 @@ export default function OpenInApp() {
         <div className="min-w-0 flex-1">
           {view === "ios" && (
             <>
-              <p className="text-sm font-semibold leading-tight">Instalează aplicația</p>
-              <p className="text-xs text-ink-soft">Deschide mai rapid, fără browser</p>
+              <p className="text-sm font-semibold leading-tight">{m.pwa.install}</p>
+              <p className="text-xs text-ink-soft">{m.pwa.iosSubtitle}</p>
             </>
           )}
           {view === "android-webview" && (
             <>
-              <p className="text-sm font-semibold leading-tight">Deschide în Chrome</p>
-              <p className="text-xs text-ink-soft">Pentru instalare ca aplicație</p>
+              <p className="text-sm font-semibold leading-tight">{m.pwa.openInChrome}</p>
+              <p className="text-xs text-ink-soft">{m.pwa.chromeSubtitle}</p>
             </>
           )}
           {view === "android-install" && (
             <>
-              <p className="text-sm font-semibold leading-tight">Instalează aplicația</p>
-              <p className="text-xs text-ink-soft">Acces rapid fără browser</p>
+              <p className="text-sm font-semibold leading-tight">{m.pwa.install}</p>
+              <p className="text-xs text-ink-soft">{m.pwa.androidSubtitle}</p>
             </>
           )}
         </div>
@@ -166,7 +162,7 @@ export default function OpenInApp() {
             onClick={() => setShowGuide(true)}
             className="tap shrink-0 rounded-xl bg-brand px-3 py-1.5 text-xs font-semibold text-white"
           >
-            Cum?
+            {m.pwa.howBtn}
           </button>
         )}
         {view === "android-webview" && (
@@ -174,7 +170,7 @@ export default function OpenInApp() {
             onClick={openInChrome}
             className="tap shrink-0 rounded-xl bg-brand px-3 py-1.5 text-xs font-semibold text-white"
           >
-            Deschide ↗
+            {m.pwa.openBtn}
           </button>
         )}
         {view === "android-install" && (
@@ -182,7 +178,7 @@ export default function OpenInApp() {
             onClick={handleInstall}
             className="tap shrink-0 rounded-xl bg-brand px-3 py-1.5 text-xs font-semibold text-white"
           >
-            Instalează
+            {m.pwa.installBtn}
           </button>
         )}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useMessages } from "@/lib/i18n/context";
 
 const VAPID = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
@@ -15,6 +16,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 }
 
 export default function PushToggle() {
+  const m = useMessages();
   const [supported, setSupported] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -34,10 +36,10 @@ export default function PushToggle() {
     setBusy(true);
     setMsg("");
     try {
-      if (!VAPID) throw new Error("Lipsește NEXT_PUBLIC_VAPID_PUBLIC_KEY.");
+      if (!VAPID) throw new Error(m.push.missingKey);
       const reg = await navigator.serviceWorker.register("/sw.js");
       const perm = await Notification.requestPermission();
-      if (perm !== "granted") throw new Error("Permisiune refuzată.");
+      if (perm !== "granted") throw new Error(m.push.permissionDenied);
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID),
@@ -47,11 +49,11 @@ export default function PushToggle() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sub),
       });
-      if (!res.ok) throw new Error("Salvarea abonamentului a eșuat.");
+      if (!res.ok) throw new Error(m.push.saveFailed);
       setSubscribed(true);
-      setMsg("Notificări activate.");
+      setMsg(m.push.enabled);
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Eroare.");
+      setMsg(e instanceof Error ? e.message : m.common.error);
     } finally {
       setBusy(false);
     }
@@ -71,9 +73,9 @@ export default function PushToggle() {
         await sub.unsubscribe();
       }
       setSubscribed(false);
-      setMsg("Notificări dezactivate.");
+      setMsg(m.push.disabled);
     } catch {
-      setMsg("Eroare.");
+      setMsg(m.common.error);
     } finally {
       setBusy(false);
     }
@@ -81,30 +83,28 @@ export default function PushToggle() {
 
   async function test() {
     await fetch("/api/push/test", { method: "POST" });
-    setMsg("Notificare de test trimisă.");
+    setMsg(m.push.testSent);
   }
 
   return (
     <div className="card p-5">
-      <h2 className="mb-1 text-base font-bold">Notificări (PWA)</h2>
+      <h2 className="mb-1 text-base font-bold">{m.push.title}</h2>
       <p className="mb-3 text-sm text-ink-soft">
-        {supported
-          ? "Primește notificări pe acest dispozitiv."
-          : "Acest browser nu suportă notificări push."}
+        {supported ? m.push.supported : m.push.notSupported}
       </p>
       {supported && (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {!subscribed ? (
             <button onClick={enable} disabled={busy} className="tap h-11 w-full rounded-xl bg-brand px-4 font-semibold text-white hover:bg-brand-strong disabled:opacity-60 sm:w-auto">
-              {busy ? "…" : "Activează notificările"}
+              {busy ? "…" : m.push.enable}
             </button>
           ) : (
             <>
               <button onClick={test} className="tap h-11 w-full rounded-xl bg-[var(--color-surface-2)] px-4 font-medium hover:bg-brand-soft sm:w-auto">
-                Trimite test
+                {m.push.sendTest}
               </button>
               <button onClick={disable} disabled={busy} className="tap h-11 w-full rounded-xl border border-[var(--color-line)] px-4 font-medium text-ink-soft sm:w-auto">
-                Dezactivează
+                {m.push.disable}
               </button>
             </>
           )}

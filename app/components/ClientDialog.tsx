@@ -8,6 +8,7 @@ import {
   type ClientState,
 } from "@/app/actions/clients";
 import { IconX } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 export type ClientEdit = {
   id: string;
@@ -29,6 +30,7 @@ export default function ClientDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const m = useMessages();
   const action = client ? updateClient : createClient;
   const [state, formAction, pending] = useActionState<ClientState, FormData>(
     action,
@@ -50,25 +52,25 @@ export default function ClientDialog({
       <div className="card max-h-[92dvh] w-full max-w-md overflow-auto rounded-b-none rounded-t-2xl p-5 sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold">
-            {client ? "Editează client" : "Client nou"}
+            {client ? m.clients.editTitle : m.clients.newTitle}
           </h2>
-          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">
+          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label={m.common.close}>
             <IconX className="size-4" />
           </button>
         </div>
 
         <form action={formAction} className="flex flex-col gap-3">
           {client && <input type="hidden" name="id" value={client.id} />}
-          <input name="name" defaultValue={client?.name ?? ""} placeholder="Nume *" required className={input} />
-          <input name="phone" defaultValue={client?.phone ?? ""} placeholder="Telefon" inputMode="tel" className={input} />
-          <input name="email" type="email" defaultValue={client?.email ?? ""} placeholder="Email" className={input} />
-          <input name="telegramChatId" defaultValue={client?.telegramChatId ?? ""} placeholder="Telegram chat ID" className={input} />
-          <textarea name="notes" defaultValue={client?.notes ?? ""} placeholder="Notițe" rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-4 py-3 text-[15px] outline-none focus:border-brand" />
+          <input name="name" defaultValue={client?.name ?? ""} placeholder={m.clients.namePlaceholder} required className={input} />
+          <input name="phone" defaultValue={client?.phone ?? ""} placeholder={m.clients.phonePlaceholder} inputMode="tel" className={input} />
+          <input name="email" type="email" defaultValue={client?.email ?? ""} placeholder={m.clients.emailPlaceholder} className={input} />
+          <input name="telegramChatId" defaultValue={client?.telegramChatId ?? ""} placeholder={m.clients.telegramPlaceholder} className={input} />
+          <textarea name="notes" defaultValue={client?.notes ?? ""} placeholder={m.clients.notesPlaceholder} rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-4 py-3 text-[15px] outline-none focus:border-brand" />
 
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
 
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
-            {pending ? "Se salvează…" : "Salvează"}
+            {pending ? m.common.saving : m.common.save}
           </button>
         </form>
       </div>

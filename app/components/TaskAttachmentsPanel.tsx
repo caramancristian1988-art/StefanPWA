@@ -9,6 +9,7 @@ import {
   type AttachmentRow,
 } from "@/app/actions/attachments";
 import { IconTrash } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ export default function TaskAttachmentsPanel({
   taskId: string;
   projectName: string | null;
 }) {
+  const m = useMessages();
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -104,7 +106,7 @@ export default function TaskAttachmentsPanel({
           });
         });
       } catch (e) {
-        setError((e as Error).message ?? "Eroare la încărcare");
+        setError((e as Error).message ?? m.common.error);
       } finally {
         setUploading(false);
         setProgress(0);
@@ -119,7 +121,7 @@ export default function TaskAttachmentsPanel({
       await deleteTaskAttachment(id);
       setAttachments((prev) => prev.filter((a) => a.id !== id));
     } catch (e) {
-      setError((e as Error).message ?? "Eroare la ștergere");
+      setError((e as Error).message ?? m.common.deleteFailed);
     } finally {
       setDeletingId(null);
     }
@@ -128,14 +130,14 @@ export default function TaskAttachmentsPanel({
   return (
     <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-3 py-2.5">
       <div className="mb-2 flex items-center gap-2">
-        <p className="text-[11px] font-semibold text-ink-soft">📎 Atașamente</p>
+        <p className="text-[11px] font-semibold text-ink-soft">📎 {m.tasks.attachments}</p>
         {!uploading && (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="tap ml-auto inline-flex h-6 items-center gap-1 rounded-md border border-[var(--color-line)] px-2 text-[10px] font-medium text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
-            + Adaugă
+            {m.tasks.addAttachment}
           </button>
         )}
         <input
@@ -152,7 +154,7 @@ export default function TaskAttachmentsPanel({
       {uploading && (
         <div className="mb-2">
           <div className="mb-1 flex items-center justify-between text-[10px] text-ink-soft">
-            <span>Se încarcă…</span>
+            <span>{m.tasks.uploadingFile}</span>
             <span>{progress}%</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-line)]">
@@ -173,9 +175,9 @@ export default function TaskAttachmentsPanel({
 
       {/* List */}
       {loading ? (
-        <p className="text-[11px] text-ink-soft">Se încarcă…</p>
+        <p className="text-[11px] text-ink-soft">{m.common.loading}</p>
       ) : attachments.length === 0 ? (
-        <p className="text-[11px] text-ink-soft">Niciun atașament</p>
+        <p className="text-[11px] text-ink-soft">{m.tasks.noAttachments}</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {attachments.map((a) => (
@@ -221,7 +223,7 @@ export default function TaskAttachmentsPanel({
                 disabled={deletingId === a.id}
                 onClick={() => handleDelete(a.id)}
                 className="absolute right-0.5 top-0.5 hidden size-5 items-center justify-center rounded bg-white/80 text-red-500 hover:bg-red-50 group-hover:flex disabled:opacity-50"
-                title="Șterge"
+                title={m.common.delete}
               >
                 <IconTrash className="size-3" />
               </button>

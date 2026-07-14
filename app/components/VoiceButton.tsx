@@ -2,11 +2,13 @@
 
 import { useRef, useState } from "react";
 import { useQuickAdd } from "./quick-add-context";
+import { useMessages } from "@/lib/i18n/context";
 
 type Phase = "idle" | "rec" | "proc" | "err";
 
 export default function VoiceButton({ compact = false }: { compact?: boolean }) {
   const { open } = useQuickAdd();
+  const m = useMessages();
   const [phase, setPhase] = useState<Phase>("idle");
   const [msg, setMsg] = useState("");
   const recRef = useRef<MediaRecorder | null>(null);
@@ -28,7 +30,7 @@ export default function VoiceButton({ compact = false }: { compact?: boolean }) 
       setPhase("rec");
     } catch {
       setPhase("err");
-      setMsg("Nu am acces la microfon.");
+      setMsg(m.voice.noMicAccess);
     }
   }
 
@@ -43,9 +45,8 @@ export default function VoiceButton({ compact = false }: { compact?: boolean }) 
       fd.append("audio", blob, "voice.webm");
       const res = await fetch("/api/voice", { method: "POST", body: fd });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Eroare AI");
+      if (!res.ok) throw new Error(data.error ?? m.voice.aiError);
       setPhase("idle");
-      // Preview + confirmare: deschide formularul rapid prefill-at
       open({
         clientName: data.parsed?.clientName,
         clientPhone: data.parsed?.phone,
@@ -59,7 +60,7 @@ export default function VoiceButton({ compact = false }: { compact?: boolean }) 
       });
     } catch (e) {
       setPhase("err");
-      setMsg(e instanceof Error ? e.message : "Eroare");
+      setMsg(e instanceof Error ? e.message : m.common.error);
     }
   }
 
@@ -70,7 +71,7 @@ export default function VoiceButton({ compact = false }: { compact?: boolean }) 
         type="button"
         onClick={phase === "rec" ? stop : start}
         disabled={phase === "proc"}
-        title="Adaugă prin voce"
+        title={m.voice.addByVoice}
         className={`tap grid place-items-center rounded-xl ${compact ? "size-10" : "size-11"} ${
           active
             ? "animate-pulse bg-st-cancelled text-white"

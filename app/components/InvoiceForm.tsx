@@ -8,6 +8,7 @@ import { quickCreateProject } from "@/app/actions/projects";
 import { money } from "./invoice-meta";
 import { useToast } from "./toast";
 import { IconTrash, IconPlus, IconCheck, IconX } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 type Opt = { id: string; name: string };
 type ProjOpt = { id: string; name: string; clientId: string | null };
@@ -56,6 +57,7 @@ export default function InvoiceForm({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const m = useMessages();
   // Liste locale ca să apară imediat ce creăm inline
   const [clientList, setClientList] = useState<Opt[]>(clients);
   const [projectList, setProjectList] = useState<ProjOpt[]>(projects);
@@ -79,7 +81,7 @@ export default function InvoiceForm({
       onClientChange(res.id);
       setNewClient("");
       setAddingClient(false);
-      toast.success("Client creat");
+      toast.success(m.invoices.clientCreated);
     } else toast.error(res.error);
   }
 
@@ -96,7 +98,7 @@ export default function InvoiceForm({
       setTaskIds([]);
       setNewProject("");
       setAddingProject(false);
-      toast.success("Proiect creat");
+      toast.success(m.invoices.projectCreated);
     } else toast.error(res.error);
   }
   const [taskIds, setTaskIds] = useState<string[]>(initial?.taskIds ?? []);
@@ -190,7 +192,7 @@ export default function InvoiceForm({
     setError("");
     const valid = items.filter((it) => it.description.trim() !== "");
     if (valid.length === 0) {
-      setError("Adaugă cel puțin un rând cu descriere.");
+      setError(m.invoices.validationError);
       return;
     }
     setSaving(true);
@@ -214,7 +216,7 @@ export default function InvoiceForm({
     const res = await saveInvoice(payload);
     setSaving(false);
     if (!res.ok) {
-      setError(res.error ?? "Eroare la salvare.");
+      setError(res.error ?? m.common.error);
       return;
     }
     router.push("/invoices");
@@ -226,25 +228,25 @@ export default function InvoiceForm({
       <div className="card flex flex-col gap-4 p-5">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={label}>Data emiterii</label>
+            <label className={label}>{m.invoices.issueDate}</label>
             <input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className={input} />
           </div>
           <div>
-            <label className={label}>Scadență</label>
+            <label className={label}>{m.invoices.dueDate}</label>
             <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={input} />
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className={label}>Client (opțional)</label>
+            <label className={label}>{m.invoices.clientLabel}</label>
             <div className="flex gap-2">
               <select value={clientId} onChange={(e) => onClientChange(e.target.value)} className={input}>
                 <option value="">—</option>
                 {clientList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               {canCreateClient && !addingClient && (
-                <button type="button" onClick={() => setAddingClient(true)} className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-brand hover:bg-brand-soft" title="Adaugă client">
+                <button type="button" onClick={() => setAddingClient(true)} className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-brand hover:bg-brand-soft" title={m.invoices.addClient}>
                   <IconPlus className="size-4" />
                 </button>
               )}
@@ -253,21 +255,21 @@ export default function InvoiceForm({
               <div className="mt-2 flex gap-2">
                 <input autoFocus value={newClient} onChange={(e) => setNewClient(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); createClientInline(); } if (e.key === "Escape") { setAddingClient(false); setNewClient(""); } }}
-                  placeholder="Nume client…" className={input} />
-                <button type="button" disabled={busy || !newClient.trim()} onClick={createClientInline} className="tap grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-white hover:bg-brand-strong disabled:opacity-50" title="Salvează"><IconCheck className="size-4" /></button>
-                <button type="button" onClick={() => { setAddingClient(false); setNewClient(""); }} className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title="Anulează"><IconX className="size-4" /></button>
+                  placeholder={m.invoices.clientNamePlaceholder} className={input} />
+                <button type="button" disabled={busy || !newClient.trim()} onClick={createClientInline} className="tap grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-white hover:bg-brand-strong disabled:opacity-50" title={m.common.save}><IconCheck className="size-4" /></button>
+                <button type="button" onClick={() => { setAddingClient(false); setNewClient(""); }} className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title={m.common.cancel}><IconX className="size-4" /></button>
               </div>
             )}
           </div>
           <div>
-            <label className={label}>Proiect (opțional)</label>
+            <label className={label}>{m.invoices.projectLabel}</label>
             <div className="flex gap-2">
               <select value={projectId} onChange={(e) => onProjectChange(e.target.value)} className={input}>
                 <option value="">—</option>
                 {filteredProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               {canCreateProject && !addingProject && (
-                <button type="button" onClick={() => setAddingProject(true)} className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-brand hover:bg-brand-soft" title="Adaugă proiect">
+                <button type="button" onClick={() => setAddingProject(true)} className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-brand hover:bg-brand-soft" title={m.invoices.addProject}>
                   <IconPlus className="size-4" />
                 </button>
               )}
@@ -276,9 +278,9 @@ export default function InvoiceForm({
               <div className="mt-2 flex gap-2">
                 <input autoFocus value={newProject} onChange={(e) => setNewProject(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); createProjectInline(); } if (e.key === "Escape") { setAddingProject(false); setNewProject(""); } }}
-                  placeholder="Nume proiect…" className={input} />
-                <button type="button" disabled={busy || !newProject.trim()} onClick={createProjectInline} className="tap grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-white hover:bg-brand-strong disabled:opacity-50" title="Salvează"><IconCheck className="size-4" /></button>
-                <button type="button" onClick={() => { setAddingProject(false); setNewProject(""); }} className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title="Anulează"><IconX className="size-4" /></button>
+                  placeholder={m.invoices.projectNamePlaceholder} className={input} />
+                <button type="button" disabled={busy || !newProject.trim()} onClick={createProjectInline} className="tap grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-white hover:bg-brand-strong disabled:opacity-50" title={m.common.save}><IconCheck className="size-4" /></button>
+                <button type="button" onClick={() => { setAddingProject(false); setNewProject(""); }} className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title={m.common.cancel}><IconX className="size-4" /></button>
               </div>
             )}
           </div>
@@ -287,7 +289,7 @@ export default function InvoiceForm({
         {projectId && (
           <div>
             <label className={label}>
-              Task-uri (opțional)
+              {m.invoices.tasksLabel}
               {taskIds.length > 0 && (
                 <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">
                   {taskIds.length} selectat{taskIds.length !== 1 ? "e" : ""}
@@ -295,7 +297,7 @@ export default function InvoiceForm({
               )}
             </label>
             {tasks.length === 0 ? (
-              <p className="text-sm text-ink-soft">Niciun task în acest proiect.</p>
+              <p className="text-sm text-ink-soft">{m.invoices.noTasksInProject}</p>
             ) : (
               <div className="max-h-48 overflow-y-auto rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] p-1">
                 {tasks.map((t) => (
@@ -318,9 +320,9 @@ export default function InvoiceForm({
       {/* Items */}
       <div className="card p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-bold">Rânduri</h2>
+          <h2 className="text-base font-bold">{m.invoices.rowsLabel}</h2>
           <button onClick={addItem} className="tap rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-strong">
-            + Adaugă rând
+            {m.invoices.addRow}
           </button>
         </div>
 
@@ -330,24 +332,24 @@ export default function InvoiceForm({
               <input
                 value={it.description}
                 onChange={(e) => setItem(i, { description: e.target.value })}
-                placeholder="Descriere"
+                placeholder={m.invoices.descPlaceholder}
                 className="mb-2 h-10 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
               />
               <div className="flex flex-wrap items-end gap-2">
-                <Field label="Cant." w="w-20">
+                <Field label={m.invoices.qtyLabel} w="w-20">
                   <input type="number" inputMode="decimal" step="any" min={0} value={it.quantity} onChange={(e) => setItem(i, { quantity: e.target.value })} className="h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 text-sm outline-none" />
                 </Field>
-                <Field label="Preț unit." w="w-28">
+                <Field label={m.invoices.unitPriceLabel} w="w-28">
                   <input type="number" inputMode="decimal" step="any" min={0} value={it.unitPrice} onChange={(e) => setItem(i, { unitPrice: e.target.value })} className="h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 text-sm outline-none" />
                 </Field>
-                <Field label="TVA %" w="w-20">
+                <Field label={m.invoices.taxLabel} w="w-20">
                   <input type="number" inputMode="decimal" step="any" min={0} value={it.taxRate} onChange={(e) => setItem(i, { taxRate: e.target.value })} className="h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 text-sm outline-none" />
                 </Field>
                 <div className="ml-auto text-right">
-                  <p className="text-[11px] text-ink-soft">Total rând</p>
+                  <p className="text-[11px] text-ink-soft">{m.invoices.rowTotal}</p>
                   <p className="font-semibold tabular-nums">{money(totals.lines[i]?.lineTotal ?? 0, currency)}</p>
                 </div>
-                <button onClick={() => removeItem(i)} className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title="Șterge rândul">
+                <button onClick={() => removeItem(i)} className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title={m.invoices.deleteRow}>
                   <IconTrash className="size-4" />
                 </button>
               </div>
@@ -356,10 +358,10 @@ export default function InvoiceForm({
         </div>
 
         <div className="mt-4 flex flex-col items-end gap-1 border-t border-[var(--color-line)] pt-4 text-sm">
-          <Row k="Subtotal" v={money(totals.subtotal, currency)} />
-          <Row k="TVA total" v={money(totals.taxTotal, currency)} />
+          <Row k={m.invoices.subtotal} v={money(totals.subtotal, currency)} />
+          <Row k={m.invoices.totalTax} v={money(totals.taxTotal, currency)} />
           <div className="flex w-56 justify-between text-base font-bold">
-            <span>Total general</span>
+            <span>{m.invoices.grandTotal}</span>
             <span className="tabular-nums">{money(totals.grandTotal, currency)}</span>
           </div>
         </div>
@@ -367,11 +369,11 @@ export default function InvoiceForm({
 
       <div className="card grid grid-cols-1 gap-3 p-5 sm:grid-cols-2">
         <div>
-          <label className={label}>Notițe (opțional)</label>
+          <label className={label}>{m.invoices.notesLabel}</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
         </div>
         <div>
-          <label className={label}>Termeni (opțional)</label>
+          <label className={label}>{m.invoices.termsLabel}</label>
           <textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
         </div>
       </div>
@@ -380,10 +382,10 @@ export default function InvoiceForm({
 
       <div className="flex flex-wrap gap-3">
         <button onClick={() => submit("DRAFT")} disabled={saving} className="tap h-12 flex-1 rounded-xl border border-[var(--color-line)] font-semibold hover:bg-[var(--color-surface-2)] disabled:opacity-60">
-          {saving ? "Se salvează…" : "Salvează ciornă"}
+          {saving ? m.common.saving : m.invoices.saveDraft}
         </button>
         <button onClick={() => submit("SENT")} disabled={saving} className="tap h-12 flex-1 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
-          {saving ? "Se salvează…" : "Generează factura"}
+          {saving ? m.common.saving : m.invoices.saveAndSend}
         </button>
       </div>
     </div>

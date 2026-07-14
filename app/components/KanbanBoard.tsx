@@ -5,9 +5,23 @@ import { setStatus as setStatusAction } from "@/app/actions/appointments";
 import { KANBAN_COLUMNS, STATUS_META } from "./status";
 import { useToast } from "./toast";
 import type { ApptStatus, ApptVM } from "./types";
+import { useMessages } from "@/lib/i18n/context";
+import type { Messages } from "@/lib/i18n/messages/ro";
+
+function apptLabel(s: ApptStatus, m: Messages): string {
+  switch (s) {
+    case "NEW": return m.appts.statusNew;
+    case "CONFIRMED": return m.appts.statusConfirmed;
+    case "IN_PROGRESS": return m.status.IN_PROGRESS;
+    case "DONE": return m.status.DONE;
+    case "CANCELLED": return m.status.CANCELLED;
+    case "NO_SHOW": return m.appts.statusNoShow;
+  }
+}
 
 export default function KanbanBoard({ items }: { items: ApptVM[] }) {
   const toast = useToast();
+  const m = useMessages();
   const [list, setList] = useState(items);
   useEffect(() => setList(items), [items]);
 
@@ -17,13 +31,13 @@ export default function KanbanBoard({ items }: { items: ApptVM[] }) {
 
   async function move(id: string, status: ApptStatus) {
     const prev = list;
-    setList((cur) => cur.map((t) => (t.id === id ? { ...t, status } : t))); // optimistic
+    setList((cur) => cur.map((t) => (t.id === id ? { ...t, status } : t)));
     const res = await setStatusAction(id, status);
     if (res?.error) {
-      setList(prev); // rollback
+      setList(prev);
       toast.error(res.error);
     } else {
-      toast.success(`Mutat în „${STATUS_META[status].label}"`);
+      toast.success(`${m.kanban.moved} "${apptLabel(status, m)}"`);
     }
   }
 
@@ -36,7 +50,7 @@ export default function KanbanBoard({ items }: { items: ApptVM[] }) {
           <div key={col.status} className="flex w-72 shrink-0 flex-col">
             <div className="mb-2 flex items-center gap-2 px-1">
               <span className={`size-2.5 rounded-full ${meta.dot}`} />
-              <h3 className="text-sm font-semibold">{col.label}</h3>
+              <h3 className="text-sm font-semibold">{apptLabel(col.status, m)}</h3>
               <span className="ml-auto rounded-full bg-[var(--color-surface-2)] px-2 text-xs text-ink-soft">
                 {colItems.length}
               </span>
@@ -58,7 +72,7 @@ export default function KanbanBoard({ items }: { items: ApptVM[] }) {
                   >
                     {KANBAN_COLUMNS.map((c) => (
                       <option key={c.status} value={c.status}>
-                        {c.label}
+                        {apptLabel(c.status, m)}
                       </option>
                     ))}
                   </select>

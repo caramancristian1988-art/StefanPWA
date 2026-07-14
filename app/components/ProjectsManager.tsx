@@ -258,7 +258,7 @@ export default function ProjectsManager({
                 </Link>
                 {/* Buton hartă — ascuns pe mobile, vizibil pe desktop */}
                 {p.lat != null && p.lng != null && (
-                  <Link href={`/projects/${p.id}`} className="tap hidden size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)] sm:grid" title="Hartă proiect">
+                  <Link href={`/projects/${p.id}`} className="tap hidden size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)] sm:grid" title={m.projects.mapTooltip}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8Z"/></svg>
                   </Link>
                 )}
@@ -343,7 +343,7 @@ export default function ProjectsManager({
             disabled={page <= 1}
             onClick={() => router.push(buildUrl({ page: page - 1 }))}
             className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
-            aria-label="Anterior"
+            aria-label={m.common.prev}
           >
             <IconChevronLeft className="size-4" />
           </button>
@@ -356,7 +356,7 @@ export default function ProjectsManager({
             disabled={!hasMore}
             onClick={() => router.push(buildUrl({ page: page + 1 }))}
             className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
-            aria-label="Următor"
+            aria-label={m.common.next}
           >
             <IconChevronRight className="size-4" />
           </button>

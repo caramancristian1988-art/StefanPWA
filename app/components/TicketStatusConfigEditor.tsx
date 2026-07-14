@@ -5,11 +5,7 @@ import { saveTicketStatusConfig, deleteTicketStatus, addTicketStatus } from "@/a
 import { DEFAULT_STATUS_CONFIGS, ALL_STATUS_KEYS, type StatusConfig } from "@/lib/ticket-status-config";
 import { useToast } from "./toast";
 import { IconTrash, IconPlus, IconChevronUp, IconChevronDown } from "./icons";
-
-const STATUS_LABELS: Record<string, string> = {
-  NEW: "Nou", ASSIGNED: "Asignat", READ: "Citit", IN_PROGRESS: "În lucru",
-  ON_HOLD: "În așteptare", REVIEW: "Verificare", DONE: "Finalizat", CANCELLED: "Anulat",
-};
+import { useMessages } from "@/lib/i18n/context";
 
 function Toggle({
   checked,
@@ -49,6 +45,12 @@ export default function TicketStatusConfigEditor({
   initial: StatusConfig[];
 }) {
   const toast = useToast();
+  const m = useMessages();
+  const STATUS_LABELS: Record<string, string> = {
+    NEW: m.status.NEW, ASSIGNED: m.status.ASSIGNED, READ: m.status.READ,
+    IN_PROGRESS: m.status.IN_PROGRESS, ON_HOLD: m.status.ON_HOLD,
+    REVIEW: m.status.REVIEW, DONE: m.status.DONE, CANCELLED: m.status.CANCELLED,
+  };
   const [, startTransition] = useTransition();
   const [configs, setConfigs] = useState<StatusConfig[]>(initial);
   const [saving, setSaving] = useState(false);
@@ -81,7 +83,7 @@ export default function TicketStatusConfigEditor({
 
   function handleDelete(key: string) {
     if (configs.length <= 1) {
-      toast.error("Nu poți șterge ultimul status.");
+      toast.error(m.tickets.statusDeleteLast);
       return;
     }
     const remaining = configs.filter((c) => c.key !== key);
@@ -95,7 +97,7 @@ export default function TicketStatusConfigEditor({
       if (res?.error) toast.error(res.error);
       else {
         setConfigs(remaining.map((c, i) => ({ ...c, order: i })));
-        toast.success("Status șters. Tichetele au fost reasignate.");
+        toast.success(m.tickets.statusDeleted);
       }
       setSaving(false);
     });
@@ -111,7 +113,7 @@ export default function TicketStatusConfigEditor({
         ? { ...def, order: configs.length }
         : { key, label: STATUS_LABELS[key] ?? key, color: "#6b7280", notifyOnEnter: false, suppressAll: false, order: configs.length };
       setConfigs((prev) => [...prev, newEntry]);
-      toast.success("Status adăugat.");
+      toast.success(m.tickets.statusAdded);
     });
   }
 
@@ -120,7 +122,7 @@ export default function TicketStatusConfigEditor({
     startTransition(async () => {
       const res = await saveTicketStatusConfig(configs.map((c, i) => ({ ...c, order: i })));
       if (res?.error) toast.error(res.error);
-      else toast.success("Configurare salvată.");
+      else toast.success(m.tickets.statusSaved);
       setSaving(false);
     });
   }
@@ -136,8 +138,8 @@ export default function TicketStatusConfigEditor({
         <span />
         <span>Status</span>
         <span className="text-center">Col.</span>
-        <span className="text-center leading-tight">Notif. intrare</span>
-        <span className="text-center leading-tight">Opreşte notif.</span>
+        <span className="text-center leading-tight">{m.tickets.notifEntry}</span>
+        <span className="text-center leading-tight">{m.tickets.stopNotif}</span>
         <span />
       </div>
 
@@ -197,7 +199,7 @@ export default function TicketStatusConfigEditor({
               checked={cfg.notifyOnEnter}
               onChange={(v) => update(cfg.key, "notifyOnEnter", v)}
               activeColor="bg-brand"
-              title={cfg.notifyOnEnter ? "Notificări active la intrare" : "Fără notificări la intrare"}
+              title={cfg.notifyOnEnter ? m.tickets.notifyOnEnterActive : m.tickets.notifyOnEnterInactive}
             />
           </div>
 
@@ -207,7 +209,7 @@ export default function TicketStatusConfigEditor({
               checked={cfg.suppressAll}
               onChange={(v) => update(cfg.key, "suppressAll", v)}
               activeColor="bg-amber-500"
-              title={cfg.suppressAll ? "Notificările sunt oprite" : "Notificările sunt active"}
+              title={cfg.suppressAll ? m.tickets.suppressActive : m.tickets.suppressInactive}
             />
           </div>
 
@@ -217,7 +219,7 @@ export default function TicketStatusConfigEditor({
             onClick={() => handleDelete(cfg.key)}
             disabled={saving}
             className="tap grid size-6 place-items-center rounded text-st-cancelled hover:bg-[var(--color-surface-2)] disabled:opacity-40"
-            title="Șterge status"
+            title={m.tickets.statusDeleteTitle}
           >
             <IconTrash className="size-3.5" />
           </button>
@@ -233,7 +235,7 @@ export default function TicketStatusConfigEditor({
             className="tap flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--color-line)] text-sm text-ink-soft hover:border-brand hover:text-brand"
           >
             <IconPlus className="size-4" />
-            Adaugă status
+            {m.tickets.statusAddBtn}
           </button>
           {addOpen && (
             <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] shadow-lg">
@@ -263,7 +265,7 @@ export default function TicketStatusConfigEditor({
           onClick={reset}
           className="text-xs text-ink-soft transition-colors hover:text-ink"
         >
-          Resetează la default
+          {m.tickets.statusReset}
         </button>
         <button
           type="button"
@@ -271,13 +273,13 @@ export default function TicketStatusConfigEditor({
           disabled={saving}
           className="tap rounded-xl bg-brand px-5 py-2 text-sm font-semibold text-white hover:bg-brand-strong disabled:opacity-60"
         >
-          {saving ? "Se salvează…" : "Salvează"}
+          {saving ? m.common.saving : m.common.save}
         </button>
       </div>
 
       <p className="pt-1 text-xs text-ink-soft">
-        <strong>Notif. intrare</strong> — trimite notificare Telegram/push staff când tichetul intră în status. &nbsp;|&nbsp;
-        <strong>Oprește notif.</strong> — blochează reamintirile și notificările de întârziere (ex. Finalizat, Anulat).
+        <strong>{m.tickets.notifEntry}</strong> — {m.tickets.notifEntryDesc} &nbsp;|&nbsp;
+        <strong>{m.tickets.stopNotif}</strong> — {m.tickets.stopNotifDesc}
       </p>
     </div>
   );

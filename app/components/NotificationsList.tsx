@@ -9,6 +9,7 @@ import {
 } from "@/app/actions/notifications";
 import { useToast } from "./toast";
 import { IconCheck, IconTrash } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 type Row = {
   id: string;
@@ -45,6 +46,7 @@ export default function NotificationsList({
   const router = useRouter();
   const pathname = usePathname();
   const toast = useToast();
+  const m = useMessages();
   const [, startNav] = useTransition();
   const [rows, setRows] = useState(items);
   const hasUnread = rows.some((r) => !r.read);
@@ -67,10 +69,10 @@ export default function NotificationsList({
     setRows((r) => r.filter((x) => !x.read));
     clearReadNotifications()
       .then(() => {
-        toast.success("Notificările citite au fost șterse");
+        toast.success(m.notifications.clearReadDone);
         router.refresh();
       })
-      .catch(() => toast.error("Eroare"));
+      .catch(() => toast.error(m.common.error));
   }
 
   function open(r: Row) {
@@ -90,7 +92,7 @@ export default function NotificationsList({
       {/* Header */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold">Notificări</h1>
+          <h1 className="text-lg font-bold">{m.notifications.title}</h1>
           {total > 0 && (
             <span className="rounded-full bg-[var(--color-surface-2)] px-2.5 py-0.5 text-xs text-ink-soft">
               {total}
@@ -102,7 +104,7 @@ export default function NotificationsList({
           <select
             value={ps}
             onChange={(e) => nav({ ps: e.target.value, page: "1" })}
-            title="Notificări pe pagină"
+            title={m.notifications.perPage}
             className="h-8 appearance-none rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] pl-2 pr-7 text-xs outline-none focus:border-brand sel-arrow"
           >
             {[10, 20, 50, 100].map((n) => (
@@ -114,13 +116,13 @@ export default function NotificationsList({
             disabled={!hasUnread}
             className="tap inline-flex items-center gap-1 rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-surface-2)] disabled:opacity-40"
           >
-            <IconCheck className="size-3.5" /> Toate citite
+            <IconCheck className="size-3.5" /> {m.notifications.markAllRead}
           </button>
           <button
             onClick={clearRead}
             className="tap inline-flex items-center gap-1 rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs font-medium text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
-            <IconTrash className="size-3.5" /> Șterge citite
+            <IconTrash className="size-3.5" /> {m.notifications.clearRead}
           </button>
         </div>
       </div>
@@ -128,14 +130,14 @@ export default function NotificationsList({
       {/* Count info */}
       {total > ps && (
         <p className="mb-2 text-xs text-ink-soft">
-          {start}–{end} din {total} notificări
+          {start}–{end} {m.notifications.paginationFmt.replace("{total}", String(total))}
         </p>
       )}
 
       {/* List */}
       {rows.length === 0 ? (
         <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
-          Nicio notificare.
+          {m.notifications.noNotifications}
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">

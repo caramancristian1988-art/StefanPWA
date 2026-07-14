@@ -3,11 +3,13 @@
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { login, register, type AuthState } from "@/app/actions/auth";
+import { useMessages } from "@/lib/i18n/context";
 
 const input =
   "w-full h-12 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-4 text-[15px] outline-none focus:border-brand focus:ring-2 focus:ring-brand/30";
 
 export default function AuthForm({ mode }: { mode: "login" | "register" }) {
+  const m = useMessages();
   const action = mode === "login" ? login : register;
   const [state, formAction, pending] = useActionState<AuthState, FormData>(
     action,
@@ -22,7 +24,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
       {mode === "register" && (
         <input
           name="name"
-          placeholder="Numele tău"
+          placeholder={m.auth.namePlaceholder}
           autoComplete="name"
           required
           className={input}
@@ -31,7 +33,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
       <input
         name="email"
         type="email"
-        placeholder="Email"
+        placeholder={m.auth.email}
         autoComplete="email"
         required
         className={input}
@@ -39,7 +41,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
       <input
         name="password"
         type="password"
-        placeholder="Parolă"
+        placeholder={m.auth.password}
         autoComplete={mode === "login" ? "current-password" : "new-password"}
         required
         className={input}
@@ -55,10 +57,10 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
         className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60"
       >
         {pending
-          ? "Se procesează…"
+          ? m.auth.processing
           : mode === "login"
-            ? "Intră în cont"
-            : "Creează cont administrator"}
+            ? m.auth.loginBtn
+            : m.auth.registerBtn}
       </button>
     </form>
   );

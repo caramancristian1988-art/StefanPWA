@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { useMessages } from "@/lib/i18n/context";
 
 type ProjectPin = {
   id: string;
@@ -21,59 +22,57 @@ const STATUS_COLOR: Record<string, string> = {
   ARCHIVED: "#9ca3af",
 };
 
-const STATUS_RO: Record<string, string> = {
-  ACTIVE: "Activ",
-  ON_HOLD: "În așteptare",
-  DONE: "Finalizat",
-  ARCHIVED: "Arhivat",
-};
-
-function pinPopupHtml(pin: { id: string; seq?: number | null; name: string; status: string; address: string | null; taskCount: number }) {
-  const seq = pin.seq != null ? `<span style="font-family:monospace;font-size:11px;background:#eff6ff;color:#2563eb;padding:1px 6px;border-radius:4px;margin-right:6px">#${String(pin.seq).padStart(3, "0")}</span>` : "";
-  return `
-    <div style="font-family:system-ui,sans-serif;padding:4px 0;min-width:180px">
-      <div style="font-weight:700;font-size:14px;margin-bottom:4px">${seq}${pin.name}</div>
-      <div style="font-size:12px;color:#6b7280;margin-bottom:2px">
-        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${STATUS_COLOR[pin.status] ?? "#9ca3af"};margin-right:4px"></span>
-        ${STATUS_RO[pin.status] ?? pin.status} · ${pin.taskCount} task-uri
-      </div>
-      ${pin.address ? `<div style="font-size:12px;color:#6b7280;margin-bottom:8px">${pin.address}</div>` : ""}
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <a href="/projects/${pin.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none">Detalii →</a>
-        <a href="/tasks?scope=all&proj=${pin.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none">Task-uri →</a>
-      </div>
-    </div>
-  `;
-}
-
-function clusterPopupHtml(leaves: { properties: Record<string, unknown> }[]) {
-  const items = leaves
-    .map((f) => {
-      const p = f.properties;
-      const seq = p.seq != null ? `<span style="font-family:monospace;font-size:10px;background:#eff6ff;color:#2563eb;padding:1px 5px;border-radius:4px;margin-right:5px">#${String(p.seq).padStart(3, "0")}</span>` : "";
-      return `
-        <div style="padding:6px 0;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:6px">
-          <span style="display:inline-block;width:8px;height:8px;flex-shrink:0;border-radius:50%;background:${STATUS_COLOR[p.status as string] ?? "#9ca3af"}"></span>
-          <div style="min-width:0;flex:1">
-            <div style="font-size:13px;font-weight:600">${seq}${p.name}</div>
-            <div style="font-size:11px;color:#6b7280">${STATUS_RO[p.status as string] ?? p.status} · ${p.taskCount} task-uri</div>
-          </div>
-          <a href="/projects/${p.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;flex-shrink:0">→</a>
-        </div>
-      `;
-    })
-    .join("");
-  return `
-    <div style="font-family:system-ui,sans-serif;padding:4px 0;min-width:220px;max-height:300px;overflow-y:auto">
-      <div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:4px">${leaves.length} proiecte în această zonă</div>
-      ${items}
-    </div>
-  `;
-}
-
 export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const m = useMessages();
+
+  const statusLabels = m.projects.status;
+
+  function pinPopupHtml(pin: { id: string; seq?: number | null; name: string; status: string; address: string | null; taskCount: number }) {
+    const seq = pin.seq != null ? `<span style="font-family:monospace;font-size:11px;background:#eff6ff;color:#2563eb;padding:1px 6px;border-radius:4px;margin-right:6px">#${String(pin.seq).padStart(3, "0")}</span>` : "";
+    const statusLabel = statusLabels[pin.status as keyof typeof statusLabels] ?? pin.status;
+    return `
+      <div style="font-family:system-ui,sans-serif;padding:4px 0;min-width:180px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${seq}${pin.name}</div>
+        <div style="font-size:12px;color:#6b7280;margin-bottom:2px">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${STATUS_COLOR[pin.status] ?? "#9ca3af"};margin-right:4px"></span>
+          ${statusLabel} · ${pin.taskCount} ${m.projects.taskUnit}
+        </div>
+        ${pin.address ? `<div style="font-size:12px;color:#6b7280;margin-bottom:8px">${pin.address}</div>` : ""}
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <a href="/projects/${pin.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none">${m.projects.map.details} →</a>
+          <a href="/tasks?scope=all&proj=${pin.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none">${m.nav.tasks} →</a>
+        </div>
+      </div>
+    `;
+  }
+
+  function clusterPopupHtml(leaves: { properties: Record<string, unknown> }[]) {
+    const items = leaves
+      .map((f) => {
+        const p = f.properties;
+        const seq = p.seq != null ? `<span style="font-family:monospace;font-size:10px;background:#eff6ff;color:#2563eb;padding:1px 5px;border-radius:4px;margin-right:5px">#${String(p.seq).padStart(3, "0")}</span>` : "";
+        const statusLabel = statusLabels[p.status as keyof typeof statusLabels] ?? (p.status as string);
+        return `
+          <div style="padding:6px 0;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:6px">
+            <span style="display:inline-block;width:8px;height:8px;flex-shrink:0;border-radius:50%;background:${STATUS_COLOR[p.status as string] ?? "#9ca3af"}"></span>
+            <div style="min-width:0;flex:1">
+              <div style="font-size:13px;font-weight:600">${seq}${p.name}</div>
+              <div style="font-size:11px;color:#6b7280">${statusLabel} · ${p.taskCount} ${m.projects.taskUnit}</div>
+            </div>
+            <a href="/projects/${p.id}" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;flex-shrink:0">→</a>
+          </div>
+        `;
+      })
+      .join("");
+    return `
+      <div style="font-family:system-ui,sans-serif;padding:4px 0;min-width:220px;max-height:300px;overflow-y:auto">
+        <div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:4px">${leaves.length} ${m.projects.map.inZone}</div>
+        ${items}
+      </div>
+    `;
+  }
 
   useEffect(() => {
     if (!token || !containerRef.current || pins.length === 0) return;
@@ -228,9 +227,9 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
   if (!token) {
     return (
       <div className="card grid place-items-center p-16 text-center text-sm text-ink-soft">
-        <p className="mb-1 font-semibold text-ink">Hartă indisponibilă</p>
+        <p className="mb-1 font-semibold text-ink">{m.projects.map.unavailable}</p>
         <p>
-          Variabila <code className="rounded bg-[var(--color-surface-2)] px-1">NEXT_PUBLIC_MAPBOX_TOKEN</code> nu este configurată.
+          Variabila <code className="rounded bg-[var(--color-surface-2)] px-1">NEXT_PUBLIC_MAPBOX_TOKEN</code> {m.projects.map.varNotSet}
         </p>
       </div>
     );
@@ -239,8 +238,8 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
   if (pins.length === 0) {
     return (
       <div className="card grid place-items-center p-16 text-center text-sm text-ink-soft">
-        <p className="mb-1 font-semibold text-ink">Niciun proiect cu locație</p>
-        <p>Deschide un proiect și apasă pe hartă pentru a seta locația.</p>
+        <p className="mb-1 font-semibold text-ink">{m.projects.map.noPins}</p>
+        <p>{m.projects.map.noPinsDesc}</p>
       </div>
     );
   }
@@ -254,9 +253,9 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
 
       {/* Legendă */}
       <div className="absolute bottom-4 left-4 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-3 shadow-lg">
-        <p className="mb-2 text-xs font-semibold text-ink-soft">Legendă</p>
+        <p className="mb-2 text-xs font-semibold text-ink-soft">{m.projects.map.legend}</p>
         <div className="flex flex-col gap-1.5">
-          {Object.entries(STATUS_RO).map(([k, label]) => (
+          {Object.entries(statusLabels).map(([k, label]) => (
             <div key={k} className="flex items-center gap-2">
               <span className="size-3 rounded-full" style={{ background: STATUS_COLOR[k] ?? "#9ca3af" }} />
               <span className="text-xs">{label}</span>
@@ -264,7 +263,7 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
           ))}
           <div className="mt-1 flex items-center gap-2 border-t border-[var(--color-line)] pt-1.5">
             <span className="flex size-5 items-center justify-center rounded-full bg-brand text-[9px] font-bold text-white">N</span>
-            <span className="text-xs text-ink-soft">Grup de proiecte</span>
+            <span className="text-xs text-ink-soft">{m.projects.map.clusterLabel}</span>
           </div>
         </div>
       </div>
@@ -272,7 +271,7 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
       {/* Contor */}
       <div className="absolute right-4 top-4 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2 shadow-lg">
         <span className="text-sm font-semibold">{pins.length}</span>
-        <span className="ml-1 text-xs text-ink-soft">proiecte pe hartă</span>
+        <span className="ml-1 text-xs text-ink-soft">{m.projects.map.onMap}</span>
       </div>
     </div>
   );

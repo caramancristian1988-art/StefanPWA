@@ -10,6 +10,7 @@ import type { CategoryLite, QuickDefaults, QuickPrefill } from "./types";
 import ClientCombobox from "./ClientCombobox";
 import { IconCheck, IconMail, IconSend, IconX } from "./icons";
 import ReminderOffsetPicker from "./ReminderOffsetPicker";
+import { useMessages } from "@/lib/i18n/context";
 
 function nextSlot(slot: number): string {
   const d = new Date();
@@ -36,6 +37,7 @@ export default function QuickAddDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const m = useMessages();
   const [state, formAction, pending] = useActionState<ApptState, FormData>(
     createQuickAppointment,
     undefined,
@@ -97,11 +99,11 @@ export default function QuickAddDialog({
     >
       <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-b-none rounded-t-2xl p-5 shadow-2xl sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold">Programare nouă</h2>
+          <h2 className="text-base font-bold">{m.appts.newTitle}</h2>
           <button
             onClick={onClose}
             className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]"
-            aria-label="Închide"
+            aria-label={m.common.close}
           >
             <IconX className="size-4" />
           </button>
@@ -119,13 +121,13 @@ export default function QuickAddDialog({
           <input type="hidden" name="status" value={status} />
 
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Client</label>
+            <label className="mb-1.5 block text-xs font-semibold text-ink-soft">{m.appts.clientLabel}</label>
             <ClientCombobox value={client} onPick={setClient} />
           </div>
 
           {categories.length > 0 && (
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Categorie</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-soft">{m.appts.categoryLabel}</label>
               <div className="flex flex-wrap gap-2">
                 {categories.map((c) => (
                   <button
@@ -152,21 +154,21 @@ export default function QuickAddDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Data</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-soft">{m.appts.dateLabel}</label>
               <div className="mb-2 flex gap-2">
                 <button
                   type="button"
                   onClick={() => setDateKey(defaults.today)}
                   className={`${chip} flex-1 ${dateKey === defaults.today ? "bg-brand text-white" : ""}`}
                 >
-                  Azi
+                  {m.appts.todayBtn}
                 </button>
                 <button
                   type="button"
                   onClick={() => setDateKey(defaults.tomorrow)}
                   className={`${chip} flex-1 ${dateKey === defaults.tomorrow ? "bg-brand text-white" : ""}`}
                 >
-                  Mâine
+                  {m.appts.tomorrowBtn}
                 </button>
               </div>
               <input
@@ -178,7 +180,7 @@ export default function QuickAddDialog({
             </div>
             <div className="grid grid-cols-2 gap-3 sm:block">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Ora</label>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-soft">{m.appts.timeLabel}</label>
                 <input
                   type="time"
                   name="time"
@@ -188,7 +190,7 @@ export default function QuickAddDialog({
                 />
               </div>
               <div>
-                <label className="mt-0 sm:mt-2 mb-1 block text-xs font-semibold text-ink-soft">Durată (min)</label>
+                <label className="mt-0 sm:mt-2 mb-1 block text-xs font-semibold text-ink-soft">{m.appts.durationLabel}</label>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -207,7 +209,7 @@ export default function QuickAddDialog({
             name="message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Mesaj / detalii (opțional)"
+            placeholder={m.appts.messagePlaceholder}
             className="h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
           />
 
@@ -218,7 +220,7 @@ export default function QuickAddDialog({
               className={`${chip} inline-flex items-center gap-1.5 ${status === "CONFIRMED" ? "bg-st-confirmed text-white" : ""}`}
             >
               {status === "CONFIRMED" && <IconCheck className="size-3.5" />}
-              {status === "CONFIRMED" ? "Confirmată" : "Nouă"}
+              {status === "CONFIRMED" ? m.appts.statusConfirmed : m.appts.statusNew}
             </button>
             <button
               type="button"
@@ -239,7 +241,7 @@ export default function QuickAddDialog({
           {(remEmail || remTelegram) && (
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-ink-soft">
-                Remindere
+                {m.appts.remindersLabel}
               </label>
               <ReminderOffsetPicker
                 name="reminderOffsets"
@@ -260,7 +262,7 @@ export default function QuickAddDialog({
             disabled={pending || (!client.id && !client.name.trim())}
             className="tap h-13 min-h-12 rounded-xl bg-brand py-3 text-base font-semibold text-white hover:bg-brand-strong disabled:opacity-50"
           >
-            {pending ? "Se salvează…" : "Salvează programarea"}
+            {pending ? m.common.saving : m.appts.saveBtn}
           </button>
         </form>
       </div>

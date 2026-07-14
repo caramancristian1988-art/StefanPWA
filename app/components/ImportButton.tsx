@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useMessages } from "@/lib/i18n/context";
 
 type FailedRow = { row: number; error: string };
 type ImportResult = { imported: number; total: number; failed: FailedRow[]; entity?: string };
@@ -8,6 +9,7 @@ type ImportResult = { imported: number; total: number; failed: FailedRow[]; enti
 type Props = { entity: string; className?: string };
 
 export default function ImportButton({ entity, className }: Props) {
+  const m = useMessages();
   const excelRef = useRef<HTMLInputElement>(null);
   const aiRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState<"excel" | "ai" | null>(null);
@@ -33,12 +35,12 @@ export default function ImportButton({ entity, className }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setFatalError(data.error ?? "Eroare la import.");
+        setFatalError(data.error ?? m.common.error);
       } else {
         setResult(data as ImportResult);
       }
     } catch {
-      setFatalError("Eroare de rețea. Încearcă din nou.");
+      setFatalError(m.import.networkError);
     } finally {
       setLoading(null);
       if (excelRef.current) excelRef.current.value = "";
@@ -63,7 +65,7 @@ export default function ImportButton({ entity, className }: Props) {
           onClick={() => !isLoading && setOpen((v) => !v)}
           disabled={isLoading}
           className={className ?? defaultClass}
-          title="Import"
+          title={m.common.import}
         >
           {isLoading ? (
             <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -77,7 +79,7 @@ export default function ImportButton({ entity, className }: Props) {
             </svg>
           )}
           <span>
-            {loading === "excel" ? "Importare..." : loading === "ai" ? "AI analizează..." : "Import"}
+            {loading === "excel" ? m.import.loading : loading === "ai" ? m.import.aiLoading : m.common.import}
           </span>
           {!isLoading && (
             <svg className="size-3.5 ml-0.5" viewBox="0 0 16 16" fill="currentColor">
@@ -101,7 +103,7 @@ export default function ImportButton({ entity, className }: Props) {
                 </svg>
                 <div>
                   <p className="text-sm font-medium">Import Excel</p>
-                  <p className="text-xs text-ink-soft">Format standard, coloane fixe</p>
+                  <p className="text-xs text-ink-soft">{m.import.excelDesc}</p>
                 </div>
               </button>
               <div className="border-t border-[var(--color-line)]" />
@@ -114,8 +116,8 @@ export default function ImportButton({ entity, className }: Props) {
                   <path d="M10 1a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 1ZM5.05 3.636a.75.75 0 0 1 1.06 1.06l-1.06 1.061a.75.75 0 0 1-1.061-1.06l1.06-1.061ZM14.95 3.636l1.06 1.061a.75.75 0 1 1-1.06 1.06l-1.061-1.06a.75.75 0 0 1 1.06-1.061ZM10 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm-6 4a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0 0 1.5h1.5A.75.75 0 0 0 4 10Zm13.25-.75a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1 0-1.5h1.5ZM5.05 14.303l-1.06 1.06a.75.75 0 1 0 1.06 1.061l1.061-1.06a.75.75 0 0 0-1.06-1.061ZM14.95 15.364l1.06-1.06a.75.75 0 1 0-1.06-1.061l-1.061 1.06a.75.75 0 0 0 1.06 1.061ZM10 17a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 17Z" />
                 </svg>
                 <div>
-                  <p className="text-sm font-medium">Import cu AI</p>
-                  <p className="text-xs text-ink-soft">Orice format — AI detectează și importă</p>
+                  <p className="text-sm font-medium">{m.import.aiImport}</p>
+                  <p className="text-xs text-ink-soft">{m.import.aiDesc}</p>
                 </div>
               </button>
             </div>
@@ -134,7 +136,7 @@ export default function ImportButton({ entity, className }: Props) {
           <div className="card w-full max-w-md rounded-2xl p-6 shadow-xl">
             {fatalError ? (
               <>
-                <h2 className="mb-2 text-base font-semibold text-red-600">Eroare import</h2>
+                <h2 className="mb-2 text-base font-semibold text-red-600">{m.import.errorTitle}</h2>
                 <p className="text-sm text-ink-soft">{fatalError}</p>
               </>
             ) : result ? (
@@ -142,8 +144,8 @@ export default function ImportButton({ entity, className }: Props) {
                 <div className="mb-1 flex items-center gap-2">
                   <h2 className="text-base font-semibold">
                     {result.imported === result.total
-                      ? `Import complet — ${result.imported} rânduri`
-                      : `Import parțial — ${result.imported} din ${result.total}`}
+                      ? m.import.complete.replace("{n}", String(result.imported))
+                      : m.import.partial.replace("{n}", String(result.imported)).replace("{total}", String(result.total))}
                   </h2>
                   {result.entity && (
                     <span className="rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-xs text-ink-soft capitalize">
@@ -154,12 +156,12 @@ export default function ImportButton({ entity, className }: Props) {
                 {result.failed.length > 0 && (
                   <>
                     <p className="mb-2 mt-3 text-xs font-medium uppercase tracking-wide text-ink-soft">
-                      Erori ({result.failed.length})
+                      {m.import.errorsLabel.replace("{n}", String(result.failed.length))}
                     </p>
                     <ul className="max-h-72 overflow-y-auto rounded-xl border border-[var(--color-line)] divide-y divide-[var(--color-line)]">
                       {result.failed.map((f) => (
                         <li key={f.row} className="px-3 py-2 text-sm">
-                          <span className="font-medium">Rând {f.row}:</span>{" "}
+                          <span className="font-medium">{m.import.rowLabel.replace("{n}", String(f.row))}</span>{" "}
                           <span className="text-ink-soft">{f.error}</span>
                         </li>
                       ))}
@@ -173,7 +175,7 @@ export default function ImportButton({ entity, className }: Props) {
               className="tap mt-4 w-full rounded-xl bg-[var(--color-surface-2)] py-2 text-sm font-medium hover:bg-[var(--color-line)]"
               onClick={() => { setResult(null); setFatalError(null); }}
             >
-              Închide
+              {m.common.close}
             </button>
           </div>
         </div>

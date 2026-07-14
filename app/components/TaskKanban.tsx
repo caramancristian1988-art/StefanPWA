@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { setTaskStatus } from "@/app/actions/tasks";
 import { useToast } from "./toast";
+import { useMessages } from "@/lib/i18n/context";
 
 type Opt = { id: string; name: string };
 type Status = "NEW" | "ASSIGNED" | "READ" | "IN_PROGRESS" | "ON_HOLD" | "REVIEW" | "DONE" | "CANCELLED";
@@ -32,23 +33,16 @@ type Task = {
   categoryColor: string | null;
 };
 
-const COLUMNS: { status: Status; label: string; dot: string }[] = [
-  { status: "NEW", label: "Nou", dot: "bg-st-new" },
-  { status: "ASSIGNED", label: "Asignat", dot: "bg-st-new" },
-  { status: "READ", label: "Citit", dot: "bg-st-confirmed" },
-  { status: "IN_PROGRESS", label: "În lucru", dot: "bg-st-progress" },
-  { status: "ON_HOLD", label: "În așteptare", dot: "bg-st-noshow" },
-  { status: "REVIEW", label: "În verificare", dot: "bg-st-confirmed" },
-  { status: "DONE", label: "Finalizat", dot: "bg-st-done" },
-  { status: "CANCELLED", label: "Anulat", dot: "bg-st-cancelled" },
+const COLUMNS: { status: Status; dot: string }[] = [
+  { status: "NEW", dot: "bg-st-new" },
+  { status: "ASSIGNED", dot: "bg-st-new" },
+  { status: "READ", dot: "bg-st-confirmed" },
+  { status: "IN_PROGRESS", dot: "bg-st-progress" },
+  { status: "ON_HOLD", dot: "bg-st-noshow" },
+  { status: "REVIEW", dot: "bg-st-confirmed" },
+  { status: "DONE", dot: "bg-st-done" },
+  { status: "CANCELLED", dot: "bg-st-cancelled" },
 ];
-
-const LABEL: Record<Status, string> = Object.fromEntries(
-  COLUMNS.map((c) => [c.status, c.label]),
-) as Record<Status, string>;
-
-const TYPE_RO: Record<TaskType, string> = { TASK: "Task", TICKET: "Tichet", WORK_ORDER: "Task" };
-const PRIO_RO: Record<Priority, string> = { LOW: "Scăzută", MEDIUM: "Medie", HIGH: "Ridicată", URGENT: "Urgentă" };
 const PRIO_CLR: Record<Priority, string> = {
   LOW: "text-ink-soft",
   MEDIUM: "text-ink-soft",
@@ -56,22 +50,7 @@ const PRIO_CLR: Record<Priority, string> = {
   URGENT: "text-st-cancelled",
 };
 
-const DEADLINE_OPTS = [
-  { value: "", label: "Orice termen" },
-  { value: "overdue", label: "Depășit" },
-  { value: "today", label: "Azi" },
-  { value: "tomorrow", label: "Mâine" },
-  { value: "week", label: "Săptămâna aceasta" },
-  { value: "month", label: "Luna aceasta" },
-  { value: "none", label: "Fără termen" },
-];
-
-const QUICK = [
-  { key: "today", label: "Azi" },
-  { key: "tomorrow", label: "Mâine" },
-  { key: "week", label: "Săptămâna" },
-  { key: "month", label: "Luna" },
-] as const;
+const QUICK_KEYS = ["today", "tomorrow", "week", "month"] as const;
 
 const fldCls = (val: string) =>
   `h-9 appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
@@ -125,6 +104,7 @@ export default function TaskKanban({
   categories?: Opt[];
 }) {
   const toast = useToast();
+  const m = useMessages();
   const [tasks, setTasks] = useState(items);
   useEffect(() => setTasks(items), [items]);
 
@@ -207,7 +187,7 @@ export default function TaskKanban({
     setTasks((cur) => cur.map((t) => (t.id === id ? { ...t, status } : t)));
     setTaskStatus(id, status).then((res) => {
       if (res?.error) { setTasks(prev); toast.error(res.error); }
-      else toast.success(`Mutat în „${LABEL[status]}"`);
+      else toast.success(`${m.kanban.moved} „${m.status[status]}"`);
     });
   }
 
@@ -215,15 +195,15 @@ export default function TaskKanban({
     <>
       {/* Quick filters */}
       <div className="mb-2 flex flex-wrap gap-2">
-        {QUICK.map((q) => (
+        {QUICK_KEYS.map((key) => (
           <button
-            key={q.key}
-            onClick={() => setFDeadline((v) => (v === q.key ? "" : q.key))}
+            key={key}
+            onClick={() => setFDeadline((v) => (v === key ? "" : key))}
             className={`tap rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              fDeadline === q.key ? "bg-brand text-white" : "card text-ink-soft"
+              fDeadline === key ? "bg-brand text-white" : "card text-ink-soft"
             }`}
           >
-            {q.label}
+            {m.kanban[key === "today" ? "dueToday" : key === "tomorrow" ? "dueTomorrow" : key === "week" ? "dueThisWeek" : "dueThisMonth"]}
           </button>
         ))}
         {hasFilters && (
@@ -231,7 +211,7 @@ export default function TaskKanban({
             onClick={resetAll}
             className="tap ml-auto rounded-full border border-[var(--color-line)] px-4 py-1.5 text-sm text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
-            ✕ Filtre
+            {m.kanban.clearFilters}
           </button>
         )}
       </div>
@@ -241,48 +221,48 @@ export default function TaskKanban({
         <input
           value={fSearch}
           onChange={(e) => setFSearch(e.target.value)}
-          placeholder="Caută…"
+          placeholder={m.kanban.searchPlaceholder}
           className="h-9 min-w-36 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
         />
         <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className={fldCls(fStatus)}>
-          <option value="">Status: toate</option>
+          <option value="">{m.kanban.filterStatus}</option>
           {COLUMNS.map((c) => (
-            <option key={c.status} value={c.status}>{c.label}</option>
+            <option key={c.status} value={c.status}>{m.status[c.status]}</option>
           ))}
         </select>
         <select value={fType} onChange={(e) => setFType(e.target.value)} className={fldCls(fType)}>
-          <option value="">Tip: toate</option>
-          <option value="TASK">Task</option>
-          <option value="TICKET">Tichet</option>
+          <option value="">{m.kanban.filterType}</option>
+          <option value="TASK">{m.tasks.typeTask}</option>
+          <option value="TICKET">{m.tasks.typeTicket}</option>
         </select>
         <select value={fPriority} onChange={(e) => setFPriority(e.target.value)} className={fldCls(fPriority)}>
-          <option value="">Prioritate: orice</option>
-          <option value="URGENT">Urgentă</option>
-          <option value="HIGH">Ridicată</option>
-          <option value="MEDIUM">Medie</option>
-          <option value="LOW">Scăzută</option>
+          <option value="">{m.kanban.filterPriority}</option>
+          <option value="URGENT">{m.priority.URGENT}</option>
+          <option value="HIGH">{m.priority.HIGH}</option>
+          <option value="MEDIUM">{m.priority.MEDIUM}</option>
+          <option value="LOW">{m.priority.LOW}</option>
         </select>
         <select value={fAssignee} onChange={(e) => setFAssignee(e.target.value)} className={fldCls(fAssignee)}>
-          <option value="">Persoană: toți</option>
+          <option value="">{m.kanban.filterPerson}</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>{u.name}</option>
           ))}
         </select>
         <select value={fTeam} onChange={(e) => setFTeam(e.target.value)} className={fldCls(fTeam)}>
-          <option value="">Echipă: toate</option>
+          <option value="">{m.kanban.filterTeam}</option>
           {teams.map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </select>
         <select value={fProject} onChange={(e) => setFProject(e.target.value)} className={fldCls(fProject)}>
-          <option value="">Proiect: toate</option>
+          <option value="">{m.kanban.filterProject}</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
         {clients.length > 0 && (
           <select value={fClient} onChange={(e) => setFClient(e.target.value)} className={fldCls(fClient)}>
-            <option value="">Client: toți</option>
+            <option value="">{m.kanban.filterClient}</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -290,16 +270,20 @@ export default function TaskKanban({
         )}
         {categories.length > 0 && (
           <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} className={fldCls(fCategory)}>
-            <option value="">Categorie: toate</option>
+            <option value="">{m.kanban.filterCategory}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         )}
         <select value={fDeadline} onChange={(e) => setFDeadline(e.target.value)} className={fldCls(fDeadline)}>
-          {DEADLINE_OPTS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
+          <option value="">{m.kanban.dueAny}</option>
+          <option value="overdue">{m.kanban.dueOverdue}</option>
+          <option value="today">{m.kanban.dueToday}</option>
+          <option value="tomorrow">{m.kanban.dueTomorrow}</option>
+          <option value="week">{m.kanban.dueThisWeek}</option>
+          <option value="month">{m.kanban.dueThisMonth}</option>
+          <option value="none">{m.kanban.dueNone}</option>
         </select>
       </div>
 
@@ -330,7 +314,7 @@ export default function TaskKanban({
             >
               <div className="mb-2 flex items-center gap-2 px-1">
                 <span className={`size-2.5 rounded-full ${col.dot}`} />
-                <h3 className="text-sm font-semibold">{col.label}</h3>
+                <h3 className="text-sm font-semibold">{m.status[col.status]}</h3>
                 <span className="ml-auto rounded-full bg-[var(--color-surface-2)] px-2 text-xs text-ink-soft">
                   {colItems.length}
                 </span>
@@ -356,7 +340,7 @@ export default function TaskKanban({
                     <div className="flex items-start gap-2">
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">{t.title}</span>
                       <span className="shrink-0 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] text-ink-soft">
-                        {TYPE_RO[t.type]}
+                        {t.type === "TICKET" ? m.tasks.typeTicket : m.tasks.typeTask}
                       </span>
                     </div>
                     {t.seq != null && (
@@ -365,7 +349,7 @@ export default function TaskKanban({
                       </span>
                     )}
                     <p className="mt-1 truncate text-[11px] text-ink-soft">
-                      <span className={PRIO_CLR[t.priority]}>{PRIO_RO[t.priority]}</span>
+                      <span className={PRIO_CLR[t.priority]}>{m.priority[t.priority]}</span>
                       {t.projectName && ` · ${t.projectName}`}
                       {(t.assigneeName || t.teamName) && ` · ${t.assigneeName ?? t.teamName}`}
                       {t.progress > 0 && ` · ${t.progress}%`}

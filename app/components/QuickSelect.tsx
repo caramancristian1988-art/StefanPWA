@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useToast } from "./toast";
 import { IconPlus, IconCheck, IconX } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 type Opt = { id: string; name: string };
 type QuickResult = { ok: true; id: string; name: string } | { ok: false; error: string };
@@ -10,18 +11,14 @@ type QuickResult = { ok: true; id: string; name: string } | { ok: false; error: 
 const field =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
 
-/**
- * Select controlat cu opțiune de creare rapidă (inline), fără a părăsi dialogul.
- * Trimite valoarea selectată prin `<select name=...>` (compatibil cu form action).
- */
 export default function QuickSelect({
   name,
   options,
   placeholder,
-  emptyLabel = "Fără",
+  emptyLabel,
   optionPrefix = "",
   canCreate = true,
-  createLabel = "nou",
+  createLabel = "",
   onQuickCreate,
   defaultValue = "",
 }: {
@@ -36,11 +33,14 @@ export default function QuickSelect({
   defaultValue?: string;
 }) {
   const toast = useToast();
+  const m = useMessages();
   const [opts, setOpts] = useState<Opt[]>(options);
   const [val, setVal] = useState(defaultValue);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const resolvedEmptyLabel = emptyLabel ?? m.common.none;
 
   async function create() {
     const n = newName.trim();
@@ -53,7 +53,7 @@ export default function QuickSelect({
       setVal(res.id);
       setNewName("");
       setAdding(false);
-      toast.success("Creat");
+      toast.success(m.common.created);
     } else {
       toast.error(res.error);
     }
@@ -63,7 +63,7 @@ export default function QuickSelect({
     <div className="flex flex-col gap-1.5">
       <div className="flex gap-2">
         <select name={name} value={val} onChange={(e) => setVal(e.target.value)} className={field}>
-          <option value="">{placeholder ?? emptyLabel}</option>
+          <option value="">{placeholder ?? resolvedEmptyLabel}</option>
           {opts.map((o) => (
             <option key={o.id} value={o.id}>
               {optionPrefix}
@@ -76,7 +76,7 @@ export default function QuickSelect({
             type="button"
             onClick={() => setAdding(true)}
             className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-brand hover:bg-brand-soft"
-            title={`Adaugă ${createLabel}`}
+            title={`${m.common.add} ${createLabel}`}
           >
             <IconPlus className="size-4" />
           </button>
@@ -99,7 +99,7 @@ export default function QuickSelect({
                 setNewName("");
               }
             }}
-            placeholder={`Nume ${createLabel}…`}
+            placeholder={`${m.quickSelect.namePh} ${createLabel}…`}
             className={field}
           />
           <button
@@ -107,7 +107,7 @@ export default function QuickSelect({
             disabled={busy || !newName.trim()}
             onClick={create}
             className="tap grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-white hover:bg-brand-strong disabled:opacity-50"
-            title="Salvează"
+            title={m.common.save}
           >
             <IconCheck className="size-4" />
           </button>
@@ -118,7 +118,7 @@ export default function QuickSelect({
               setNewName("");
             }}
             className="tap grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"
-            title="Anulează"
+            title={m.common.cancel}
           >
             <IconX className="size-4" />
           </button>

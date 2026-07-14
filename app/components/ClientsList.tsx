@@ -5,6 +5,7 @@ import { deleteClient } from "@/app/actions/clients";
 import ClientDialog, { type ClientEdit } from "./ClientDialog";
 import { useToast } from "./toast";
 import { IconPencil, IconTrash } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 export type ClientRow = {
   id: string;
@@ -25,6 +26,7 @@ export default function ClientsList({
   openCreate?: boolean;
 }) {
   const toast = useToast();
+  const m = useMessages();
   const [rows, setRows] = useState(items);
   useEffect(() => setRows(items), [items]);
   const [dialog, setDialog] = useState<{ open: boolean; client: ClientEdit | null }>({
@@ -33,14 +35,14 @@ export default function ClientsList({
   });
 
   function remove(id: string) {
-    if (!confirm("Ștergi clientul? Programările lui se șterg și ele.")) return;
+    if (!confirm(m.clients.deleteConfirm)) return;
     const prev = rows;
     setRows((r) => r.filter((c) => c.id !== id)); // optimistic
     deleteClient(id)
-      .then(() => toast.success("Client șters"))
+      .then(() => toast.success(m.clients.deleted))
       .catch(() => {
         setRows(prev);
-        toast.error("Ștergerea a eșuat");
+        toast.error(m.clients.deleteFailed);
       });
   }
 
@@ -50,12 +52,12 @@ export default function ClientsList({
         onClick={() => setDialog({ open: true, client: null })}
         className="tap mb-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong"
       >
-        + Client nou
+        {m.clients.new}
       </button>
 
       {rows.length === 0 ? (
         <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
-          Niciun client găsit.
+          {m.clients.noClients}
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -69,7 +71,7 @@ export default function ClientsList({
                 <p className="truncate text-xs text-ink-soft">
                   {c.phone ?? c.email ?? "—"}
                   {c.noShowCount > 0 && (
-                    <span className="ml-2 text-st-noshow">· {c.noShowCount} absențe</span>
+                    <span className="ml-2 text-st-noshow">· {c.noShowCount} {m.clients.absences}</span>
                   )}
                 </p>
               </div>
@@ -88,14 +90,14 @@ export default function ClientsList({
                   })
                 }
                 className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]"
-                title="Editează"
+                title={m.common.edit}
               >
                 <IconPencil className="size-4" />
               </button>
               <button
                 onClick={() => remove(c.id)}
                 className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]"
-                title="Șterge"
+                title={m.common.delete}
               >
                 <IconTrash className="size-4" />
               </button>

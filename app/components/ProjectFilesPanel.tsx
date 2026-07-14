@@ -7,6 +7,7 @@ import {
   type ProjectAttachmentRow,
 } from "@/app/actions/attachments";
 import { IconTrash } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -19,6 +20,7 @@ function isImage(mimeType: string | null): boolean {
 }
 
 export default function ProjectFilesPanel({ projectId }: { projectId: string }) {
+  const m = useMessages();
   const [files, setFiles] = useState<ProjectAttachmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
       await deleteTaskAttachment(id);
       setFiles((prev) => prev.filter((f) => f.id !== id));
     } catch (e) {
-      setError((e as Error).message ?? "Eroare la ștergere");
+      setError((e as Error).message ?? m.common.deleteFailed);
     } finally {
       setDeletingId(null);
     }
@@ -49,7 +51,7 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
   return (
     <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-4 py-3">
       <p className="mb-2.5 text-[11px] font-semibold text-ink-soft">
-        📎 Fișiere proiect ({loading ? "…" : files.length})
+        📎 {m.projects.files} ({loading ? "…" : files.length})
       </p>
 
       {error && (
@@ -57,9 +59,9 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
       )}
 
       {loading ? (
-        <p className="text-[11px] text-ink-soft">Se încarcă…</p>
+        <p className="text-[11px] text-ink-soft">{m.common.loading}</p>
       ) : files.length === 0 ? (
-        <p className="text-[11px] text-ink-soft">Niciun fișier atașat în task-urile acestui proiect.</p>
+        <p className="text-[11px] text-ink-soft">{m.projects.noFiles}</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {files.map((f) => (
@@ -94,7 +96,7 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
                 disabled={deletingId === f.id}
                 onClick={() => handleDelete(f.id)}
                 className="absolute right-0.5 top-0.5 hidden size-5 items-center justify-center rounded bg-white/80 text-red-500 hover:bg-red-50 group-hover:flex disabled:opacity-50"
-                title="Șterge"
+                title={m.common.delete}
               >
                 <IconTrash className="size-3" />
               </button>

@@ -3,19 +3,9 @@
 import { useState } from "react";
 import { IconX } from "./icons";
 import type { AssignmentSetting } from "@/lib/services/tasks";
+import { useMessages } from "@/lib/i18n/context";
 
 type Opt = { id: string; name: string };
-
-const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "NEW", label: "Nou" },
-  { value: "ASSIGNED", label: "Asignat" },
-  { value: "READ", label: "Citit" },
-  { value: "IN_PROGRESS", label: "În lucru" },
-  { value: "ON_HOLD", label: "În așteptare" },
-  { value: "REVIEW", label: "Review" },
-  { value: "DONE", label: "Finalizat" },
-  { value: "CANCELLED", label: "Anulat" },
-];
 
 const sel =
   "h-8 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 text-xs outline-none focus:border-brand";
@@ -33,6 +23,17 @@ export default function MultiAssignPicker({
   initialTeamIds?: string[];
   initialSettings?: AssignmentSetting[];
 }) {
+  const m = useMessages();
+  const STATUS_OPTIONS = [
+    { value: "NEW", label: m.status.NEW },
+    { value: "ASSIGNED", label: m.status.ASSIGNED },
+    { value: "READ", label: m.status.READ },
+    { value: "IN_PROGRESS", label: m.status.IN_PROGRESS },
+    { value: "ON_HOLD", label: m.status.ON_HOLD },
+    { value: "REVIEW", label: m.status.REVIEW },
+    { value: "DONE", label: m.status.DONE },
+    { value: "CANCELLED", label: m.status.CANCELLED },
+  ];
   const [assigneeIds, setAssigneeIds] = useState<string[]>(initialAssigneeIds);
   const [teamIds, setTeamIds] = useState<string[]>(initialTeamIds);
   const [thresholds, setThresholds] = useState<Record<string, string>>(() => {
@@ -74,7 +75,7 @@ export default function MultiAssignPicker({
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-xs font-semibold text-ink-soft">Asignați</label>
+      <label className="text-xs font-semibold text-ink-soft">{m.appts.assignedLabel}</label>
 
       {/* Chips */}
       {total > 0 && (
@@ -91,11 +92,11 @@ export default function MultiAssignPicker({
                     value={thresholds[key] ?? ""}
                     onChange={(e) => setThreshold(key, e.target.value)}
                     className={`${sel} ml-1`}
-                    title="Notifică până la statusul:"
+                    title={m.appts.notifyUntilTitle}
                   >
-                    <option value="">Notifică mereu</option>
+                    <option value="">{m.appts.notifyAlways}</option>
                     {STATUS_OPTIONS.map((s) => (
-                      <option key={s.value} value={s.value}>până la {s.label}</option>
+                      <option key={s.value} value={s.value}>{m.appts.notifyUntil} {s.label}</option>
                     ))}
                   </select>
                 )}
@@ -103,7 +104,7 @@ export default function MultiAssignPicker({
                   type="button"
                   onClick={() => removeUser(uid)}
                   className="ml-0.5 grid size-5 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-[var(--color-line)] hover:text-ink"
-                  aria-label={`Elimină ${u.name}`}
+                  aria-label={`${m.appts.removeLabel} ${u.name}`}
                 >
                   <IconX className="size-3" />
                 </button>
@@ -125,11 +126,11 @@ export default function MultiAssignPicker({
                     value={thresholds[key] ?? ""}
                     onChange={(e) => setThreshold(key, e.target.value)}
                     className={`${sel} ml-1`}
-                    title="Notifică până la statusul:"
+                    title={m.appts.notifyUntilTitle}
                   >
-                    <option value="">Notifică mereu</option>
+                    <option value="">{m.appts.notifyAlways}</option>
                     {STATUS_OPTIONS.map((s) => (
-                      <option key={s.value} value={s.value}>până la {s.label}</option>
+                      <option key={s.value} value={s.value}>{m.appts.notifyUntil} {s.label}</option>
                     ))}
                   </select>
                 )}
@@ -137,7 +138,7 @@ export default function MultiAssignPicker({
                   type="button"
                   onClick={() => removeTeam(tid)}
                   className="ml-0.5 grid size-5 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-[var(--color-line)] hover:text-ink"
-                  aria-label={`Elimină ${t.name}`}
+                  aria-label={`${m.appts.removeLabel} ${t.name}`}
                 >
                   <IconX className="size-3" />
                 </button>
@@ -157,7 +158,7 @@ export default function MultiAssignPicker({
             onChange={(e) => { addUser(e.target.value); e.target.value = ""; }}
             className="h-10 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
           >
-            <option value="">+ Adaugă persoană</option>
+            <option value="">{m.appts.addPerson}</option>
             {availableUsers.map((u) => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
@@ -169,7 +170,7 @@ export default function MultiAssignPicker({
             onChange={(e) => { addTeam(e.target.value); e.target.value = ""; }}
             className="h-10 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
           >
-            <option value="">+ Adaugă echipă</option>
+            <option value="">{m.appts.addTeam}</option>
             {availableTeams.map((t) => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
@@ -179,7 +180,7 @@ export default function MultiAssignPicker({
 
       {showThresholds && (
         <p className="text-[11px] text-ink-soft">
-          Selectează opțional până la ce status să primească fiecare notificări Telegram.
+          {m.appts.thresholdHint}
         </p>
       )}
     </div>

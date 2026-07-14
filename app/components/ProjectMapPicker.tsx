@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { useMessages } from "@/lib/i18n/context";
 
 type Props = {
   initialLat?: number | null;
@@ -19,6 +20,7 @@ export default function ProjectMapPicker({
   latName = "lat",
   lngName = "lng",
 }: Props) {
+  const m = useMessages();
   const containerRef = useRef<HTMLDivElement>(null);
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -64,7 +66,6 @@ export default function ProjectMapPicker({
 
       marker.on("dragend", updateCoords);
 
-      // Click pe hartă mută markerul
       map.on("click", (e) => {
         if (!marker) return;
         marker.setLngLat(e.lngLat);
@@ -84,10 +85,10 @@ export default function ProjectMapPicker({
     return (
       <div className="space-y-2">
         <div className="grid grid-cols-2 gap-2">
-          <input name={latName} type="number" step="any" defaultValue={initialLat ?? ""} placeholder="Latitudine" className={inputCls} />
-          <input name={lngName} type="number" step="any" defaultValue={initialLng ?? ""} placeholder="Longitudine" className={inputCls} />
+          <input name={latName} type="number" step="any" defaultValue={initialLat ?? ""} placeholder={m.projects.map.latPlaceholder} className={inputCls} />
+          <input name={lngName} type="number" step="any" defaultValue={initialLng ?? ""} placeholder={m.projects.map.lngPlaceholder} className={inputCls} />
         </div>
-        <p className="text-xs text-ink-soft">NEXT_PUBLIC_MAPBOX_TOKEN lipsește — hartă indisponibilă.</p>
+        <p className="text-xs text-ink-soft">{m.projects.map.missingToken}</p>
       </div>
     );
   }
@@ -99,24 +100,22 @@ export default function ProjectMapPicker({
         className="h-56 w-full overflow-hidden rounded-xl border border-[var(--color-line)]"
       />
       <p className="text-xs text-ink-soft">
-        Apasă pe hartă sau trage markerul albastru pentru a seta locația.
+        {m.projects.map.pickerHint}
       </p>
-      {/* Inputuri ascunse trimise cu formularul */}
       <input type="hidden" name={latName} value={coords?.lat ?? ""} />
       <input type="hidden" name={lngName} value={coords?.lng ?? ""} />
-      {/* Afișare coordonate curente */}
       <div className="grid grid-cols-2 gap-2">
         <input
           type="text"
           value={coords ? coords.lat.toFixed(6) : ""}
-          placeholder="Latitudine"
+          placeholder={m.projects.map.latPlaceholder}
           className={inputCls}
           readOnly
         />
         <input
           type="text"
           value={coords ? coords.lng.toFixed(6) : ""}
-          placeholder="Longitudine"
+          placeholder={m.projects.map.lngPlaceholder}
           className={inputCls}
           readOnly
         />
@@ -127,7 +126,7 @@ export default function ProjectMapPicker({
           onClick={() => setCoords(null)}
           className="text-xs text-ink-soft hover:text-st-cancelled"
         >
-          ✕ Șterge locația
+          {m.projects.map.deleteLocation}
         </button>
       )}
     </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { useMessages } from "@/lib/i18n/context";
 
 export default function ProjectMap({
   lat,
@@ -12,6 +13,7 @@ export default function ProjectMap({
   lng: number;
   address?: string | null;
 }) {
+  const m = useMessages();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -50,7 +52,7 @@ export default function ProjectMap({
   if (!token) {
     return (
       <div className="grid h-40 place-items-center rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] text-center text-sm text-ink-soft">
-        <p>NEXT_PUBLIC_MAPBOX_TOKEN lipsește — harta indisponibilă.</p>
+        <p>{m.projects.map.missingToken}</p>
       </div>
     );
   }

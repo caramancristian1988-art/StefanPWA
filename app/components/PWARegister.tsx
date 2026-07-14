@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { useMessages } from "@/lib/i18n/context";
 
 export default function PWARegister({ unread = 0 }: { unread?: number }) {
+  const m = useMessages();
+
   useEffect(() => {
     // Sync badge count with app icon (Badging API)
     if ("setAppBadge" in navigator) {
@@ -18,6 +21,9 @@ export default function PWARegister({ unread = 0 }: { unread?: number }) {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
+    const newVersionLabel = m.pwa.newVersion;
+    const updateLabel = m.pwa.update;
+
     navigator.serviceWorker.register("/sw.js").then((reg) => {
       // When a new SW is waiting, ask it to activate immediately
       reg.addEventListener("updatefound", () => {
@@ -25,8 +31,7 @@ export default function PWARegister({ unread = 0 }: { unread?: number }) {
         if (!next) return;
         next.addEventListener("statechange", () => {
           if (next.state === "installed" && navigator.serviceWorker.controller) {
-            // New version available — show a toast-style banner
-            showUpdateBanner();
+            showUpdateBanner(newVersionLabel, updateLabel);
           }
         });
       });
@@ -40,12 +45,13 @@ export default function PWARegister({ unread = 0 }: { unread?: number }) {
         window.location.reload();
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return null;
 }
 
-function showUpdateBanner() {
+function showUpdateBanner(newVersionLabel: string, updateLabel: string) {
   if (document.getElementById("pwa-update-banner")) return;
 
   const banner = document.createElement("div");
@@ -60,10 +66,10 @@ function showUpdateBanner() {
   ].join(";");
 
   const text = document.createElement("span");
-  text.textContent = "Versiune nouă disponibilă";
+  text.textContent = newVersionLabel;
 
   const btn = document.createElement("button");
-  btn.textContent = "Actualizează";
+  btn.textContent = updateLabel;
   btn.style.cssText = [
     "background:#fff", "color:#0d9488", "border:none",
     "border-radius:8px", "padding:6px 14px",

@@ -7,13 +7,27 @@ import { STATUS_META } from "./status";
 import { useToast } from "./toast";
 import { IconMail, IconSend, IconTrash, IconChevronRight } from "./icons";
 import type { ApptStatus, ApptVM } from "./types";
+import { useMessages } from "@/lib/i18n/context";
+import type { Messages } from "@/lib/i18n/messages/ro";
 
 const APPT_STATUSES: ApptStatus[] = [
   "NEW", "CONFIRMED", "IN_PROGRESS", "DONE", "CANCELLED", "NO_SHOW",
 ];
 
+function apptLabel(s: ApptStatus, m: Messages): string {
+  switch (s) {
+    case "NEW": return m.appts.statusNew;
+    case "CONFIRMED": return m.appts.statusConfirmed;
+    case "IN_PROGRESS": return m.status.IN_PROGRESS;
+    case "DONE": return m.status.DONE;
+    case "CANCELLED": return m.status.CANCELLED;
+    case "NO_SHOW": return m.appts.statusNoShow;
+  }
+}
+
 export default function AppointmentItem({ appt }: { appt: ApptVM }) {
   const toast = useToast();
+  const m = useMessages();
   const [status, setStatus] = useState<ApptStatus>(appt.status);
   const [removed, setRemoved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,19 +44,19 @@ export default function AppointmentItem({ appt }: { appt: ApptVM }) {
       setStatus(prev);
       toast.error(res.error);
     } else {
-      toast.success(`Status: ${STATUS_META[next].label}`);
+      toast.success(`Status: ${apptLabel(next, m)}`);
     }
   }
 
   async function remove() {
-    if (!confirm("Ștergi programarea?")) return;
+    if (!confirm(m.appts.deleteConfirm)) return;
     setRemoved(true);
     try {
       await deleteAppointment(appt.id);
-      toast.success("Programare ștearsă");
+      toast.success(m.appts.deleted);
     } catch {
       setRemoved(false);
-      toast.error("Ștergerea a eșuat");
+      toast.error(m.common.deleteFailed);
     }
   }
 
@@ -92,7 +106,7 @@ export default function AppointmentItem({ appt }: { appt: ApptVM }) {
           onClick={remove}
           disabled={busy}
           className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)] disabled:opacity-50"
-          title="Șterge"
+          title={m.common.delete}
         >
           <IconTrash className="size-3.5" />
         </button>
@@ -116,6 +130,7 @@ function ApptStatusDropdown({
   pending: boolean;
   onChange: (s: ApptStatus) => void;
 }) {
+  const m = useMessages();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, minWidth: 0 });
   const [mounted, setMounted] = useState(false);
@@ -154,7 +169,7 @@ function ApptStatusDropdown({
         onClick={handleOpen}
         className={`h-7 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition-opacity disabled:opacity-50 ${meta.badge}`}
       >
-        {meta.label}
+        {apptLabel(status, m)}
       </button>
       {open && mounted && createPortal(
         <div
@@ -170,7 +185,7 @@ function ApptStatusDropdown({
               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12px] font-medium hover:bg-[var(--color-surface-2)] ${s === status ? "font-bold" : ""}`}
             >
               <span className={`size-2 shrink-0 rounded-full ${STATUS_META[s].dot}`} />
-              <span className={s === status ? "text-ink" : "text-ink-soft"}>{STATUS_META[s].label}</span>
+              <span className={s === status ? "text-ink" : "text-ink-soft"}>{apptLabel(s, m)}</span>
               {s === status && <span className="ml-auto text-[10px] text-brand">✓</span>}
             </button>
           ))}

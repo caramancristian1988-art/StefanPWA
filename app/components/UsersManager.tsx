@@ -14,6 +14,7 @@ import { PERMISSION_GROUPS } from "@/lib/permissions";
 import { NOTIFY_EVENTS } from "@/lib/notify-meta";
 import { useToast } from "./toast";
 import { IconX, IconPencil, IconTrash } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 type UserRow = {
   id: string;
@@ -48,6 +49,7 @@ export default function UsersManager({
   viewerRole?: "ADMIN" | "STAFF";
 }) {
   const toast = useToast();
+  const m = useMessages();
   const [rows, setRows] = useState(users);
   useEffect(() => setRows(users), [users]);
   const [dialog, setDialog] = useState<{ open: boolean; user: UserRow | null }>({
@@ -72,30 +74,30 @@ export default function UsersManager({
     const next = !u.isActive;
     setRows((r) => r.map((x) => (x.id === u.id ? { ...x, isActive: next } : x))); // optimistic
     toggleUserActive(u.id, next)
-      .then(() => toast.success(next ? "Utilizator activat" : "Utilizator dezactivat"))
+      .then(() => toast.success(next ? m.users.activated : m.users.deactivated))
       .catch(() => {
         setRows((r) => r.map((x) => (x.id === u.id ? { ...x, isActive: !next } : x)));
-        toast.error("Acțiunea a eșuat");
+        toast.error(m.users.actionFailed);
       });
   }
 
   function toggleSuper(u: UserRow) {
     const next = !u.isSuperAdmin;
-    if (u.id === viewerId && !next) { toast.error("Nu îți poți retrage propriul statut de super-admin."); return; }
-    if (!next && !confirm(`Retragi statutul de super-admin pentru „${u.name}"?`)) return;
+    if (u.id === viewerId && !next) { toast.error(m.users.selfRevoke); return; }
+    if (!next && !confirm(m.users.revokeConfirm)) return;
     setRows((r) => r.map((x) => (x.id === u.id ? { ...x, isSuperAdmin: next } : x))); // optimistic
     setSuperAdmin(u.id, next).then((res) => {
       if (res?.error) {
         setRows((r) => r.map((x) => (x.id === u.id ? { ...x, isSuperAdmin: !next } : x)));
         toast.error(res.error);
       } else {
-        toast.success(next ? "Promovat la super-admin" : "Super-admin retras");
+        toast.success(next ? m.users.superGranted : m.users.superRevoked);
       }
     });
   }
 
   function remove(u: UserRow) {
-    if (!confirm(`Ștergi utilizatorul „${u.name}"? Task-urile/proiectele lui trec la tine.`)) return;
+    if (!confirm(m.users.deleteConfirm)) return;
     const prev = rows;
     setRows((r) => r.filter((x) => x.id !== u.id)); // optimistic
     deleteUser(u.id).then((res) => {
@@ -103,7 +105,7 @@ export default function UsersManager({
         setRows(prev);
         toast.error(res.error);
       } else {
-        toast.success("Utilizator șters");
+        toast.success(m.users.deleted);
       }
     });
   }
@@ -114,32 +116,32 @@ export default function UsersManager({
         onClick={() => setDialog({ open: true, user: null })}
         className="tap mb-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong"
       >
-        + Utilizator nou
+        {m.users.new}
       </button>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input
           value={fSearch}
           onChange={(e) => setFSearch(e.target.value)}
-          placeholder="Caută după nume sau email…"
+          placeholder={m.users.searchPlaceholder}
           className="h-9 min-w-40 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
         />
         <select value={fRole} onChange={(e) => setFRole(e.target.value)} className="h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand">
-          <option value="">Toți</option>
-          <option value="ADMIN">Administratori</option>
-          <option value="STAFF">Staff</option>
-          <option value="INACTIVE">Dezactivați</option>
+          <option value="">{m.users.filterAll}</option>
+          <option value="ADMIN">{m.users.filterAdmins}</option>
+          <option value="STAFF">{m.users.filterStaff}</option>
+          <option value="INACTIVE">{m.users.filterInactive}</option>
         </select>
         {(fSearch || fRole) && (
           <button onClick={() => { setFSearch(""); setFRole(""); }} className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">
-            Resetează
+            {m.users.resetFilter}
           </button>
         )}
       </div>
 
       {filtered.length === 0 ? (
         <div className="card grid place-items-center p-8 text-center text-sm text-ink-soft">
-          {rows.length === 0 ? "Niciun utilizator." : "Niciun rezultat pentru filtre."}
+          {rows.length === 0 ? m.users.noUsers : m.users.noResults}
         </div>
       ) : (
       <div className="flex flex-col gap-2.5">
@@ -154,13 +156,13 @@ export default function UsersManager({
                 <p className="truncate font-semibold">
                   {u.name}
                   {u.isSuperAdmin && (
-                    <span className="ml-2 rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-strong">Super</span>
+                    <span className="ml-2 rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-strong">{m.users.superLabel}</span>
                   )}
-                  {!u.isActive && <span className="ml-2 text-xs text-st-cancelled">dezactivat</span>}
+                  {!u.isActive && <span className="ml-2 text-xs text-st-cancelled">{m.users.inactive}</span>}
                 </p>
                 <p className="truncate text-xs text-ink-soft">
-                  {u.email} · {u.role === "ADMIN" ? "Administrator" : `${u.permissions.length} permisiuni`}
-                  {u.telegramChatId ? " · ✈ Telegram" : ""}
+                  {u.email} · {u.role === "ADMIN" ? m.users.adminRole : `${u.permissions.length} ${m.users.permissionsCount}`}
+                  {u.telegramChatId ? ` ${m.users.telegramConnected}` : ""}
                 </p>
               </div>
             </div>
@@ -175,9 +177,9 @@ export default function UsersManager({
                       ? "border-brand bg-brand-soft text-brand-strong"
                       : "border-[var(--color-line)] hover:bg-[var(--color-surface-2)]"
                   }`}
-                  title={u.id === viewerId ? "Nu îți poți modifica propriul statut" : u.isSuperAdmin ? "Retrage super-admin" : "Fă super-admin"}
+                  title={u.id === viewerId ? m.users.superAdminSelf : u.isSuperAdmin ? m.users.superAdminRevoke : m.users.superAdminGrant}
                 >
-                  {u.isSuperAdmin ? "Super ✓" : "Super"}
+                  {u.isSuperAdmin ? m.users.superMark : m.users.superLabel}
                 </button>
               )}
               {(viewerIsSuper || u.role !== "ADMIN") && (
@@ -185,15 +187,15 @@ export default function UsersManager({
                   onClick={() => toggle(u)}
                   disabled={u.id === viewerId}
                   className="tap rounded-lg border border-[var(--color-line)] px-2.5 py-1.5 text-xs hover:bg-[var(--color-surface-2)] disabled:cursor-not-allowed disabled:opacity-40"
-                  title={u.id === viewerId ? "Nu te poți dezactiva pe tine" : undefined}
+                  title={u.id === viewerId ? m.users.deactivateSelf : undefined}
                 >
-                  {u.isActive ? "Dezactivează" : "Activează"}
+                  {u.isActive ? m.users.deactivate : m.users.activate}
                 </button>
               )}
               <button
                 onClick={() => setDialog({ open: true, user: u })}
                 className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)]"
-                title="Editează"
+                title={m.common.edit}
               >
                 <IconPencil className="size-4" />
               </button>
@@ -201,7 +203,7 @@ export default function UsersManager({
                 <button
                   onClick={() => remove(u)}
                   className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]"
-                  title="Șterge"
+                  title={m.common.delete}
                 >
                   <IconTrash className="size-4" />
                 </button>
@@ -242,6 +244,7 @@ function UserDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const m = useMessages();
   const action = user ? updateUser : createUser;
   const [state, formAction, pending] = useActionState<UserState, FormData>(action, undefined);
   const [role, setRole] = useState<"ADMIN" | "STAFF">(user?.role ?? "STAFF");
@@ -265,20 +268,20 @@ function UserDialog({
     >
       <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-b-none rounded-t-2xl p-5 sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold">{user ? "Editează utilizator" : "Utilizator nou"}</h2>
-          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">
+          <h2 className="text-base font-bold">{user ? m.users.editTitle : m.users.newTitle}</h2>
+          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label={m.common.close}>
             <IconX className="size-4" />
           </button>
         </div>
 
         <form action={formAction} className="flex flex-col gap-3">
           {user && <input type="hidden" name="id" value={user.id} />}
-          <input name="name" defaultValue={user?.name ?? ""} placeholder="Nume *" required className={input} />
-          <input name="email" type="email" defaultValue={user?.email ?? ""} placeholder="Email *" required className={input} />
+          <input name="name" defaultValue={user?.name ?? ""} placeholder={m.users.namePlaceholder} required className={input} />
+          <input name="email" type="email" defaultValue={user?.email ?? ""} placeholder={m.users.emailPlaceholder} required className={input} />
           <input
             name="password"
             type="password"
-            placeholder={user ? "Parolă nouă (lasă gol = neschimbată)" : "Parolă * (min 8)"}
+            placeholder={user ? m.users.passwordNew : m.users.passwordCreate}
             required={!user}
             className={input}
           />
@@ -287,13 +290,11 @@ function UserDialog({
             <input
               name="telegramChatId"
               defaultValue={user?.telegramChatId ?? ""}
-              placeholder="Telegram chat ID (pentru notificări)"
+              placeholder={m.users.telegramPlaceholder}
               inputMode="numeric"
               className={input}
             />
-            <p className="mt-1 text-xs text-ink-soft">
-              Opțional. Userul își află ID-ul scriind <b>/start</b> botului <b>@userinfobot</b> pe Telegram.
-            </p>
+            <p className="mt-1 text-xs text-ink-soft">{m.users.telegramHint}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -302,21 +303,21 @@ function UserDialog({
               value={role}
               onChange={(e) => !roleLocked && setRole(e.target.value as "ADMIN" | "STAFF")}
               disabled={roleLocked}
-              title={roleLocked ? "Rolul nu poate fi modificat" : undefined}
+              title={roleLocked ? m.users.roleLockedHint : undefined}
               className={`${input} disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              <option value="STAFF">Angajat (permisiuni)</option>
-              <option value="ADMIN">Administrator (tot)</option>
+              <option value="STAFF">{m.users.roleEmployee}</option>
+              <option value="ADMIN">{m.users.roleAdmin}</option>
             </select>
             <label className="flex items-center gap-2 px-1 text-sm">
               <input type="checkbox" name="isActive" defaultChecked={user?.isActive ?? true} className="size-4 accent-[var(--color-brand)]" />
-              Activ
+              {m.users.activeLabel}
             </label>
           </div>
 
           {role === "STAFF" && (
             <div className="rounded-xl border border-[var(--color-line)] p-3">
-              <p className="mb-2 text-xs font-semibold text-ink-soft">Permisiuni</p>
+              <p className="mb-2 text-xs font-semibold text-ink-soft">{m.users.permissionsLabel}</p>
               <div className="flex flex-col gap-3">
                 {PERMISSION_GROUPS.map((g) => (
                   <div key={g.group}>
@@ -342,11 +343,8 @@ function UserDialog({
           )}
 
           <div className="rounded-xl border border-[var(--color-line)] p-3">
-            <p className="mb-1 text-xs font-semibold text-ink-soft">Notificări (ce evenimente primește)</p>
-            <p className="mb-2 text-[11px] text-ink-soft">
-              Pe lângă astea, primește mereu notificările directe (task asignat lui, schimbări pe task-urile lui).
-              Listă goală = toate tipurile de evenimente.
-            </p>
+            <p className="mb-1 text-xs font-semibold text-ink-soft">{m.users.notificationsLabel}</p>
+            <p className="mb-2 text-[11px] text-ink-soft">{m.users.notificationsHint}</p>
             <div className="grid grid-cols-2 gap-1.5">
               {NOTIFY_EVENTS.map((e) => (
                 <label key={e.key} className="flex items-center gap-2 text-sm">
@@ -365,16 +363,13 @@ function UserDialog({
 
           {role === "ADMIN" && (
             <div className="rounded-xl border border-[var(--color-line)] p-3">
-              <p className="mb-1 text-xs font-semibold text-ink-soft">Sursa notificărilor (ca administrator)</p>
-              <p className="mb-2 text-[11px] text-ink-soft">
-                Filtrează ce notificări de task/tichet primește acest administrator, în funcție de
-                echipă sau membru. Tipurile de mai sus se aplică în continuare peste acest filtru.
-              </p>
+              <p className="mb-1 text-xs font-semibold text-ink-soft">{m.users.notifSourceLabel}</p>
+              <p className="mb-2 text-[11px] text-ink-soft">{m.users.notifSourceHint}</p>
               <div className="mb-2 flex flex-wrap gap-3">
                 {[
-                  { v: "ALL", l: "Toate echipele/membrii" },
-                  { v: "TEAMS", l: "Doar anumite echipe" },
-                  { v: "MEMBERS", l: "Doar anumiți membri" },
+                  { v: "ALL", l: m.users.scopeAll },
+                  { v: "TEAMS", l: m.users.scopeTeams },
+                  { v: "MEMBERS", l: m.users.scopeMembers },
                 ].map((o) => (
                   <label key={o.v} className="flex items-center gap-1.5 text-sm">
                     <input
@@ -392,7 +387,7 @@ function UserDialog({
 
               {notifyScope === "TEAMS" && (
                 <div className="grid grid-cols-2 gap-1.5">
-                  {teams.length === 0 && <p className="text-xs text-ink-soft">Nicio echipă creată încă.</p>}
+                  {teams.length === 0 && <p className="text-xs text-ink-soft">{m.users.noTeams}</p>}
                   {teams.map((t) => (
                     <label key={t.id} className="flex items-center gap-2 text-sm">
                       <input
@@ -410,7 +405,7 @@ function UserDialog({
 
               {notifyScope === "MEMBERS" && (
                 <div className="grid grid-cols-2 gap-1.5">
-                  {staffOptions.length === 0 && <p className="text-xs text-ink-soft">Niciun alt utilizator încă.</p>}
+                  {staffOptions.length === 0 && <p className="text-xs text-ink-soft">{m.users.noStaff}</p>}
                   {staffOptions.map((u) => (
                     <label key={u.id} className="flex items-center gap-2 text-sm">
                       <input
@@ -430,7 +425,7 @@ function UserDialog({
 
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
-            {pending ? "Se salvează…" : "Salvează"}
+            {pending ? m.common.saving : m.common.save}
           </button>
         </form>
       </div>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { sendEmailReplyAction } from "@/app/actions/email-tickets";
+import { useMessages } from "@/lib/i18n/context";
 
 type ThreadMessage = {
   id: string;
@@ -26,6 +27,7 @@ export default function EmailThread({
   fromName: string | null;
   canReply: boolean;
 }) {
+  const m = useMessages();
   const [reply, setReply] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -44,7 +46,7 @@ export default function EmailThread({
             id: `local-${Date.now()}`,
             direction: "OUTBOUND",
             fromEmail: "",
-            fromName: "Tu",
+            fromName: m.email.selfName,
             toEmail: fromEmail,
             body: reply,
             sentAt: new Date().toISOString(),
@@ -54,7 +56,7 @@ export default function EmailThread({
         setSent(true);
         setTimeout(() => setSent(false), 3000);
       } else {
-        setError(res.error ?? "Eroare la trimitere.");
+        setError(res.error ?? m.email.sendError);
       }
     });
   }
@@ -80,7 +82,7 @@ export default function EmailThread({
 
   return (
     <div className="card mb-3 p-4">
-      <h2 className="mb-1 text-sm font-bold">📧 Conversație email</h2>
+      <h2 className="mb-1 text-sm font-bold">📧 {m.email.heading}</h2>
       <p className="mb-4 text-sm text-ink-soft">
         {fromName ? (
           <>
@@ -92,21 +94,21 @@ export default function EmailThread({
       </p>
 
       {localMessages.length === 0 ? (
-        <p className="text-xs text-ink-soft">Niciun mesaj în conversație.</p>
+        <p className="text-xs text-ink-soft">{m.email.noMessages}</p>
       ) : (
         <div className="flex flex-col gap-4 mb-4">
-          {localMessages.map((m) => {
-            const isIn = m.direction === "INBOUND";
+          {localMessages.map((msg) => {
+            const isIn = msg.direction === "INBOUND";
             const senderName = isIn
-              ? decodeRfc2047(m.fromName || m.fromEmail)
-              : decodeRfc2047(m.fromName || "Echipa");
+              ? decodeRfc2047(msg.fromName || msg.fromEmail)
+              : decodeRfc2047(msg.fromName || m.email.teamName);
             return (
-              <div key={m.id} className={`flex flex-col gap-1 ${isIn ? "items-start" : "items-end"}`}>
+              <div key={msg.id} className={`flex flex-col gap-1 ${isIn ? "items-start" : "items-end"}`}>
                 <div className={`flex items-baseline gap-2 px-1 ${isIn ? "" : "flex-row-reverse"}`}>
                   <span className={`text-sm font-bold ${isIn ? "text-ink" : "text-brand"}`}>
                     {senderName}
                   </span>
-                  <span className="text-[11px] text-ink-soft">{fmtDate(m.sentAt)}</span>
+                  <span className="text-[11px] text-ink-soft">{fmtDate(msg.sentAt)}</span>
                 </div>
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
@@ -115,7 +117,7 @@ export default function EmailThread({
                       : "bg-brand/10 text-[var(--color-ink)] border border-brand/20"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap break-words leading-relaxed">{m.body}</p>
+                  <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.body}</p>
                 </div>
               </div>
             );
@@ -128,19 +130,19 @@ export default function EmailThread({
           <textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
-            placeholder="Scrie un răspuns..."
+            placeholder={m.email.replyPlaceholder}
             rows={3}
             className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
           />
           {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-          {sent && <p className="mt-1 text-xs text-green-600">✓ Trimis cu succes.</p>}
+          {sent && <p className="mt-1 text-xs text-green-600">{m.email.sent}</p>}
           <div className="mt-2 flex justify-end">
             <button
               onClick={handleSend}
               disabled={isPending || !reply.trim()}
               className="btn-primary text-sm px-4 py-1.5 disabled:opacity-50"
             >
-              {isPending ? "Se trimite…" : "Trimite"}
+              {isPending ? m.email.sending : m.email.send}
             </button>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { rowSummary, moduleLabel, AUDIT_MODULES, ACTION_OPTIONS } from "@/lib/au
 import { deleteAllAuditLogs } from "@/app/actions/audit";
 import { IconChevronLeft, IconChevronRight, IconTrash } from "./icons";
 import { useToast } from "./toast";
+import { useMessages } from "@/lib/i18n/context";
 
 type Opt = { id: string; name: string };
 type Row = {
@@ -78,6 +79,7 @@ export default function AuditLogsClient({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const m = useMessages();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -144,7 +146,7 @@ export default function AuditLogsClient({
     try {
       const res = await deleteAllAuditLogs();
       if (res?.error) toast.error(res.error);
-      else { toast.success("Toate log-urile au fost șterse."); setConfirmDelete(false); router.refresh(); }
+      else { toast.success(m.auditLogs.allDeleted); setConfirmDelete(false); router.refresh(); }
     } finally {
       setDeleting(false);
     }
@@ -157,27 +159,27 @@ export default function AuditLogsClient({
       {/* Bară filtre + acțiuni */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <select value={filters.user} onChange={(e) => apply({ user: e.target.value })} className={fldCls(filters.user)}>
-          <option value="">Toți utilizatorii</option>
+          <option value="">{m.auditLogs.filterUser}</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
         <select value={filters.role} onChange={(e) => apply({ role: e.target.value })} className={fldCls(filters.role)}>
-          <option value="">Orice rol</option>
-          <option value="ADMIN">Administrator</option>
-          <option value="STAFF">Staff</option>
+          <option value="">{m.auditLogs.filterRole}</option>
+          <option value="ADMIN">{m.auditLogs.roleAdmin}</option>
+          <option value="STAFF">{m.auditLogs.roleStaff}</option>
         </select>
         <select value={filters.module} onChange={(e) => apply({ module: e.target.value })} className={fldCls(filters.module)}>
-          <option value="">Orice modul</option>
-          {AUDIT_MODULES.map((m) => <option key={m} value={m}>{moduleLabel(m)}</option>)}
+          <option value="">{m.auditLogs.filterModule}</option>
+          {AUDIT_MODULES.map((mod) => <option key={mod} value={mod}>{moduleLabel(mod)}</option>)}
         </select>
         <select value={filters.action} onChange={(e) => apply({ action: e.target.value })} className={fldCls(filters.action)}>
-          <option value="">Orice acțiune</option>
+          <option value="">{m.auditLogs.filterAction}</option>
           {ACTION_OPTIONS.map((a) => <option key={a.key} value={a.key}>{a.label}</option>)}
         </select>
         <button
           onClick={() => { try { localStorage.removeItem("filters:audit"); } catch {} router.push("/admin/audit-logs"); }}
           className="tap h-8 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
         >
-          ✕ Filtre
+          {m.auditLogs.clearFilters}
         </button>
 
         <div className="ml-auto flex items-center gap-2">
@@ -186,21 +188,21 @@ export default function AuditLogsClient({
             download
             className="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
-            ↓ CSV
+            {m.auditLogs.exportCsv}
           </a>
           <a
             href={exportUrl("excel")}
             download
             className="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
-            ↓ Excel
+            {m.auditLogs.exportExcel}
           </a>
           <button
             onClick={() => setConfirmDelete(true)}
             className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-200 px-3 text-xs font-medium text-red-600 hover:bg-red-50"
           >
             <IconTrash className="size-3.5" />
-            Șterge toate
+            {m.auditLogs.deleteAll}
           </button>
         </div>
       </div>
@@ -209,21 +211,21 @@ export default function AuditLogsClient({
       {confirmDelete && (
         <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5">
           <span className="flex-1 text-sm text-red-700">
-            Toate log-urile vor fi șterse definitiv. Această acțiune nu poate fi anulată.
+            {m.auditLogs.deleteWarning}
           </span>
           <button
             onClick={handleDeleteAll}
             disabled={deleting}
             className="h-7 rounded-lg bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
           >
-            {deleting ? "Se șterge…" : "Confirmă ștergerea"}
+            {deleting ? m.auditLogs.deleting : m.auditLogs.confirmDelete}
           </button>
           <button
             onClick={() => setConfirmDelete(false)}
             disabled={deleting}
             className="h-7 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-60"
           >
-            Anulează
+            {m.common.cancel}
           </button>
         </div>
       )}
@@ -231,16 +233,16 @@ export default function AuditLogsClient({
       {/* Rânduri compacte */}
       {items.length === 0 ? (
         <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
-          {activeFilters ? "Niciun log pentru filtrele alese." : "Niciun log încă."}
+          {activeFilters ? m.auditLogs.noResultsFiltered : m.auditLogs.noResults}
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-[var(--color-line)]">
           {/* Header — doar desktop */}
           <div className="hidden grid-cols-[130px_170px_160px_1fr] border-b border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft lg:grid">
-            <span>Data &amp; ora</span>
-            <span>Utilizator</span>
-            <span>Obiect</span>
-            <span>Acțiune</span>
+            <span>{m.auditLogs.colDate}</span>
+            <span>{m.auditLogs.colUser}</span>
+            <span>{m.auditLogs.colObject}</span>
+            <span>{m.auditLogs.colAction}</span>
           </div>
 
           {items.map((r, i) => (
@@ -288,7 +290,7 @@ export default function AuditLogsClient({
             disabled={page <= 1}
             onClick={() => apply({ page: page - 1 })}
             className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
-            aria-label="Anterior"
+            aria-label={m.common.prev}
           >
             <IconChevronLeft className="size-4" />
           </button>
@@ -299,7 +301,7 @@ export default function AuditLogsClient({
             disabled={!hasMore}
             onClick={() => apply({ page: page + 1 })}
             className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
-            aria-label="Următor"
+            aria-label={m.common.next}
           >
             <IconChevronRight className="size-4" />
           </button>
@@ -307,7 +309,7 @@ export default function AuditLogsClient({
             value={filters.ps || "20"}
             onChange={(e) => apply({ ps: e.target.value, page: 1 } as Partial<Filters & { page: number }>)}
             className="ml-2 h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand"
-            title="Înregistrări pe pagină"
+            title={m.auditLogs.perPage}
           >
             <option value="20">20 / pag.</option>
             <option value="50">50 / pag.</option>
@@ -315,7 +317,7 @@ export default function AuditLogsClient({
             <option value="200">200 / pag.</option>
             <option value="500">500 / pag.</option>
             <option value="1000">1000 / pag.</option>
-            <option value="all">Toate</option>
+            <option value="all">{m.common.allPages}</option>
           </select>
         </div>
       )}

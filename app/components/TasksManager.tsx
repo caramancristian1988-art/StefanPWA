@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { useMessages } from "@/lib/i18n/context";
 import Link from "next/link";
 import {
   createTaskAction,
@@ -188,6 +189,7 @@ export default function TasksManager({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const m = useMessages();
   const [navPending, startNav] = useTransition();
 
   // ── Tipuri fixe per pagină (/tasks → TASK, /tickets → TICKET) ──
@@ -301,13 +303,13 @@ export default function TasksManager({
       setLoadingHist(id);
       getTaskHistory(id)
         .then((rows) => setHistory((h) => ({ ...h, [id]: rows as HistoryRow[] })))
-        .catch(() => toast.error("Nu am putut încărca istoricul"))
+        .catch(() => toast.error(m.tasks.historyLoadError))
         .finally(() => setLoadingHist((cur) => (cur === id ? null : cur)));
     }
     if (!comments[id]) {
       getTaskComments(id)
         .then((rows) => setComments((c) => ({ ...c, [id]: rows as CommentRow[] })))
-        .catch(() => toast.error("Nu am putut încărca comentariile"));
+        .catch(() => {});
     }
   }
 
@@ -320,7 +322,7 @@ export default function TasksManager({
         if (res?.error) { toast.error(res.error); return; }
         setCommentDraft((d) => ({ ...d, [id]: "" }));
         getTaskComments(id).then((rows) => setComments((c) => ({ ...c, [id]: rows as CommentRow[] })));
-        toast.success("Comentariu adăugat");
+        toast.success(m.tasks.commentAdded);
       })
       .finally(() => setPostingComment((cur) => (cur === id ? null : cur)));
   }
@@ -341,7 +343,7 @@ export default function TasksManager({
     setTaskStatus(id, next).then((res) => {
       if (res?.error) { setTasks(prev); toast.error(res.error); }
       else {
-        toast.success(`Status: ${ST[next].label}`);
+        toast.success(`Status: ${m.status[next]}`);
         setHistory((h) => { if (!h[id]) return h; const { [id]: _, ...rest } = h; return rest; });
         if (openId === id) {
           getTaskHistory(id).then((rows) => setHistory((hh) => ({ ...hh, [id]: rows as HistoryRow[] }))).catch(() => {});
@@ -361,10 +363,10 @@ export default function TasksManager({
   }
 
   function remove(id: string) {
-    if (!confirm("Ștergi task-ul?")) return;
+    if (!confirm(m.tasks.deleteConfirm)) return;
     const prev = tasks;
     setTasks((cur) => cur.filter((t) => t.id !== id));
-    deleteTask(id).then(() => toast.success("Șters")).catch(() => { setTasks(prev); toast.error("Ștergerea a eșuat"); });
+    deleteTask(id).then(() => toast.success(m.tasks.deleted)).catch(() => { setTasks(prev); toast.error(m.tasks.deleteFailed); });
   }
 
   const activeFilters = Boolean(
@@ -403,64 +405,64 @@ export default function TasksManager({
           <input
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Caută după titlu sau #număr…"
+            placeholder={m.tasks.searchPlaceholder}
             className="h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
           />
         </form>
 
         <select value={localFilters.status} onChange={(e) => applyFilter({ status: e.target.value })} className={fldCls(localFilters.status)}>
-          <option value="">Status: toate</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{ST[s].label}</option>)}
+          <option value="">{m.tasks.filterStatus}</option>
+          {STATUSES.map((s) => <option key={s} value={s}>{m.status[s]}</option>)}
         </select>
 
         <select value={localFilters.assignee} onChange={(e) => applyFilter({ assignee: e.target.value })} className={fldCls(localFilters.assignee)}>
-          <option value="">Persoană: toți</option>
+          <option value="">{m.tasks.filterPerson}</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
 
         <select value={localFilters.team} onChange={(e) => applyFilter({ team: e.target.value })} className={fldCls(localFilters.team)}>
-          <option value="">Echipă: toate</option>
+          <option value="">{m.tasks.filterTeam}</option>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
 
         <select value={localFilters.proj} onChange={(e) => applyFilter({ proj: e.target.value })} className={fldCls(localFilters.proj)}>
-          <option value="">Proiect: toate</option>
+          <option value="">{m.tasks.filterProject}</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
 
         <select value={localFilters.client} onChange={(e) => applyFilter({ client: e.target.value })} className={fldCls(localFilters.client)}>
-          <option value="">Client: toți</option>
+          <option value="">{m.tasks.filterClient}</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
 
         {categories && categories.length > 0 && (
           <select value={localFilters.category} onChange={(e) => applyFilter({ category: e.target.value })} className={fldCls(localFilters.category)}>
-            <option value="">Categorie: toate</option>
+            <option value="">{m.tasks.filterCategory}</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
 
         <select value={localFilters.prio} onChange={(e) => applyFilter({ prio: e.target.value })} className={fldCls(localFilters.prio)}>
-          <option value="">Prioritate: toate</option>
-          <option value="LOW">Scăzută</option>
-          <option value="MEDIUM">Medie</option>
-          <option value="HIGH">Ridicată</option>
-          <option value="URGENT">Urgentă</option>
+          <option value="">{m.tasks.filterPriority}</option>
+          <option value="LOW">{m.priority.LOW}</option>
+          <option value="MEDIUM">{m.priority.MEDIUM}</option>
+          <option value="HIGH">{m.priority.HIGH}</option>
+          <option value="URGENT">{m.priority.URGENT}</option>
         </select>
 
         <select value={localFilters.due} onChange={(e) => applyFilter({ due: e.target.value })} className={fldCls(localFilters.due)}>
-          <option value="">Deadline: oricare</option>
-          <option value="overdue">Expirate</option>
-          <option value="today">Azi</option>
-          <option value="tomorrow">Mâine</option>
-          <option value="week">Săptămâna</option>
-          <option value="month">Luna</option>
+          <option value="">{m.tasks.filterDue}</option>
+          <option value="overdue">{m.tasks.filterDueOverdue}</option>
+          <option value="today">{m.tasks.filterDueToday}</option>
+          <option value="tomorrow">{m.tasks.filterDueTomorrow}</option>
+          <option value="week">{m.tasks.filterDueWeek}</option>
+          <option value="month">{m.tasks.filterDueMonth}</option>
         </select>
 
         <select value={localFilters.sort} onChange={(e) => applyFilter({ sort: e.target.value })} className={fldCls(localFilters.sort)}>
-          <option value="">Sortare: implicit</option>
-          <option value="dueAsc">Deadline ↑</option>
-          <option value="dueDesc">Deadline ↓</option>
+          <option value="">{m.tasks.sortDefault}</option>
+          <option value="dueAsc">{m.tasks.sortDueAsc}</option>
+          <option value="dueDesc">{m.tasks.sortDueDesc}</option>
         </select>
 
         {activeFilters && (
@@ -474,7 +476,7 @@ export default function TasksManager({
             }}
             className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
-            ✕ Filtre
+            {m.tasks.clearFilters}
           </button>
         )}
         <ExportButton
@@ -524,7 +526,7 @@ export default function TasksManager({
 
       {tasks.length === 0 ? (
         <div className="card grid place-items-center p-8 text-center text-sm text-ink-soft">
-          {activeFilters ? "Niciun rezultat pentru filtrele selectate." : "Niciun task."}
+          {activeFilters ? m.tasks.noResults : m.tasks.noTasks}
         </div>
       ) : (
         <div className={`flex flex-col gap-0 transition-opacity duration-200 ${navPending ? "pointer-events-none opacity-50" : ""}`}>
@@ -534,7 +536,7 @@ export default function TasksManager({
               <div className="mb-1.5 flex items-center gap-2 px-1">
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${ST[status].badge}`}>
                   <span className={`size-2 rounded-full ${ST[status].dot}`} />
-                  {ST[status].label.toUpperCase()}
+                  {m.status[status].toUpperCase()}
                 </span>
                 <span className="text-xs text-ink-soft">{group.length}</span>
               </div>
@@ -559,14 +561,14 @@ export default function TasksManager({
                     )}
                     <span className="min-w-0 truncate text-sm font-medium">{t.title}</span>
                     <span className="hidden shrink-0 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] text-ink-soft sm:inline">
-                      {TYPE_RO[t.type]}
+                      {t.type === "TICKET" ? m.tasks.typeTicket : m.tasks.typeTask}
                     </span>
                     <IconChevronRight
                       className={`size-3.5 shrink-0 text-ink-soft transition-transform ${openId === t.id ? "rotate-90" : ""}`}
                     />
                   </div>
                   <p className="flex flex-wrap items-center gap-x-1 truncate text-[11px] text-ink-soft">
-                    {PRIO_RO[t.priority]}
+                    {m.priority[t.priority]}
                     {t.projectName && ` · ${t.projectName}`}
                     {(t.assigneeName || t.teamName) && ` · ${t.assigneeName ?? t.teamName}`}
                     {t.dueAt && ` · ${fmtDue(t.dueAt)}`}
@@ -597,17 +599,17 @@ export default function TasksManager({
                 <button
                   onClick={() => setFilesOpenId((id) => id === t.id ? null : t.id)}
                   className={`tap grid size-8 shrink-0 place-items-center rounded-lg border text-sm ${filesOpenId === t.id ? "border-brand bg-brand/10 text-brand" : "border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"}`}
-                  title="Fișiere atașate"
+                  title={m.tasks.attachmentsTitle}
                 >
                   📎
                 </button>
                 {canEdit && (
-                  <button onClick={() => setEditTask(t)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title="Editează">
+                  <button onClick={() => setEditTask(t)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]" title={m.common.edit}>
                     <IconPencil className="size-3.5" />
                   </button>
                 )}
                 {canDelete && (
-                  <button onClick={() => remove(t.id)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title="Șterge">
+                  <button onClick={() => remove(t.id)} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title={m.common.delete}>
                     <IconTrash className="size-3.5" />
                   </button>
                 )}
@@ -616,13 +618,13 @@ export default function TasksManager({
                 <>
                   {t.description && (
                     <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-3 py-2.5">
-                      <p className="mb-1 text-[11px] font-semibold text-ink-soft">📝 Descriere</p>
+                      <p className="mb-1 text-[11px] font-semibold text-ink-soft">{m.tasks.descriptionLabel}</p>
                       <p className="whitespace-pre-wrap text-[12px]">{t.description}</p>
                     </div>
                   )}
                   {t.projectLat != null && t.projectLng != null && (
                     <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-3 py-2.5">
-                      <p className="mb-1.5 text-[11px] font-semibold text-ink-soft">📍 Locație proiect</p>
+                      <p className="mb-1.5 text-[11px] font-semibold text-ink-soft">{m.tasks.locationLabel}</p>
                       <div className="flex flex-wrap gap-2">
                         <a
                           href={`https://www.google.com/maps?q=${t.projectLat},${t.projectLng}`}
@@ -679,7 +681,7 @@ export default function TasksManager({
             disabled={currentPage <= 1}
             onClick={() => applyFilter({}, undefined, currentPage - 1)}
             className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
-            aria-label="Anterior"
+            aria-label={m.common.prev}
           >
             <IconChevronLeft className="size-4" />
           </button>
@@ -704,7 +706,7 @@ export default function TasksManager({
             disabled={!hasMoreState}
             onClick={() => applyFilter({}, undefined, currentPage + 1)}
             className="tap grid size-9 place-items-center rounded-lg border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)] disabled:opacity-40"
-            aria-label="Următor"
+            aria-label={m.common.next}
           >
             <IconChevronRight className="size-4" />
           </button>
@@ -712,7 +714,7 @@ export default function TasksManager({
             value={localFilters.ps || "20"}
             onChange={(e) => applyFilter({ ps: e.target.value === "20" ? "" : e.target.value }, undefined, 1)}
             className="ml-2 h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand"
-            title="Înregistrări pe pagină"
+            title={m.tasks.perPage}
           >
             <option value="20">20 / pag.</option>
             <option value="50">50 / pag.</option>
@@ -720,7 +722,7 @@ export default function TasksManager({
             <option value="200">200 / pag.</option>
             <option value="500">500 / pag.</option>
             <option value="1000">1000 / pag.</option>
-            <option value="all">Toate</option>
+            <option value="all">{m.common.allPages}</option>
           </select>
         </div>
       )}
@@ -771,6 +773,7 @@ function StatusDropdown({
   pending: boolean;
   onChange: (s: Status) => void;
 }) {
+  const m = useMessages();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, minWidth: 0 });
   const [mounted, setMounted] = useState(false);
@@ -812,7 +815,7 @@ function StatusDropdown({
         onClick={handleOpen}
         className={`h-7 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition-opacity disabled:opacity-50 ${ST[status].badge}`}
       >
-        {ST[status].label}
+        {m.status[status]}
       </button>
       {open && mounted && createPortal(
         <div
@@ -828,7 +831,7 @@ function StatusDropdown({
               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12px] font-medium hover:bg-[var(--color-surface-2)] ${s === status ? "font-bold" : ""}`}
             >
               <span className={`size-2 shrink-0 rounded-full ${ST[s].dot}`} />
-              <span className={s === status ? "text-ink" : "text-ink-soft"}>{ST[s].label}</span>
+              <span className={s === status ? "text-ink" : "text-ink-soft"}>{m.status[s]}</span>
               {s === status && <span className="ml-auto text-[10px] text-brand">✓</span>}
             </button>
           ))}
@@ -863,17 +866,18 @@ function Timeline({
   createdAt: string | Date;
   creatorName: string;
 }) {
+  const m = useMessages();
   const fmt = (d: string | Date) => new Date(d).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" });
   return (
     <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-3 py-2.5">
       {loading && !rows ? (
-        <p className="text-[11px] text-ink-soft">Se încarcă istoricul…</p>
+        <p className="text-[11px] text-ink-soft">{m.tasks.historyLoading}</p>
       ) : (
         <ol className="flex flex-col gap-2">
           <li className="flex items-start gap-2.5">
             <span className="mt-1 size-2 shrink-0 rounded-full bg-st-new" />
             <div className="min-w-0 text-[11px]">
-              <span className="font-medium">Creat</span>
+              <span className="font-medium">{m.common.created}</span>
               <span className="text-ink-soft"> · {creatorName} · {fmt(createdAt)}</span>
             </div>
           </li>
@@ -882,8 +886,8 @@ function Timeline({
               <span className={`mt-1 size-2 shrink-0 rounded-full ${ST[r.toStatus!]?.dot ?? "bg-st-new"}`} />
               <div className="min-w-0 text-[11px]">
                 <span className="font-medium">
-                  {r.fromStatus ? `${ST[r.fromStatus]?.label ?? r.fromStatus} → ` : ""}
-                  {ST[r.toStatus!]?.label ?? r.toStatus}
+                  {r.fromStatus ? `${m.status[r.fromStatus] ?? r.fromStatus} → ` : ""}
+                  {m.status[r.toStatus!] ?? r.toStatus}
                 </span>
                 <span className="text-ink-soft"> · {r.userName} · {fmt(r.createdAt)}</span>
                 {r.note && <span className="text-ink-soft"> · {r.note}</span>}
@@ -891,7 +895,7 @@ function Timeline({
             </li>
           ))}
           {rows && rows.length === 0 && (
-            <li className="text-[11px] text-ink-soft">Niciun alt eveniment încă.</li>
+            <li className="text-[11px] text-ink-soft">{m.tasks.historyEmpty}</li>
           )}
         </ol>
       )}
@@ -912,15 +916,16 @@ function Comments({
   onDraftChange: (v: string) => void;
   onSubmit: () => void;
 }) {
+  const m = useMessages();
   const fmt = (d: string | Date) => new Date(d).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" });
   return (
     <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40 px-3 py-2.5">
-      <p className="mb-2 text-[11px] font-semibold text-ink-soft">💬 Comentarii</p>
+      <p className="mb-2 text-[11px] font-semibold text-ink-soft">{m.tasks.commentSection}</p>
       <div className="mb-2 flex flex-col gap-2">
         {rows === undefined ? (
-          <p className="text-[11px] text-ink-soft">Se încarcă…</p>
+          <p className="text-[11px] text-ink-soft">{m.common.loading}</p>
         ) : rows.length === 0 ? (
-          <p className="text-[11px] text-ink-soft">Niciun comentariu încă.</p>
+          <p className="text-[11px] text-ink-soft">{m.tasks.commentEmpty}</p>
         ) : (
           rows.map((c) => (
             <div key={c.id} className="text-[11px]">
@@ -935,7 +940,7 @@ function Comments({
         <textarea
           value={draft}
           onChange={(e) => onDraftChange(e.target.value)}
-          placeholder="Scrie un comentariu…"
+          placeholder={m.tasks.commentPlaceholder}
           rows={1}
           className="min-w-0 flex-1 resize-none rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 py-1.5 text-[12px] outline-none focus:border-brand"
         />
@@ -944,7 +949,7 @@ function Comments({
           disabled={posting || !draft.trim()}
           className="tap h-8 shrink-0 rounded-lg bg-brand px-3 text-[11px] font-semibold text-white hover:bg-brand-strong disabled:opacity-50"
         >
-          {posting ? "…" : "Trimite"}
+          {posting ? "…" : m.tasks.commentSubmit}
         </button>
       </form>
     </div>
@@ -960,10 +965,11 @@ function CategoryChips({
   value: string;
   onChange: (id: string) => void;
 }) {
+  const m = useMessages();
   if (categories.length === 0) return null;
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Categorie</label>
+      <label className="mb-1.5 block text-xs font-semibold text-ink-soft">{m.tasks.categoryLabel}</label>
       <div className="flex flex-wrap gap-1.5">
         <button
           type="button"
@@ -974,7 +980,7 @@ function CategoryChips({
               : "border-[var(--color-line)] text-ink-soft hover:border-brand"
           }`}
         >
-          Fără
+          {m.tasks.noCategory}
         </button>
         {categories.map((c) => (
           <button
@@ -1011,13 +1017,14 @@ function EditDialog({
   onSaved: (updated: Partial<Task> & { id: string }) => void;
 }) {
   const toast = useToast();
+  const m = useMessages();
   const [state, action, pending] = useActionState<TaskState, FormData>(updateTaskAction, undefined);
   const [categoryId, setCategoryId] = useState(task.categoryId ?? "");
   const [description, setDescription] = useState(task.description ?? "");
   const [title, setTitle] = useState(task.title);
   useEffect(() => {
     if (state?.ok) {
-      toast.success("Salvat");
+      toast.success(m.tasks.saved);
       onSaved({ id: task.id, title, description: description || null });
     } else if (state?.error) {
       toast.error(state.error);
@@ -1034,8 +1041,8 @@ function EditDialog({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-b-none rounded-t-2xl p-5 sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold">Editează{seqLabel}</h2>
-          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">
+          <h2 className="text-base font-bold">{m.tasks.editTitle}{seqLabel}</h2>
+          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label={m.common.close}>
             <IconX className="size-4" />
           </button>
         </div>
@@ -1059,18 +1066,18 @@ function EditDialog({
             className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand"
           />
           <select name="priority" defaultValue={task.priority} className={dlgInput}>
-            <option value="LOW">Prioritate scăzută</option>
-            <option value="MEDIUM">Prioritate medie</option>
-            <option value="HIGH">Prioritate ridicată</option>
-            <option value="URGENT">Urgentă</option>
+            <option value="LOW">{m.priority.LOW}</option>
+            <option value="MEDIUM">{m.priority.MEDIUM}</option>
+            <option value="HIGH">{m.priority.HIGH}</option>
+            <option value="URGENT">{m.priority.URGENT}</option>
           </select>
           <select name="projectId" defaultValue={task.projectId ?? ""} className={dlgInput}>
-            <option value="">Fără proiect</option>
+            <option value="">{m.tasks.noProjectEdit}</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           {clients.length > 0 && (
             <select name="clientId" defaultValue={task.clientId ?? ""} className={dlgInput}>
-              <option value="">Fără client</option>
+              <option value="">{m.tasks.noClient}</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
@@ -1089,35 +1096,35 @@ function EditDialog({
           />
           <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} />
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.dueDate}</label>
             <div className="grid gap-2 sm:grid-cols-2">
               <input type="date" name="dueDate" defaultValue={dueDate} className={dlgInput} />
-              <input type="time" name="dueTime" defaultValue={dueTime} placeholder="Ora (opțional)" className={dlgInput} />
+              <input type="time" name="dueTime" defaultValue={dueTime} placeholder={m.tasks.dueTime} className={dlgInput} />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-soft">Reamintire periodică</label>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.reminderLabel}</label>
             <select name="reminderIntervalMinutes" defaultValue={task.reminderIntervalMinutes ?? 0} className={dlgInput}>
-              <option value={0}>Niciodată</option>
-              <option value={10}>La fiecare 10 min</option>
-              <option value={30}>La fiecare 30 min</option>
-              <option value={60}>La fiecare 1h</option>
-              <option value={180}>La fiecare 3h</option>
-              <option value={360}>La fiecare 6h</option>
-              <option value={720}>La fiecare 12h</option>
-              <option value={1440}>La fiecare 24h</option>
-              <option value={10080}>La fiecare 7 zile</option>
+              <option value={0}>{m.tasks.reminderNever}</option>
+              <option value={10}>{m.tasks.reminder10m}</option>
+              <option value={30}>{m.tasks.reminder30m}</option>
+              <option value={60}>{m.tasks.reminder1h}</option>
+              <option value={180}>{m.tasks.reminder3h}</option>
+              <option value={360}>{m.tasks.reminder6h}</option>
+              <option value={720}>{m.tasks.reminder12h}</option>
+              <option value={1440}>{m.tasks.reminder24h}</option>
+              <option value={10080}>{m.tasks.reminder7d}</option>
             </select>
           </div>
           {quietHoursEnabled && (
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" name="bypassQuietHours" defaultChecked={task.bypassQuietHours} className="size-4 accent-brand" />
-              <span>Trimite notificări și în orele de somn</span>
+              <span>{m.tasks.quietBypass}</span>
             </label>
           )}
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
-            {pending ? "Se salvează…" : "Salvează"}
+            {pending ? m.common.saving : m.common.save}
           </button>
         </form>
       </div>
@@ -1148,6 +1155,7 @@ function CreateDialog({
   onCreated: () => void;
 }) {
   const toast = useToast();
+  const m = useMessages();
   const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [categoryId, setCategoryId] = useState("");
@@ -1156,12 +1164,12 @@ function CreateDialog({
   const [progress, setProgress] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const dialogTitle = initialType === "TICKET" ? "Tichet nou" : "Task nou";
+  const dialogTitle = initialType === "TICKET" ? m.tasks.createTicketTitle : m.tasks.createTaskTitle;
 
   async function stageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.files?.[0];
     if (!raw) return;
-    if (raw.size > 20 * 1024 * 1024) { toast.error("Fișierul depășește 20 MB"); return; }
+    if (raw.size > 20 * 1024 * 1024) { toast.error(m.tasks.fileSizeError); return; }
     if (fileRef.current) fileRef.current.value = "";
     const file = await optimizeImage(raw);
     setStagedFiles((prev) => [...prev, file]);
@@ -1172,27 +1180,27 @@ function CreateDialog({
     if (!formRef.current || submitting) return;
     setFormError(null);
     setSubmitting(true);
-    setProgress("Se creează...");
+    setProgress(m.common.saving);
     try {
       const fd = new FormData(formRef.current);
       const result = await createTaskAction(undefined, fd);
       if (!result?.ok || !result.id) {
-        setFormError(result?.error ?? "Eroare la creare.");
+        setFormError(result?.error ?? m.common.error);
         return;
       }
       if (stagedFiles.length > 0 && blobEnabled) {
         for (let i = 0; i < stagedFiles.length; i++) {
-          setProgress(`Fișier ${i + 1} / ${stagedFiles.length}…`);
+          setProgress(`${m.tasks.fileLabel} ${i + 1} / ${stagedFiles.length}…`);
           const afd = new FormData();
           afd.append("file", stagedFiles[i]);
           await addAttachmentAction(result.id, afd).catch(() => {});
         }
       }
-      toast.success("Creat");
+      toast.success(m.common.success);
       onCreated();
       onClose();
     } catch {
-      setFormError("Eroare la creare. Încearcă din nou.");
+      setFormError(m.common.error);
     } finally {
       setSubmitting(false);
       setProgress(null);
@@ -1204,7 +1212,7 @@ function CreateDialog({
       <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-b-none rounded-t-2xl p-5 sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold">{dialogTitle}</h2>
-          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">
+          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label={m.common.close}>
             <IconX className="size-4" />
           </button>
         </div>
@@ -1213,20 +1221,20 @@ function CreateDialog({
           <textarea name="description" placeholder="Descriere" rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
           <div className="grid gap-2 sm:grid-cols-2">
             <select name="type" defaultValue={initialType} className={dlgInput}>
-              <option value="TASK">Task</option>
-              <option value="TICKET">Tichet</option>
+              <option value="TASK">{m.tasks.typeTask}</option>
+              <option value="TICKET">{m.tasks.typeTicket}</option>
             </select>
             <select name="priority" defaultValue="MEDIUM" className={dlgInput}>
-              <option value="LOW">Prioritate scăzută</option>
-              <option value="MEDIUM">Prioritate medie</option>
-              <option value="HIGH">Prioritate ridicată</option>
-              <option value="URGENT">Urgentă</option>
+              <option value="LOW">{m.priority.LOW}</option>
+              <option value="MEDIUM">{m.priority.MEDIUM}</option>
+              <option value="HIGH">{m.priority.HIGH}</option>
+              <option value="URGENT">{m.priority.URGENT}</option>
             </select>
           </div>
           <QuickSelect
             name="projectId"
             options={projects}
-            placeholder="Fără proiect (se asignează ție)"
+            placeholder={m.tasks.noProject}
             optionPrefix="Proiect: "
             canCreate={canCreateProject}
             createLabel="proiect"
@@ -1235,37 +1243,37 @@ function CreateDialog({
           />
           {clients.length > 0 && (
             <select name="clientId" defaultValue="" className={dlgInput}>
-              <option value="">Fără client</option>
+              <option value="">{m.tasks.noClient}</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
           <MultiAssignPicker users={users} teams={teams} />
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.dueDate}</label>
             <div className="grid gap-2 sm:grid-cols-2">
               <input type="date" name="dueDate" className={dlgInput} />
-              <input type="time" name="dueTime" placeholder="Ora (opțional)" className={dlgInput} />
+              <input type="time" name="dueTime" placeholder={m.tasks.dueTime} className={dlgInput} />
             </div>
           </div>
           <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} />
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-soft">Reamintire periodică</label>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.reminderLabel}</label>
             <select name="reminderIntervalMinutes" defaultValue={0} className={dlgInput}>
-              <option value={0}>Niciodată</option>
-              <option value={10}>La fiecare 10 min</option>
-              <option value={30}>La fiecare 30 min</option>
-              <option value={60}>La fiecare 1h</option>
-              <option value={180}>La fiecare 3h</option>
-              <option value={360}>La fiecare 6h</option>
-              <option value={720}>La fiecare 12h</option>
-              <option value={1440}>La fiecare 24h</option>
-              <option value={10080}>La fiecare 7 zile</option>
+              <option value={0}>{m.tasks.reminderNever}</option>
+              <option value={10}>{m.tasks.reminder10m}</option>
+              <option value={30}>{m.tasks.reminder30m}</option>
+              <option value={60}>{m.tasks.reminder1h}</option>
+              <option value={180}>{m.tasks.reminder3h}</option>
+              <option value={360}>{m.tasks.reminder6h}</option>
+              <option value={720}>{m.tasks.reminder12h}</option>
+              <option value={1440}>{m.tasks.reminder24h}</option>
+              <option value={10080}>{m.tasks.reminder7d}</option>
             </select>
           </div>
           {quietHoursEnabled && (
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" name="bypassQuietHours" className="size-4 accent-brand" />
-              <span>Trimite notificări și în orele de somn</span>
+              <span>{m.tasks.quietBypass}</span>
             </label>
           )}
 
@@ -1274,10 +1282,10 @@ function CreateDialog({
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-soft">
-                  Atașamente {stagedFiles.length > 0 && `(${stagedFiles.length})`}
+                  {m.tasks.attachments} {stagedFiles.length > 0 && `(${stagedFiles.length})`}
                 </span>
                 <label className="tap cursor-pointer rounded-lg border border-[var(--color-line)] px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand-soft">
-                  + Adaugă fișier
+                  {m.tasks.addFile}
                   <input ref={fileRef} type="file" className="sr-only" onChange={stageFile} disabled={submitting} />
                 </label>
               </div>
@@ -1304,7 +1312,7 @@ function CreateDialog({
 
           {formError && <p className="text-sm text-st-cancelled">{formError}</p>}
           <button type="submit" disabled={submitting} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
-            {progress ?? "Creează"}
+            {progress ?? m.tasks.create}
           </button>
         </form>
       </div>

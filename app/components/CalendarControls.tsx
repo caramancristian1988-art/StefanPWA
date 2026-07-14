@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import { addDaysToKey, todayKey } from "@/lib/date";
 import { IconChevronLeft, IconChevronRight } from "./icons";
 import { useUrlFilters } from "@/app/hooks/useUrlFilters";
+import { useMessages } from "@/lib/i18n/context";
 
 type Opt = { id: string; name: string };
 
@@ -75,6 +76,7 @@ export default function CalendarControls({
   const sp = useSearchParams();
   const [, start] = useTransition();
   const { clearFilters } = useUrlFilters("filters:calendar");
+  const m = useMessages();
 
   function patch(updates: Record<string, string>) {
     const params = new URLSearchParams(sp.toString());
@@ -115,29 +117,35 @@ export default function CalendarControls({
         <div className="flex gap-1 rounded-full bg-[var(--color-surface-2)] p-1">
           {(["month", "week", "day"] as const).map((v) => (
             <button key={v} onClick={() => patch({ view: v })} className={viewTab(v)}>
-              {v === "month" ? "Lună" : v === "week" ? "Săptămână" : "Zi"}
+              {v === "month" ? m.calendar.viewMonth : v === "week" ? m.calendar.viewWeek : m.calendar.viewDay}
             </button>
           ))}
         </div>
         <button onClick={() => patch({ date: today })} className="tap card ml-auto rounded-full px-3.5 py-1.5 text-sm">
-          Azi
+          {m.calendar.today}
         </button>
       </div>
 
       {/* Nav */}
       <div className="flex items-center justify-between">
-        <button onClick={() => patch({ date: prev })} className="tap card grid size-9 place-items-center rounded-lg" aria-label="Anterior">
+        <button onClick={() => patch({ date: prev })} className="tap card grid size-9 place-items-center rounded-lg" aria-label={m.common.prev}>
           <IconChevronLeft className="size-4" />
         </button>
         <span className="text-sm font-semibold capitalize">{label}</span>
-        <button onClick={() => patch({ date: next })} className="tap card grid size-9 place-items-center rounded-lg" aria-label="Următor">
+        <button onClick={() => patch({ date: next })} className="tap card grid size-9 place-items-center rounded-lg" aria-label={m.common.next}>
           <IconChevronRight className="size-4" />
         </button>
       </div>
 
       {/* Scope */}
       <div className="flex flex-wrap gap-2">
-        {([["all", "Toate"], ["mine", "Ale mele"], ["created", "Create de mine"]] as const).map(([k, lbl]) => (
+        {(
+          [
+            ["all", m.calendar.scopeAll],
+            ["mine", m.calendar.scopeMine],
+            ["created", m.calendar.scopeCreated],
+          ] as [string, string][]
+        ).map(([k, lbl]) => (
           <button key={k} onClick={() => patch({ scope: k === "all" ? "" : k })} className={chip(scope === k)}>
             {lbl}
           </button>
@@ -145,34 +153,34 @@ export default function CalendarControls({
       </div>
       {/* Type toggles */}
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => patch({ showTasks: showTasks ? "0" : "1" })} className={chip(showTasks)}>Task-uri</button>
-        <button onClick={() => patch({ showTickets: showTickets ? "0" : "1" })} className={chip(showTickets)}>Tichete</button>
-        <button onClick={() => patch({ showAppts: showAppts ? "0" : "1" })} className={chip(showAppts)}>Programări</button>
+        <button onClick={() => patch({ showTasks: showTasks ? "0" : "1" })} className={chip(showTasks)}>{m.calendar.typeTask}</button>
+        <button onClick={() => patch({ showTickets: showTickets ? "0" : "1" })} className={chip(showTickets)}>{m.calendar.typeTicket}</button>
+        <button onClick={() => patch({ showAppts: showAppts ? "0" : "1" })} className={chip(showAppts)}>{m.calendar.typeAppointment}</button>
       </div>
 
       {/* Dimension filters */}
       <div className="flex flex-wrap gap-2">
         <select value={assigneeId} onChange={(e) => patch({ assigneeId: e.target.value })} className={fldCls(assigneeId)}>
-          <option value="">Persoană: toți</option>
+          <option value="">{m.calendar.filterPerson}</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
         <select value={teamId} onChange={(e) => patch({ teamId: e.target.value })} className={fldCls(teamId)}>
-          <option value="">Echipă: toate</option>
+          <option value="">{m.calendar.filterTeam}</option>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
         <select value={projectId} onChange={(e) => patch({ projectId: e.target.value })} className={fldCls(projectId)}>
-          <option value="">Proiect: toate</option>
+          <option value="">{m.calendar.filterProject}</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         {clients.length > 0 && (
           <select value={clientId} onChange={(e) => patch({ clientId: e.target.value })} className={fldCls(clientId)}>
-            <option value="">Client: toți</option>
+            <option value="">{m.calendar.filterClient}</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
         {categories.length > 0 && (
           <select value={categoryId} onChange={(e) => patch({ categoryId: e.target.value })} className={fldCls(categoryId)}>
-            <option value="">Categorie: toate</option>
+            <option value="">{m.calendar.filterCategory}</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
@@ -180,9 +188,9 @@ export default function CalendarControls({
           <button
             onClick={clearFilters}
             className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
-            title="Șterge toate filtrele și resetează la Azi"
+            title={m.calendar.clearAll}
           >
-            ✕ Filtre
+            {m.calendar.clearFilters}
           </button>
         )}
       </div>

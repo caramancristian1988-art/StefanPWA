@@ -1,6 +1,8 @@
 import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { listTasks } from "@/lib/queries/tasks";
+import { getLocaleFromCookie } from "@/lib/i18n/locale-cookie";
+import { getMessages } from "@/lib/i18n";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { projectOptions } from "@/lib/queries/projects";
@@ -13,11 +15,7 @@ import type { TaskStatus, TaskType, TaskPriority } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-const SCOPES = [
-  { key: "mine", label: "Ale mele" },
-  { key: "all", label: "Toate" },
-  { key: "created", label: "Create de mine" },
-] as const;
+const SCOPE_KEYS = ["mine", "all", "created"] as const;
 
 const STATUS_SET = new Set(["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED"]);
 const TYPE_SET = new Set(["TASK", "TICKET"]);
@@ -42,11 +40,13 @@ export default async function TasksPage({
 }) {
   const user = await requirePermission("tasks.view");
   const sp = await searchParams;
+  const locale = await getLocaleFromCookie();
+  const m = getMessages(locale);
   // STAFF vede mereu doar propriile task-uri; ADMIN poate comuta scope din URL
   const scope = (
     user.role === "STAFF"
       ? "mine"
-      : ["mine", "all", "created"].includes(sp.scope ?? "") ? sp.scope : "mine"
+      : SCOPE_KEYS.includes(sp.scope as typeof SCOPE_KEYS[number]) ? sp.scope : "mine"
   ) as "mine" | "all" | "created";
   const page = Math.max(1, Number(sp.page) || 1);
   const pageSize = sp.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(sp.ps) || 20));
@@ -87,6 +87,11 @@ export default async function TasksPage({
     getQuietHoursSettings(),
   ]);
 
+  const SCOPES = [
+    { key: "mine", label: m.common.mine },
+    { key: "all", label: m.common.all },
+    { key: "created", label: m.common.createdByMe },
+  ] as const;
   const scopeOptions = SCOPES.filter((s) => user.role === "STAFF" ? s.key !== "all" : true);
 
   return (
@@ -128,7 +133,7 @@ export default async function TasksPage({
         scopeOptions={scopeOptions}
         basePath="/tasks"
         createButtons={can(user, "tasks.create") ? [
-          { label: "+ Task nou", type: "TASK" },
+          { label: m.tasks.newButton, type: "TASK" },
         ] : []}
       />
     </div>

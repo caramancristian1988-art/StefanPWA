@@ -13,6 +13,7 @@ import {
 } from "./invoice-meta";
 import { useToast } from "./toast";
 import { IconTrash, IconChevronLeft, IconChevronRight } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 type Row = {
   id: string;
@@ -43,6 +44,7 @@ export default function InvoicesList({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const m = useMessages();
   const [rows, setRows] = useState(items);
   useEffect(() => setRows(items), [items]);
   const [search, setSearch] = useState(q);
@@ -74,7 +76,7 @@ export default function InvoicesList({
     setInvoiceStatus(id, s).then((res) => {
       if (!res.ok) {
         setRows(prev);
-        toast.error(res.error ?? "Eroare");
+        toast.error(res.error ?? m.common.error);
       } else {
         toast.success(`Status: ${INVOICE_STATUS[s].label}`);
       }
@@ -82,14 +84,14 @@ export default function InvoicesList({
   }
 
   function remove(id: string) {
-    if (!confirm("Ștergi factura?")) return;
+    if (!confirm(m.invoices.deleteConfirm)) return;
     const prev = rows;
     setRows((cur) => cur.filter((r) => r.id !== id));
     deleteInvoice(id)
-      .then(() => toast.success("Factură ștearsă"))
+      .then(() => toast.success(m.invoices.deleted))
       .catch(() => {
         setRows(prev);
-        toast.error("Ștergerea a eșuat");
+        toast.error(m.invoices.deleteFailed);
       });
   }
 
@@ -100,7 +102,7 @@ export default function InvoicesList({
       setCopied(token);
       setTimeout(() => setCopied(null), 1500);
     } catch {
-      prompt("Copiază linkul:", url);
+      prompt(m.invoices.copyLink + ":", url);
     }
   }
 
@@ -110,7 +112,7 @@ export default function InvoicesList({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Caută după număr sau client…"
+          placeholder={m.invoices.searchPlaceholder}
           className="h-11 flex-1 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
         />
         <select
@@ -118,7 +120,7 @@ export default function InvoicesList({
           onChange={(e) => navigate({ status: e.target.value, page: 1 })}
           className="h-11 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-sm outline-none"
         >
-          <option value="">Toate</option>
+          <option value="">{m.invoices.filterAll}</option>
           {INVOICE_STATUS_LIST.map((s) => (
             <option key={s} value={s}>{INVOICE_STATUS[s].label}</option>
           ))}
@@ -129,12 +131,12 @@ export default function InvoicesList({
         href="/invoices/new"
         className="tap mb-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong"
       >
-        + Factură nouă
+        {m.invoices.new}
       </Link>
 
       {rows.length === 0 ? (
         <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
-          Nicio factură.
+          {m.invoices.noInvoices}
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -144,7 +146,7 @@ export default function InvoicesList({
                 <div className="min-w-0">
                   <p className="font-semibold">{r.number}</p>
                   <p className="mt-0.5 text-xs text-ink-soft">
-                    {r.clientName ?? "Fără client"} · emisă {fmtDate(r.issueDate)} · scadent {fmtDate(r.dueDate)}
+                    {r.clientName ?? m.invoices.noClient} · {m.invoices.issuedOn} {fmtDate(r.issueDate)} · {m.invoices.dueOn} {fmtDate(r.dueDate)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -167,16 +169,16 @@ export default function InvoicesList({
                 </select>
                 {r.status === "DRAFT" && (
                   <Link href={`/invoices/${r.id}/edit`} className="tap rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs hover:bg-[var(--color-surface-2)]">
-                    Editează
+                    {m.common.edit}
                   </Link>
                 )}
                 <button onClick={() => copyLink(r.publicToken)} className="tap rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs hover:bg-[var(--color-surface-2)]">
-                  {copied === r.publicToken ? "Copiat!" : "Copiază link"}
+                  {copied === r.publicToken ? m.invoices.copied : m.invoices.copyLink}
                 </button>
                 <a href={`/invoice/public/${r.publicToken}`} target="_blank" rel="noopener noreferrer" className="tap rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs hover:bg-[var(--color-surface-2)]">
-                  Public / PDF
+                  {m.invoices.publicPdf}
                 </a>
-                <button onClick={() => remove(r.id)} className="tap ml-auto grid size-8 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title="Șterge">
+                <button onClick={() => remove(r.id)} className="tap ml-auto grid size-8 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]" title={m.common.delete}>
                   <IconTrash className="size-4" />
                 </button>
               </div>
@@ -188,11 +190,11 @@ export default function InvoicesList({
       {(page > 1 || hasMore) && (
         <div className="mt-5 flex items-center justify-between">
           <button disabled={page <= 1} onClick={() => navigate({ page: page - 1 })} className="tap card inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-40">
-            <IconChevronLeft className="size-4" /> Anterior
+            <IconChevronLeft className="size-4" /> {m.common.previous}
           </button>
           <span className="text-sm text-ink-soft">Pagina {page}</span>
           <button disabled={!hasMore} onClick={() => navigate({ page: page + 1 })} className="tap card inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-40">
-            Următor <IconChevronRight className="size-4" />
+            {m.common.next} <IconChevronRight className="size-4" />
           </button>
         </div>
       )}

@@ -17,15 +17,15 @@ const NAV: NavItem[] = [
   { href: "/dashboard",        labelKey: "dashboard",  icon: gridIcon() },
   { href: "/tasks",            labelKey: "tasks",       icon: checklistIcon(), perm: "tasks.view" },
   { href: "/tickets",          labelKey: "tickets",     icon: ticketIcon(),    perm: "tasks.view" },
-  { href: "/kanban",           labelKey: "kanban",      icon: kanbanIcon(),    perm: "tasks.view" },
-  { href: "/calendar",         labelKey: "calendar",    icon: calIcon(),       perm: "tasks.view" },
   { href: "/appointments",     labelKey: "dashboard",   icon: apptIcon(),      perm: "appointments.view" },
   { href: "/projects",         labelKey: "projects",    icon: folderIcon(),    perm: "projects.view" },
-  { href: "/harta",            labelKey: "map",         icon: mapIcon(),       perm: "projects.view" },
-  { href: "/team",             labelKey: "team",        icon: usersIcon(),     perm: "teams.view" },
-  { href: "/invoices",         labelKey: "invoices",    icon: invoiceIcon(),   perm: "invoices.view" },
+  { href: "/kanban",           labelKey: "kanban",      icon: kanbanIcon(),    perm: "tasks.view" },
+  { href: "/calendar",         labelKey: "calendar",    icon: calIcon(),       perm: "tasks.view" },
   { href: "/clients",          labelKey: "clients",     icon: usersIcon(),     perm: "clients.view" },
+  { href: "/invoices",         labelKey: "invoices",    icon: invoiceIcon(),   perm: "invoices.view" },
   { href: "/users",            labelKey: "users",       icon: userIcon(),      perm: "users.manage" },
+  { href: "/team",             labelKey: "team",        icon: usersIcon(),     perm: "teams.view" },
+  { href: "/harta",            labelKey: "map",         icon: mapIcon(),       perm: "projects.view" },
   { href: "/admin/audit-logs", labelKey: "auditLogs",   icon: shieldIcon(),    perm: "audit.view" },
   { href: "/telegram",         labelKey: "telegram",    icon: sendIcon() },
   { href: "/settings",         labelKey: "settings",    icon: gearIcon() },
@@ -77,6 +77,7 @@ function NavList({
 }
 
 function ThemeToggle() {
+  const m = useMessages();
   return (
     <button
       type="button"
@@ -86,8 +87,8 @@ function ThemeToggle() {
         localStorage.setItem("theme", dark ? "dark" : "light");
       }}
       className="tap grid size-11 place-items-center rounded-xl bg-[var(--color-surface-2)] text-ink hover:bg-brand-soft"
-      title="Comută tema"
-      aria-label="Comută tema"
+      title={m.theme.toggle}
+      aria-label={m.theme.toggle}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
         <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
@@ -152,7 +153,7 @@ function AppShellInner({
     ? (path.startsWith("/appointments")
         ? (appointmentsLabel ?? m.nav.dashboard)
         : m.nav[NAV.find((n) => path.startsWith(n.href))!.labelKey])
-    : "Dashboard";
+    : m.nav.dashboard;
 
   return (
     <ToastProvider>

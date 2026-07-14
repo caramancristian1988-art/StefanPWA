@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { updateCompanySettings, type CompanyState } from "@/app/actions/company";
 import type { Company } from "@/lib/queries/company";
 import { IconX } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 const input =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
@@ -18,6 +19,7 @@ export default function CompanyDetailsForm({
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const m = useMessages();
   const [state, action, pending] = useActionState<CompanyState, FormData>(
     updateCompanySettings,
     undefined,
@@ -34,7 +36,7 @@ export default function CompanyDetailsForm({
     const f = e.target.files?.[0];
     if (!f) return;
     if (f.size > 700_000) {
-      setWarn("Imagine prea mare (max ~700KB). Alege una mai mică.");
+      setWarn(m.company.logoTooLarge);
       return;
     }
     setWarn("");
@@ -46,16 +48,16 @@ export default function CompanyDetailsForm({
   if (!canEdit) {
     return (
       <div className="card p-5">
-        <h2 className="text-base font-bold">Date companie</h2>
-        <p className="mt-1 text-sm text-ink-soft">Doar administratorul poate edita aceste date.</p>
+        <h2 className="text-base font-bold">{m.company.title}</h2>
+        <p className="mt-1 text-sm text-ink-soft">{m.company.noEditPermission}</p>
       </div>
     );
   }
 
   return (
     <form action={action} className="card flex flex-col gap-4 p-5">
-      <h2 className="text-base font-bold">Date companie</h2>
-      <p className="-mt-2 text-xs text-ink-soft">Folosite automat pe toate facturile generate.</p>
+      <h2 className="text-base font-bold">{m.company.title}</h2>
+      <p className="-mt-2 text-xs text-ink-soft">{m.company.subtitle}</p>
 
       <input type="hidden" name="logo" value={logo ?? ""} />
       <div className="flex items-center gap-4">
@@ -70,11 +72,11 @@ export default function CompanyDetailsForm({
         <div className="flex flex-col gap-2">
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
           <button type="button" onClick={() => fileRef.current?.click()} className="tap rounded-lg border border-[var(--color-line)] px-3 py-2 text-sm hover:bg-[var(--color-surface-2)]">
-            Încarcă logo
+            {m.company.uploadLogo}
           </button>
           {logo && (
             <button type="button" onClick={() => setLogo(null)} className="tap inline-flex items-center gap-1 text-xs text-st-cancelled">
-              <IconX className="size-3.5" /> Elimină
+              <IconX className="size-3.5" /> {m.company.removeLogo}
             </button>
           )}
         </div>
@@ -82,69 +84,69 @@ export default function CompanyDetailsForm({
       {warn && <p className="text-sm text-st-cancelled">{warn}</p>}
 
       <div>
-        <label className={label}>Nume companie *</label>
+        <label className={label}>{m.company.nameLabel}</label>
         <input name="companyName" defaultValue={company.companyName} required className={input} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={label}>Telefon</label>
+          <label className={label}>{m.company.phoneLabel}</label>
           <input name="phone" defaultValue={company.phone ?? ""} className={input} />
         </div>
         <div>
-          <label className={label}>Email</label>
+          <label className={label}>{m.company.emailLabel}</label>
           <input name="email" type="email" defaultValue={company.email ?? ""} className={input} />
         </div>
       </div>
 
       <div>
-        <label className={label}>Adresă (opțional)</label>
+        <label className={label}>{m.company.addressLabel}</label>
         <input name="address" defaultValue={company.address ?? ""} className={input} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={label}>IDNO / Tax ID (opțional)</label>
+          <label className={label}>{m.company.taxIdLabel}</label>
           <input name="taxId" defaultValue={company.taxId ?? ""} className={input} />
         </div>
         <div>
-          <label className={label}>Cod TVA / VAT (opțional)</label>
+          <label className={label}>{m.company.vatLabel}</label>
           <input name="vatNumber" defaultValue={company.vatNumber ?? ""} className={input} />
         </div>
       </div>
 
       <div>
-        <label className={label}>IBAN / Detalii bancare (opțional)</label>
+        <label className={label}>{m.company.bankLabel}</label>
         <textarea name="bankDetails" defaultValue={company.bankDetails ?? ""} rows={2} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={label}>Monedă</label>
+          <label className={label}>{m.company.currencyLabel}</label>
           <input name="currency" defaultValue={company.currency} className={input} />
         </div>
         <div>
-          <label className={label}>Prefix factură</label>
+          <label className={label}>{m.company.invoicePrefixLabel}</label>
           <input name="invoicePrefix" defaultValue={company.invoicePrefix} className={input} />
         </div>
       </div>
 
       <div>
-        <label className={label}>Denumire modul programări</label>
+        <label className={label}>{m.company.apptModuleLabel}</label>
         <input
           name="appointmentsLabel"
           defaultValue={company.appointmentsLabel}
-          placeholder="Programări"
+          placeholder={m.company.apptModulePlaceholder}
           className={input}
         />
-        <p className="mt-1 text-xs text-ink-soft">Apare în meniu și în header (ex: „Rezervări", „Consultații").</p>
+        <p className="mt-1 text-xs text-ink-soft">{m.company.apptModuleHint}</p>
       </div>
 
       {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
-      {state?.ok && <p className="text-sm text-st-done">Salvat.</p>}
+      {state?.ok && <p className="text-sm text-st-done">{m.company.saved}</p>}
 
       <button type="submit" disabled={pending} className="tap h-11 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
-        {pending ? "Se salvează…" : "Salvează datele companiei"}
+        {pending ? m.common.saving : m.company.saveBtn}
       </button>
     </form>
   );

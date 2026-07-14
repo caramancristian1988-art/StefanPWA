@@ -3,24 +3,9 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 import { useUrlFilters } from "@/app/hooks/useUrlFilters";
+import { useMessages } from "@/lib/i18n/context";
 
 type Opt = { id: string; name: string };
-
-const VIEWS = [
-  { key: "azi", label: "Azi" },
-  { key: "maine", label: "Mâine" },
-  { key: "saptamana", label: "Săptămâna" },
-  { key: "lista", label: "Listă" },
-] as const;
-
-const STATUSES = [
-  { value: "NEW", label: "Nou" },
-  { value: "CONFIRMED", label: "Confirmat" },
-  { value: "IN_PROGRESS", label: "În lucru" },
-  { value: "DONE", label: "Finalizat" },
-  { value: "CANCELLED", label: "Anulat" },
-  { value: "NO_SHOW", label: "Nu a venit" },
-];
 
 const fldCls = (val: string) =>
   `h-9 appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
@@ -39,6 +24,23 @@ export default function AppointmentsControls({
   const sp = useSearchParams();
   const [, start] = useTransition();
   const { clearFilters } = useUrlFilters("filters:appointments");
+  const m = useMessages();
+
+  const VIEWS = [
+    { key: "azi", label: m.appts.viewToday },
+    { key: "maine", label: m.appts.viewTomorrow },
+    { key: "saptamana", label: m.appts.viewWeek },
+    { key: "lista", label: m.appts.viewList },
+  ] as const;
+
+  const STATUSES = [
+    { value: "NEW", label: m.appts.statusNew },
+    { value: "CONFIRMED", label: m.appts.statusConfirmed },
+    { value: "IN_PROGRESS", label: m.status.IN_PROGRESS },
+    { value: "DONE", label: m.status.DONE },
+    { value: "CANCELLED", label: m.status.CANCELLED },
+    { value: "NO_SHOW", label: m.appts.statusNoShow },
+  ];
 
   const view = sp.get("view") ?? "azi";
   const q = sp.get("q") ?? "";
@@ -78,18 +80,18 @@ export default function AppointmentsControls({
         <input
           value={q}
           onChange={(e) => patch({ q: e.target.value })}
-          placeholder="Caută client…"
+          placeholder={m.appts.searchPlaceholder}
           className="h-9 min-w-36 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
         />
         <select value={status} onChange={(e) => patch({ status: e.target.value })} className={fldCls(status)}>
-          <option value="">Status: toate</option>
+          <option value="">{m.appts.filterStatusAll}</option>
           {STATUSES.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
         {categories.length > 0 && (
           <select value={category} onChange={(e) => patch({ category: e.target.value })} className={fldCls(category)}>
-            <option value="">Categorie: toate</option>
+            <option value="">{m.appts.filterCategoryAll}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -100,7 +102,7 @@ export default function AppointmentsControls({
             onClick={() => { patch({ q: "", status: "", category: "" }); clearFilters(); }}
             className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
-            ✕ Filtre
+            {m.common.clearFilters}
           </button>
         )}
       </div>

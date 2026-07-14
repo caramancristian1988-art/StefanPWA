@@ -5,6 +5,7 @@ import { addAttachmentAction, deleteAttachmentAction, type AttachmentRow } from 
 import { optimizeImage } from "@/lib/image-optimize";
 import { useToast } from "./toast";
 import { IconTrash } from "./icons";
+import { useMessages } from "@/lib/i18n/context";
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -40,6 +41,7 @@ export default function TaskAttachmentSection({
   blobEnabled: boolean;
 }) {
   const toast = useToast();
+  const m = useMessages();
   const fileRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState(initialAttachments);
   const [uploading, setUploading] = useState(false);
@@ -48,7 +50,7 @@ export default function TaskAttachmentSection({
     const raw = e.target.files?.[0];
     if (!raw) return;
     if (raw.size > 20 * 1024 * 1024) {
-      toast.error("Fișierul depășește 20 MB");
+      toast.error(m.tasks.fileSizeError);
       return;
     }
     setUploading(true);
@@ -63,7 +65,7 @@ export default function TaskAttachmentSection({
       }
       if (res.attachment) {
         setAttachments((a) => [...a, res.attachment!]);
-        toast.success("Fișier încărcat");
+        toast.success(m.tasks.attachmentUploaded);
       }
     } finally {
       setUploading(false);
@@ -72,7 +74,7 @@ export default function TaskAttachmentSection({
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Ștergi atașamentul?")) return;
+    if (!confirm(m.tasks.attachmentDeleteConfirm)) return;
     const prev = attachments;
     setAttachments((a) => a.filter((x) => x.id !== id));
     const res = await deleteAttachmentAction(id, taskId);
@@ -80,17 +82,17 @@ export default function TaskAttachmentSection({
       toast.error(res.error);
       setAttachments(prev);
     } else {
-      toast.success("Atașament șters");
+      toast.success(m.tasks.attachmentDeleted);
     }
   }
 
   return (
     <div className="card p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-bold">📎 Atașamente {attachments.length > 0 && `(${attachments.length})`}</h2>
+        <h2 className="text-sm font-bold">📎 {m.tasks.attachments} {attachments.length > 0 && `(${attachments.length})`}</h2>
         {blobEnabled ? (
           <label className="tap cursor-pointer rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-strong">
-            {uploading ? "Se încarcă…" : "+ Adaugă"}
+            {uploading ? m.tasks.uploadingFile : m.tasks.addAttachment}
             <input
               ref={fileRef}
               type="file"
@@ -105,7 +107,7 @@ export default function TaskAttachmentSection({
       </div>
 
       {attachments.length === 0 ? (
-        <p className="text-sm text-ink-soft">Niciun atașament.</p>
+        <p className="text-sm text-ink-soft">{m.tasks.noAttachments}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {attachments.map((a) => (
@@ -128,7 +130,7 @@ export default function TaskAttachmentSection({
                 <button
                   onClick={() => handleDelete(a.id)}
                   className="tap grid size-7 shrink-0 place-items-center rounded-lg text-st-cancelled hover:bg-[var(--color-surface-2)]"
-                  title="Șterge"
+                  title={m.common.delete}
                 >
                   <IconTrash className="size-3.5" />
                 </button>

@@ -4,19 +4,20 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setTaskStatus } from "@/app/actions/tasks";
 import { useToast } from "./toast";
+import { useMessages } from "@/lib/i18n/context";
 
 type Status = "NEW" | "ASSIGNED" | "READ" | "IN_PROGRESS" | "ON_HOLD" | "REVIEW" | "DONE" | "CANCELLED";
 
-const STATUSES: { value: Status; label: string; color: string }[] = [
-  { value: "NEW",         label: "Nou",           color: "bg-st-new/15 text-st-new border-st-new/40 hover:bg-st-new/30" },
-  { value: "ASSIGNED",   label: "Asignat",        color: "bg-st-new/15 text-st-new border-st-new/40 hover:bg-st-new/30" },
-  { value: "READ",       label: "Citit",          color: "bg-st-confirmed/15 text-st-confirmed border-st-confirmed/40 hover:bg-st-confirmed/30" },
-  { value: "IN_PROGRESS",label: "În lucru",       color: "bg-st-progress/15 text-st-progress border-st-progress/40 hover:bg-st-progress/30" },
-  { value: "ON_HOLD",    label: "În așteptare",   color: "bg-st-noshow/15 text-st-noshow border-st-noshow/40 hover:bg-st-noshow/30" },
-  { value: "REVIEW",     label: "Verificare",     color: "bg-st-confirmed/15 text-st-confirmed border-st-confirmed/40 hover:bg-st-confirmed/30" },
-  { value: "DONE",       label: "Finalizat",      color: "bg-st-done/15 text-st-done border-st-done/40 hover:bg-st-done/30" },
-  { value: "CANCELLED",  label: "Anulat",         color: "bg-st-cancelled/15 text-st-cancelled border-st-cancelled/40 hover:bg-st-cancelled/30" },
-];
+const STATUS_COLORS: Record<Status, string> = {
+  NEW:         "bg-st-new/15 text-st-new border-st-new/40 hover:bg-st-new/30",
+  ASSIGNED:    "bg-st-new/15 text-st-new border-st-new/40 hover:bg-st-new/30",
+  READ:        "bg-st-confirmed/15 text-st-confirmed border-st-confirmed/40 hover:bg-st-confirmed/30",
+  IN_PROGRESS: "bg-st-progress/15 text-st-progress border-st-progress/40 hover:bg-st-progress/30",
+  ON_HOLD:     "bg-st-noshow/15 text-st-noshow border-st-noshow/40 hover:bg-st-noshow/30",
+  REVIEW:      "bg-st-confirmed/15 text-st-confirmed border-st-confirmed/40 hover:bg-st-confirmed/30",
+  DONE:        "bg-st-done/15 text-st-done border-st-done/40 hover:bg-st-done/30",
+  CANCELLED:   "bg-st-cancelled/15 text-st-cancelled border-st-cancelled/40 hover:bg-st-cancelled/30",
+};
 
 const ACTIVE_RING: Record<Status, string> = {
   NEW:         "!bg-st-new !text-white !border-st-new",
@@ -38,9 +39,16 @@ export default function TaskStatusChanger({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const m = useMessages();
   const [, startTransition] = useTransition();
   const [status, setStatus] = useState(initialStatus as Status);
   const [busy, setBusy] = useState(false);
+
+  const STATUSES = (Object.keys(STATUS_COLORS) as Status[]).map((value) => ({
+    value,
+    label: m.status[value],
+    color: STATUS_COLORS[value],
+  }));
 
   async function change(next: Status) {
     if (next === status || busy) return;
@@ -53,7 +61,7 @@ export default function TaskStatusChanger({
         setStatus(prev);
         toast.error(res.error);
       } else {
-        toast.success(`Status: ${STATUSES.find(s => s.value === next)?.label}`);
+        toast.success(`Status: ${m.status[next]}`);
         startTransition(() => router.refresh());
       }
     } finally {

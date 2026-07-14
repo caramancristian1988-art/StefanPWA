@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { listTasks } from "@/lib/queries/tasks";
+import { getLocaleFromCookie } from "@/lib/i18n/locale-cookie";
+import { getMessages } from "@/lib/i18n";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { projectOptions } from "@/lib/queries/projects";
@@ -13,11 +15,7 @@ import type { TaskStatus, TaskPriority } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-const SCOPES = [
-  { key: "mine", label: "Ale mele" },
-  { key: "all", label: "Toate" },
-  { key: "created", label: "Create de mine" },
-] as const;
+const SCOPE_KEYS = ["mine", "all", "created"] as const;
 
 const STATUS_SET = new Set(["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED"]);
 const PRIO_SET = new Set(["LOW", "MEDIUM", "HIGH", "URGENT"]);
@@ -36,12 +34,7 @@ const STATUS_GROUPS: Record<string, TaskStatus[]> = {
   closed: ["DONE", "CANCELLED"],
 };
 
-const TABS = [
-  { sg: "",       label: "Toate" },
-  { sg: "active", label: "Active" },
-  { sg: "new",    label: "Noi" },
-  { sg: "closed", label: "Închise" },
-] as const;
+const TAB_KEYS = ["", "active", "new", "closed"] as const;
 
 export default async function TicketsPage({
   searchParams,
@@ -55,10 +48,12 @@ export default async function TicketsPage({
 }) {
   const user = await requirePermission("tasks.view");
   const sp = await searchParams;
+  const locale = await getLocaleFromCookie();
+  const m = getMessages(locale);
   const scope = (
     user.role === "STAFF"
       ? "mine"
-      : ["mine", "all", "created"].includes(sp.scope ?? "") ? sp.scope : "mine"
+      : SCOPE_KEYS.includes(sp.scope as typeof SCOPE_KEYS[number]) ? sp.scope : "mine"
   ) as "mine" | "all" | "created";
   const page = Math.max(1, Number(sp.page) || 1);
   const pageSize = sp.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(sp.ps) || 20));
@@ -71,8 +66,20 @@ export default async function TicketsPage({
     : undefined;
   const sort = SORTS.has(sp.sort ?? "") ? (sp.sort as "dueAsc" | "dueDesc") : "default";
 
+  const TABS = [
+    { sg: "",       label: m.tickets.scopeAll },
+    { sg: "active", label: m.tickets.scopeActive },
+    { sg: "new",    label: m.tickets.scopeNew },
+    { sg: "closed", label: m.tickets.scopeClosed },
+  ] as const;
+  const SCOPES = [
+    { key: "mine", label: m.common.mine },
+    { key: "all", label: m.common.all },
+    { key: "created", label: m.common.createdByMe },
+  ] as const;
+
   // Tab status group (sg) — prioritar față de filtrul individual `status`
-  const sg = TABS.some((t) => t.sg === sp.sg) ? sp.sg : "";
+  const sg = TAB_KEYS.includes(sp.sg as typeof TAB_KEYS[number]) ? (sp.sg ?? "") : "";
   const groupStatuses = sg ? STATUS_GROUPS[sg] : undefined;
   const singleStatus = !groupStatuses ? pick<TaskStatus>(sp.status, STATUS_SET) : undefined;
 
@@ -103,7 +110,7 @@ export default async function TicketsPage({
     listCategories(),
   ]);
 
-  const scopeOptions = SCOPES.filter((s) => user.role === "STAFF" ? s.key !== "all" : true);
+  const scopeOptions = [...SCOPES].filter((s) => user.role === "STAFF" ? s.key !== "all" : true);
 
   // Construiește URL pentru fiecare tab (păstrează ceilalți parametri)
   function tabHref(tabSg: string) {
@@ -176,7 +183,7 @@ export default async function TicketsPage({
         scopeOptions={scopeOptions}
         basePath="/tickets"
         createButtons={can(user, "tasks.create") ? [
-          { label: "+ Tichet nou", type: "TICKET" },
+          { label: m.tickets.newButton, type: "TICKET" },
         ] : []}
       />
     </div>

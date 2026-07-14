@@ -10,6 +10,7 @@ import { quickDraftInvoice } from "@/app/actions/invoices";
 import { useToast } from "./toast";
 import { IconX, IconMic } from "./icons";
 import type { UniversalVoiceParsed } from "@/lib/validation";
+import { useMessages } from "@/lib/i18n/context";
 
 type Phase = "idle" | "rec" | "proc" | "err";
 type Opt = { id: string; name: string };
@@ -25,14 +26,6 @@ type Entity = "task" | "ticket" | "project" | "client" | "invoice";
 const dlgInput =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
 
-const ENTITY_LABELS: Record<Entity, string> = {
-  task: "Task",
-  ticket: "Tichet",
-  project: "Proiect",
-  client: "Client",
-  invoice: "Factură",
-};
-
 function chip(active: boolean) {
   return `tap rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
     active
@@ -44,7 +37,16 @@ function chip(active: boolean) {
 function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => void }) {
   const router = useRouter();
   const toast = useToast();
+  const m = useMessages();
   const { parsed, context } = data;
+
+  const ENTITY_LABELS: Record<Entity, string> = {
+    task: m.voice.entityTask,
+    ticket: m.voice.entityTicket,
+    project: m.voice.entityProject,
+    client: m.voice.entityClient,
+    invoice: m.voice.entityInvoice,
+  };
 
   const [entity, setEntity] = useState<Entity>((parsed.entity as Entity) ?? "task");
 
@@ -90,8 +92,8 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
     if (projectId) return projectId;
     if (newProjectName.trim()) {
       const res = await quickCreateProject(newProjectName.trim());
-      if (!res.ok) { toast.error(`Proiect: ${res.error}`); return null; }
-      toast.success(`Proiect creat: ${res.name}`);
+      if (!res.ok) { toast.error(`${m.voice.entityProject}: ${res.error}`); return null; }
+      toast.success(m.voice.projectCreated.replace("{name}", res.name));
       return res.id;
     }
     return null;
@@ -101,14 +103,14 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
     if (clientId) return clientId;
     if (newClientName.trim()) {
       const res = await quickCreateClient(newClientName.trim());
-      if (res.ok) { toast.success(`Client creat: ${res.name}`); return res.id; }
+      if (res.ok) { toast.success(m.voice.clientCreated.replace("{name}", res.name)); return res.id; }
     }
     return null;
   }
 
   async function handleTask(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) { toast.error("Titlul e obligatoriu."); return; }
+    if (!title.trim()) { toast.error(m.voice.titleRequired); return; }
     setSubmitting(true);
     try {
       const resolvedProjectId = await resolveProject();
@@ -125,38 +127,38 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
       if (resolvedProjectId) fd.append("projectId", resolvedProjectId);
       const result = await createTaskAction(undefined, fd);
       if (result?.error) { toast.error(result.error); setSubmitting(false); return; }
-      toast.success(taskType === "TICKET" ? "Tichet creat" : "Task creat");
+      toast.success(taskType === "TICKET" ? m.tasks.ticketCreated : m.tasks.taskCreated);
       router.refresh();
       onClose();
-    } catch { toast.error("Eroare la creare."); setSubmitting(false); }
+    } catch { toast.error(m.voice.createError); setSubmitting(false); }
   }
 
   async function handleProject(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) { toast.error("Numele proiectului e obligatoriu."); return; }
+    if (!title.trim()) { toast.error(m.voice.projectNameRequired); return; }
     setSubmitting(true);
     try {
       const res = await quickCreateProject(title.trim());
       if (!res.ok) { toast.error(res.error); setSubmitting(false); return; }
-      toast.success(`Proiect creat: ${res.name}`);
+      toast.success(m.voice.projectCreated.replace("{name}", res.name));
       router.push(`/projects`);
       router.refresh();
       onClose();
-    } catch { toast.error("Eroare la creare."); setSubmitting(false); }
+    } catch { toast.error(m.voice.createError); setSubmitting(false); }
   }
 
   async function handleClient(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) { toast.error("Numele clientului e obligatoriu."); return; }
+    if (!title.trim()) { toast.error(m.voice.titleRequired); return; }
     setSubmitting(true);
     try {
       const res = await voiceCreateClient(title.trim(), clientPhone || undefined, clientEmail || undefined);
       if (!res.ok) { toast.error(res.error); setSubmitting(false); return; }
-      toast.success(`Client creat: ${res.name}`);
+      toast.success(m.voice.clientCreated.replace("{name}", res.name));
       router.push(`/clients`);
       router.refresh();
       onClose();
-    } catch { toast.error("Eroare la creare."); setSubmitting(false); }
+    } catch { toast.error(m.voice.createError); setSubmitting(false); }
   }
 
   async function handleInvoice(e: React.FormEvent) {
@@ -166,10 +168,10 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
       let resolvedClientId = clientId;
       if (!resolvedClientId && newClientName.trim()) {
         const res = await quickCreateClient(newClientName.trim());
-        if (res.ok) { resolvedClientId = res.id; toast.success(`Client creat: ${res.name}`); }
+        if (res.ok) { resolvedClientId = res.id; toast.success(m.voice.clientCreated.replace("{name}", res.name)); }
       }
       const res = await quickDraftInvoice({
-        title: title || invoiceNotes || "Factură vocală",
+        title: title || invoiceNotes || m.voice.voiceInvoice,
         clientId: resolvedClientId || undefined,
         projectId: projectId || undefined,
         dueDate: invoiceDueDate || undefined,
@@ -177,10 +179,10 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
         items: invoiceItems.filter((i) => i.description.trim()),
       });
       if (!res.ok) { toast.error(res.error); setSubmitting(false); return; }
-      toast.success("Factură DRAFT creată — continuați editarea.");
+      toast.success(m.voice.invoiceDraftCreated);
       router.push(`/invoices/${res.id}`);
       onClose();
-    } catch { toast.error("Eroare la creare."); setSubmitting(false); }
+    } catch { toast.error(m.voice.createError); setSubmitting(false); }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -191,12 +193,12 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
   }
 
   const submitLabel = submitting
-    ? "Se creează…"
-    : entity === "task" ? "Creează task"
-    : entity === "ticket" ? "Creează tichet"
-    : entity === "project" ? "Creează proiect"
-    : entity === "client" ? "Creează client"
-    : "Creează factură DRAFT";
+    ? m.voice.creating
+    : entity === "task" ? m.voice.createTask
+    : entity === "ticket" ? m.voice.createTicket
+    : entity === "project" ? m.voice.createProject
+    : entity === "client" ? m.voice.createClient
+    : m.voice.createInvoiceDraft;
 
   return (
     <div
@@ -207,14 +209,14 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-base font-bold">Confirmare comandă vocală</h2>
+            <h2 className="text-base font-bold">{m.voice.confirmTitle}</h2>
             {data.transcript && (
               <p className="mt-0.5 text-xs text-ink-soft">
                 „{data.transcript.length > 100 ? `${data.transcript.slice(0, 100)}…` : data.transcript}"
               </p>
             )}
           </div>
-          <button type="button" onClick={onClose} className="tap grid size-9 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">
+          <button type="button" onClick={onClose} className="tap grid size-9 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label={m.common.close}>
             <IconX className="size-4" />
           </button>
         </div>
@@ -232,12 +234,12 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
           {/* TASK / TICKET */}
           {(entity === "task" || entity === "ticket") && (
             <>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titlu *" required autoFocus className={dlgInput} />
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={m.tasks.titlePlaceholder} required autoFocus className={dlgInput} />
 
               <div className="flex flex-wrap gap-2">
                 {(["TASK", "TICKET"] as const).map((t) => (
                   <button key={t} type="button" onClick={() => { setTaskType(t); setEntity(t === "TICKET" ? "ticket" : "task"); }} className={chip(taskType === t)}>
-                    {t === "TASK" ? "Task" : "Tichet"}
+                    {t === "TASK" ? m.voice.entityTask : m.voice.entityTicket}
                   </button>
                 ))}
               </div>
@@ -245,43 +247,43 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
               <div className="flex flex-wrap gap-2">
                 {(["LOW", "MEDIUM", "HIGH", "URGENT"] as const).map((p) => (
                   <button key={p} type="button" onClick={() => setPriority(p)} className={chip(priority === p)}>
-                    {p === "LOW" ? "Scăzut" : p === "MEDIUM" ? "Mediu" : p === "HIGH" ? "Ridicat" : "Urgent"}
+                    {m.priority[p]}
                   </button>
                 ))}
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent</label>
+                  <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.metaDue}</label>
                   <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={dlgInput} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-ink-soft">Ora</label>
+                  <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.common.time}</label>
                   <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} className={dlgInput} />
                 </div>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
                 <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={dlgInput}>
-                  <option value="">Persoană…</option>
+                  <option value="">{m.projects.personPlaceholder}</option>
                   {context.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
                 <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={dlgInput}>
-                  <option value="">…sau echipă</option>
+                  <option value="">{m.projects.teamPlaceholder}</option>
                   {context.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-semibold text-ink-soft">Proiect</label>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.metaProject}</label>
                 {newProjectName && !projectId ? (
                   <div className="flex items-center gap-2">
-                    <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">+ Proiect nou: {newProjectName}</span>
-                    <button type="button" onClick={() => setNewProjectName("")} className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">Anulează</button>
+                    <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">{m.voice.newProject.replace("{name}", newProjectName)}</span>
+                    <button type="button" onClick={() => setNewProjectName("")} className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">{m.common.cancel}</button>
                   </div>
                 ) : (
                   <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={dlgInput}>
-                    <option value="">Fără proiect</option>
+                    <option value="">{m.tasks.noProjectEdit}</option>
                     {context.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 )}
@@ -289,8 +291,8 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
 
               {newClientName && (
                 <div className="flex items-center justify-between rounded-xl border border-amber-300/40 bg-amber-50 px-3 py-2.5 text-xs dark:bg-amber-500/10">
-                  <span className="text-amber-800 dark:text-amber-300">+ Client nou va fi creat: <strong>{newClientName}</strong></span>
-                  <button type="button" onClick={() => setNewClientName("")} className="tap ml-2 shrink-0 text-ink-soft hover:text-ink">Anulează</button>
+                  <span className="text-amber-800 dark:text-amber-300">{m.voice.newClientWillBeCreated.replace("{name}", newClientName)}</span>
+                  <button type="button" onClick={() => setNewClientName("")} className="tap ml-2 shrink-0 text-ink-soft hover:text-ink">{m.common.cancel}</button>
                 </div>
               )}
             </>
@@ -299,28 +301,28 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
           {/* PROJECT */}
           {entity === "project" && (
             <>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Numele proiectului *" required autoFocus className={dlgInput} />
-              <textarea value={projectDesc} onChange={(e) => setProjectDesc(e.target.value)} placeholder="Descriere (opțional)" rows={3} className={`${dlgInput} h-auto resize-none py-2.5`} />
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={m.projects.namePlaceholder} required autoFocus className={dlgInput} />
+              <textarea value={projectDesc} onChange={(e) => setProjectDesc(e.target.value)} placeholder={m.voice.descriptionOptional} rows={3} className={`${dlgInput} h-auto resize-none py-2.5`} />
               <div className="grid gap-2 sm:grid-cols-2">
                 <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={dlgInput}>
-                  <option value="">Responsabil…</option>
+                  <option value="">{m.projects.responsibleLabel}…</option>
                   {context.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
                 <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={dlgInput}>
-                  <option value="">…sau echipă</option>
+                  <option value="">{m.projects.teamPlaceholder}</option>
                   {context.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-semibold text-ink-soft">Client (opțional)</label>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.projects.clientLabelShort}</label>
                 {newClientName && !clientId ? (
                   <div className="flex items-center gap-2">
-                    <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">+ Client nou: {newClientName}</span>
-                    <button type="button" onClick={() => setNewClientName("")} className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">Anulează</button>
+                    <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">{m.voice.newClient.replace("{name}", newClientName)}</span>
+                    <button type="button" onClick={() => setNewClientName("")} className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">{m.common.cancel}</button>
                   </div>
                 ) : (
                   <select value={clientId} onChange={(e) => setClientId(e.target.value)} className={dlgInput}>
-                    <option value="">Fără client</option>
+                    <option value="">{m.tasks.noClient}</option>
                     {context.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 )}
@@ -331,61 +333,61 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
           {/* CLIENT */}
           {entity === "client" && (
             <>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Numele clientului *" required autoFocus className={dlgInput} />
-              <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Telefon (opțional)" type="tel" className={dlgInput} />
-              <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Email (opțional)" type="email" className={dlgInput} />
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`${m.clients.namePlaceholder}`} required autoFocus className={dlgInput} />
+              <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder={`${m.clients.phonePlaceholder} (${m.common.optional})`} type="tel" className={dlgInput} />
+              <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder={`${m.clients.emailPlaceholder} (${m.common.optional})`} type="email" className={dlgInput} />
             </>
           )}
 
           {/* INVOICE */}
           {entity === "invoice" && (
             <>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titlu / subiect factură (opțional)" className={dlgInput} />
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={m.voice.invoiceTitlePh} className={dlgInput} />
               <div>
-                <label className="mb-1 block text-xs font-semibold text-ink-soft">Client</label>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.metaClient}</label>
                 {newClientName && !clientId ? (
                   <div className="flex items-center gap-2">
-                    <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">+ Client nou: {newClientName}</span>
-                    <button type="button" onClick={() => setNewClientName("")} className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">Anulează</button>
+                    <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">{m.voice.newClient.replace("{name}", newClientName)}</span>
+                    <button type="button" onClick={() => setNewClientName("")} className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">{m.common.cancel}</button>
                   </div>
                 ) : (
                   <select value={clientId} onChange={(e) => setClientId(e.target.value)} className={dlgInput}>
-                    <option value="">Fără client</option>
+                    <option value="">{m.tasks.noClient}</option>
                     {context.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 )}
               </div>
               <div>
-                <label className="mb-1 block text-xs font-semibold text-ink-soft">Proiect</label>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.metaProject}</label>
                 <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={dlgInput}>
-                  <option value="">Fără proiect</option>
+                  <option value="">{m.tasks.noProjectEdit}</option>
                   {context.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-semibold text-ink-soft">Termen plată</label>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.voice.paymentDue}</label>
                 <input type="date" value={invoiceDueDate} onChange={(e) => setInvoiceDueDate(e.target.value)} className={dlgInput} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-semibold text-ink-soft">Linii factură</label>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.voice.invoiceLines}</label>
                 <div className="flex flex-col gap-1.5">
                   {invoiceItems.map((item, i) => (
                     <div key={i} className="grid grid-cols-[1fr_5rem_6rem_2rem] gap-1.5">
-                      <input value={item.description} onChange={(e) => { const n = [...invoiceItems]; n[i] = { ...n[i], description: e.target.value }; setInvoiceItems(n); }} placeholder="Descriere" className={dlgInput} />
+                      <input value={item.description} onChange={(e) => { const n = [...invoiceItems]; n[i] = { ...n[i], description: e.target.value }; setInvoiceItems(n); }} placeholder={m.invoices.descPlaceholder} className={dlgInput} />
                       <input type="number" value={item.qty} min={1} onChange={(e) => { const n = [...invoiceItems]; n[i] = { ...n[i], qty: Number(e.target.value) }; setInvoiceItems(n); }} className={dlgInput} />
-                      <input type="number" value={item.unitPrice} min={0} step="0.01" onChange={(e) => { const n = [...invoiceItems]; n[i] = { ...n[i], unitPrice: Number(e.target.value) }; setInvoiceItems(n); }} placeholder="Preț" className={dlgInput} />
+                      <input type="number" value={item.unitPrice} min={0} step="0.01" onChange={(e) => { const n = [...invoiceItems]; n[i] = { ...n[i], unitPrice: Number(e.target.value) }; setInvoiceItems(n); }} placeholder={m.voice.price} className={dlgInput} />
                       <button type="button" onClick={() => setInvoiceItems(invoiceItems.filter((_, j) => j !== i))} className="tap grid size-11 place-items-center rounded-xl border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]">
                         <IconX className="size-3.5" />
                       </button>
                     </div>
                   ))}
                   <button type="button" onClick={() => setInvoiceItems([...invoiceItems, { description: "", qty: 1, unitPrice: 0 }])} className="tap h-9 rounded-xl border border-dashed border-[var(--color-line)] text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">
-                    + Adaugă linie
+                    {m.voice.addLine}
                   </button>
                 </div>
               </div>
-              <textarea value={invoiceNotes} onChange={(e) => setInvoiceNotes(e.target.value)} placeholder="Note / observații (opțional)" rows={2} className={`${dlgInput} h-auto resize-none py-2.5`} />
-              <p className="text-xs text-ink-soft">Factura va fi creată ca DRAFT — o poți edita complet înainte de trimitere.</p>
+              <textarea value={invoiceNotes} onChange={(e) => setInvoiceNotes(e.target.value)} placeholder={m.voice.notesOptional} rows={2} className={`${dlgInput} h-auto resize-none py-2.5`} />
+              <p className="text-xs text-ink-soft">{m.voice.draftNote}</p>
             </>
           )}
 
@@ -399,6 +401,7 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
 }
 
 export default function VoiceTaskButton() {
+  const m = useMessages();
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [errMsg, setErrMsg] = useState("");
@@ -424,7 +427,7 @@ export default function VoiceTaskButton() {
       setPhase("rec");
     } catch {
       setPhase("err");
-      setErrMsg("Nu am acces la microfon.");
+      setErrMsg(m.voice.noMicAccess);
     }
   }
 
@@ -439,12 +442,12 @@ export default function VoiceTaskButton() {
       fd.append("audio", blob, "voice.webm");
       const res = await fetch("/api/voice/task", { method: "POST", body: fd });
       const data = (await res.json()) as { error?: string } & Partial<DialogData>;
-      if (!res.ok) throw new Error(data.error ?? "Eroare AI");
+      if (!res.ok) throw new Error(data.error ?? m.voice.aiError);
       setPhase("idle");
       setDialogData(data as DialogData);
     } catch (e) {
       setPhase("err");
-      setErrMsg(e instanceof Error ? e.message : "Eroare");
+      setErrMsg(e instanceof Error ? e.message : m.common.error);
     }
   }
 
@@ -455,8 +458,8 @@ export default function VoiceTaskButton() {
           type="button"
           onClick={phase === "rec" ? stop : start}
           disabled={phase === "proc"}
-          title={phase === "rec" ? "Oprește înregistrarea" : "Comandă vocală (task/tichet/proiect/client/factură)"}
-          aria-label="Comandă vocală"
+          title={phase === "rec" ? m.voice.stopRecording : m.voice.voiceCommandTitle}
+          aria-label={m.voice.voiceCommand}
           className={`tap grid size-11 place-items-center rounded-xl ${
             phase === "rec"
               ? "animate-pulse bg-st-cancelled text-white"

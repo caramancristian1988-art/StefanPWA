@@ -9,6 +9,7 @@ import { IconTrash, IconPencil, IconX } from "./icons";
 import MultiAssignPicker from "./MultiAssignPicker";
 import type { CategoryLite } from "./types";
 import type { AssignmentSetting } from "@/lib/services/tasks";
+import { useMessages } from "@/lib/i18n/context";
 
 type Opt = { id: string; name: string };
 
@@ -53,14 +54,15 @@ export default function TaskDetailActions({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const m = useMessages();
   const [editOpen, setEditOpen] = useState(false);
   const [delPending, startDel] = useTransition();
 
   function handleDelete() {
-    if (!confirm("Ștergi definitiv acest task?")) return;
+    if (!confirm(m.tasks.deleteConfirm)) return;
     startDel(async () => {
       await deleteTask(task.id);
-      toast.success("Task șters");
+      toast.success(m.tasks.deleted);
       router.push("/tasks");
     });
   }
@@ -76,7 +78,7 @@ export default function TaskDetailActions({
             className="tap inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm font-medium text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
             <IconPencil className="size-4" />
-            Editează
+            {m.common.edit}
           </button>
         )}
         {canDelete && (
@@ -86,7 +88,7 @@ export default function TaskDetailActions({
             className="tap inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm font-medium text-st-cancelled hover:bg-[var(--color-surface-2)] disabled:opacity-50"
           >
             <IconTrash className="size-4" />
-            {delPending ? "Se șterge…" : "Șterge"}
+            {delPending ? m.common.deleting : m.common.delete}
           </button>
         )}
       </div>
@@ -118,10 +120,11 @@ function CategoryChips({
   value: string;
   onChange: (id: string) => void;
 }) {
+  const m = useMessages();
   if (categories.length === 0) return null;
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-semibold text-ink-soft">Categorie</label>
+      <label className="mb-1.5 block text-xs font-semibold text-ink-soft">{m.tasks.categoryLabel}</label>
       <div className="flex flex-wrap gap-1.5">
         <button
           type="button"
@@ -132,7 +135,7 @@ function CategoryChips({
               : "border-[var(--color-line)] text-ink-soft hover:border-brand"
           }`}
         >
-          Fără
+          {m.tasks.noCategory}
         </button>
         {categories.map((c) => (
           <button
@@ -173,6 +176,7 @@ function EditDialog({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const m = useMessages();
   const [state, action, pending] = useActionState<TaskState, FormData>(updateTaskAction, undefined);
   const [categoryId, setCategoryId] = useState(task.categoryId ?? "");
   const [description, setDescription] = useState(task.description ?? "");
@@ -180,7 +184,7 @@ function EditDialog({
 
   useEffect(() => {
     if (state?.ok) {
-      toast.success("Salvat");
+      toast.success(m.tasks.saved);
       onSaved();
     } else if (state?.error) {
       toast.error(state.error);
@@ -200,11 +204,11 @@ function EditDialog({
     >
       <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-b-none rounded-t-2xl p-5 sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold">Editează{seqLabel}</h2>
+          <h2 className="text-base font-bold">{m.tasks.editTitle}{seqLabel}</h2>
           <button
             onClick={onClose}
             className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]"
-            aria-label="Închide"
+            aria-label={m.common.close}
           >
             <IconX className="size-4" />
           </button>
@@ -215,7 +219,7 @@ function EditDialog({
             name="title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titlu *"
+            placeholder={m.tasks.titlePlaceholder}
             required
             autoFocus
             className={dlgInput}
@@ -224,18 +228,18 @@ function EditDialog({
             name="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Descriere"
+            placeholder={m.tasks.descriptionPlaceholder}
             rows={3}
             className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand"
           />
           <select name="priority" defaultValue={task.priority} className={dlgInput}>
-            <option value="LOW">Prioritate scăzută</option>
-            <option value="MEDIUM">Prioritate medie</option>
-            <option value="HIGH">Prioritate ridicată</option>
-            <option value="URGENT">Urgentă</option>
+            <option value="LOW">{m.priority.LOW}</option>
+            <option value="MEDIUM">{m.priority.MEDIUM}</option>
+            <option value="HIGH">{m.priority.HIGH}</option>
+            <option value="URGENT">{m.priority.URGENT}</option>
           </select>
           <select name="projectId" defaultValue={task.projectId ?? ""} className={dlgInput}>
-            <option value="">Fără proiect</option>
+            <option value="">{m.tasks.noProjectEdit}</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <MultiAssignPicker
@@ -253,24 +257,24 @@ function EditDialog({
           />
           <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} />
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.dueDate}</label>
             <div className="grid gap-2 sm:grid-cols-2">
               <input type="date" name="dueDate" defaultValue={dueDate} className={dlgInput} />
-              <input type="time" name="dueTime" defaultValue={dueTime} placeholder="Ora (opțional)" className={dlgInput} />
+              <input type="time" name="dueTime" defaultValue={dueTime} placeholder={m.tasks.dueTime} className={dlgInput} />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-soft">Reamintire periodică</label>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.tasks.reminderLabel}</label>
             <select name="reminderIntervalMinutes" defaultValue={task.reminderIntervalMinutes ?? 0} className={dlgInput}>
-              <option value={0}>Niciodată</option>
-              <option value={10}>La fiecare 10 min</option>
-              <option value={30}>La fiecare 30 min</option>
-              <option value={60}>La fiecare 1h</option>
-              <option value={180}>La fiecare 3h</option>
-              <option value={360}>La fiecare 6h</option>
-              <option value={720}>La fiecare 12h</option>
-              <option value={1440}>La fiecare 24h</option>
-              <option value={10080}>La fiecare 7 zile</option>
+              <option value={0}>{m.tasks.reminderNever}</option>
+              <option value={10}>{m.tasks.reminder10m}</option>
+              <option value={30}>{m.tasks.reminder30m}</option>
+              <option value={60}>{m.tasks.reminder1h}</option>
+              <option value={180}>{m.tasks.reminder3h}</option>
+              <option value={360}>{m.tasks.reminder6h}</option>
+              <option value={720}>{m.tasks.reminder12h}</option>
+              <option value={1440}>{m.tasks.reminder24h}</option>
+              <option value={10080}>{m.tasks.reminder7d}</option>
             </select>
           </div>
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
@@ -279,7 +283,7 @@ function EditDialog({
             disabled={pending}
             className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60"
           >
-            {pending ? "Se salvează…" : "Salvează"}
+            {pending ? m.common.saving : m.common.save}
           </button>
         </form>
       </div>

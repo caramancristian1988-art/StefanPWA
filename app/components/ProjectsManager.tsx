@@ -16,6 +16,7 @@ import ExportButton from "./ExportButton";
 import ImportButton from "./ImportButton";
 import ProjectFilesPanel from "./ProjectFilesPanel";
 import ProjectMapPickerDynamic from "./ProjectMapPickerDynamic";
+import { useMessages } from "@/lib/i18n/context";
 
 type Opt = { id: string; name: string };
 type Project = {
@@ -32,8 +33,6 @@ type Project = {
   lat: number | null;
   lng: number | null;
 };
-
-const STATUS_RO = { ACTIVE: "Activ", ON_HOLD: "În așteptare", DONE: "Finalizat", ARCHIVED: "Arhivat" };
 
 const STATUS_DOT: Record<string, string> = {
   NEW: "bg-st-new", ASSIGNED: "bg-st-new", READ: "bg-st-confirmed",
@@ -66,6 +65,7 @@ export default function ProjectsManager({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const m = useMessages();
   const [rows, setRows] = useState(projects);
   useEffect(() => setRows(projects), [projects]);
 
@@ -149,14 +149,14 @@ export default function ProjectsManager({
   const nameOf = (id: string | null, list: Opt[]) => list.find((o) => o.id === id)?.name;
 
   function remove(id: string) {
-    if (!confirm("Ștergi proiectul? Task-urile rămân, dar fără proiect.")) return;
+    if (!confirm(m.projects.deleteConfirm)) return;
     const prev = rows;
     setRows((r) => r.filter((p) => p.id !== id)); // optimistic
     deleteProject(id)
-      .then(() => toast.success("Proiect șters"))
+      .then(() => toast.success(m.projects.deleted))
       .catch(() => {
         setRows(prev);
-        toast.error("Ștergerea a eșuat");
+        toast.error(m.projects.deleteFailed);
       });
   }
 
@@ -166,7 +166,7 @@ export default function ProjectsManager({
         onClick={() => setDialog({ open: true, project: null })}
         className="tap mb-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong"
       >
-        + Proiect nou
+        {m.projects.new}
       </button>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -177,22 +177,22 @@ export default function ProjectsManager({
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Caută proiect…"
+            placeholder={m.projects.searchPlaceholder}
             className="h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm outline-none focus:border-brand"
           />
         </form>
         <select value={filters.status} onChange={(e) => router.push(buildUrl({ status: e.target.value }))} className={`h-9 rounded-lg border px-2 text-xs outline-none focus:border-brand ${filters.status ? "border-brand bg-brand/10 font-semibold text-brand" : "border-[var(--color-line)] bg-[var(--color-surface)] text-ink"}`}>
-          <option value="">Status: toate</option>
-          <option value="ACTIVE">Activ</option>
-          <option value="ON_HOLD">În așteptare</option>
-          <option value="DONE">Finalizat</option>
-          <option value="ARCHIVED">Arhivat</option>
+          <option value="">{m.projects.statusAll}</option>
+          <option value="ACTIVE">{m.projects.status.ACTIVE}</option>
+          <option value="ON_HOLD">{m.projects.status.ON_HOLD}</option>
+          <option value="DONE">{m.projects.status.DONE}</option>
+          <option value="ARCHIVED">{m.projects.status.ARCHIVED}</option>
         </select>
         <button
           onClick={() => { try { localStorage.removeItem("filters:projects"); } catch {} router.push("/projects"); }}
           className="tap h-9 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
         >
-          ✕ Filtre
+          {m.projects.clearFilters}
         </button>
         <ExportButton
           entity="projects"
@@ -210,7 +210,7 @@ export default function ProjectsManager({
 
       {rows.length === 0 ? (
         <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
-          {activeFilters ? "Niciun rezultat pentru filtre." : "Niciun proiect."}
+          {activeFilters ? m.projects.noResultsFilters : m.projects.noProjects}
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -223,7 +223,7 @@ export default function ProjectsManager({
                   type="button"
                   onClick={() => toggleExpand(p.id)}
                   className="tap grid size-6 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)] sm:size-7"
-                  title={expandedId === p.id ? "Restrânge" : "Extinde task-uri"}
+                  title={expandedId === p.id ? m.projects.collapse : m.projects.expand}
                 >
                   <IconChevronRight
                     className={`size-3 transition-transform sm:size-3.5 ${expandedId === p.id ? "rotate-90" : ""}`}
@@ -249,7 +249,7 @@ export default function ProjectsManager({
                     <p className="truncate text-[12px] font-semibold leading-tight sm:text-sm">{p.name}</p>
                   </div>
                   <p className="truncate text-[11px] text-ink-soft">
-                    {STATUS_RO[p.status]} · {p.taskCount} task-uri
+                    {m.projects.status[p.status]} · {p.taskCount} {m.projects.taskUnit}
                     {p.clientId && ` · ${nameOf(p.clientId, clients) ?? "?"}`}
                     {p.assigneeId && ` · ${nameOf(p.assigneeId, users) ?? "?"}`}
                     {p.teamId && ` · ${nameOf(p.teamId, teams) ?? "?"}`}
@@ -266,19 +266,19 @@ export default function ProjectsManager({
                   type="button"
                   onClick={() => setFilesOpenId((id) => id === p.id ? null : p.id)}
                   className={`tap grid size-8 shrink-0 place-items-center rounded-lg border text-sm sm:size-9 ${filesOpenId === p.id ? "border-brand bg-brand/10 text-brand" : "border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"}`}
-                  title="Fișiere atașate"
+                  title={m.projects.files}
                 >
                   📎
                 </button>
                 {/* + Task: doar icon pe mobile, icon+text pe desktop */}
-                <Link href={`/tasks?create=task&project=${p.id}`} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-brand hover:bg-brand-soft sm:inline-flex sm:h-9 sm:w-auto sm:gap-1 sm:px-2.5 sm:text-xs sm:font-medium" title="Adaugă task în proiect">
+                <Link href={`/tasks?create=task&project=${p.id}`} className="tap grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-brand hover:bg-brand-soft sm:inline-flex sm:h-9 sm:w-auto sm:gap-1 sm:px-2.5 sm:text-xs sm:font-medium" title={m.projects.addTask}>
                   <IconPlus className="size-3.5" />
-                  <span className="hidden sm:inline text-xs font-medium">Task</span>
+                  <span className="hidden sm:inline text-xs font-medium">{m.projects.taskLabel}</span>
                 </Link>
-                <button onClick={() => setDialog({ open: true, project: p })} className="tap grid size-8 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)] sm:size-9" title="Editează">
+                <button onClick={() => setDialog({ open: true, project: p })} className="tap grid size-8 place-items-center rounded-lg border border-[var(--color-line)] hover:bg-[var(--color-surface-2)] sm:size-9" title={m.common.edit}>
                   <IconPencil className="size-3.5 sm:size-4" />
                 </button>
-                <button onClick={() => remove(p.id)} className="tap grid size-8 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)] sm:size-9" title="Șterge">
+                <button onClick={() => remove(p.id)} className="tap grid size-8 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)] sm:size-9" title={m.common.delete}>
                   <IconTrash className="size-3.5 sm:size-4" />
                 </button>
               </div>
@@ -287,9 +287,9 @@ export default function ProjectsManager({
               {expandedId === p.id && (
                 <div className="border-t border-[var(--color-line)] bg-[var(--color-surface-2)]/40">
                   {loadingTasks === p.id ? (
-                    <p className="px-4 py-3 text-[12px] text-ink-soft">Se încarcă task-urile…</p>
+                    <p className="px-4 py-3 text-[12px] text-ink-soft">{m.projects.loadingTasks}</p>
                   ) : !projectTasks[p.id]?.length ? (
-                    <p className="px-4 py-3 text-[12px] text-ink-soft">Niciun task în acest proiect.</p>
+                    <p className="px-4 py-3 text-[12px] text-ink-soft">{m.projects.noTasksInProject}</p>
                   ) : (
                     <>
                       <div className="flex flex-col divide-y divide-[var(--color-line)]">
@@ -322,7 +322,7 @@ export default function ProjectsManager({
                           href={`/tasks?scope=all&proj=${p.id}`}
                           className="text-[11px] font-medium text-brand hover:underline"
                         >
-                          Vezi toate task-urile →
+                          {m.projects.viewAllTasks}
                         </Link>
                       </div>
                     </>
@@ -364,7 +364,7 @@ export default function ProjectsManager({
             value={filters.ps || "20"}
             onChange={(e) => router.push(buildUrl({ ps: e.target.value, page: 1 }))}
             className="ml-2 h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-xs outline-none focus:border-brand"
-            title="Înregistrări pe pagină"
+            title={m.projects.perPage}
           >
             <option value="20">20 / pag.</option>
             <option value="50">50 / pag.</option>
@@ -372,7 +372,7 @@ export default function ProjectsManager({
             <option value="200">200 / pag.</option>
             <option value="500">500 / pag.</option>
             <option value="1000">1000 / pag.</option>
-            <option value="all">Toate</option>
+            <option value="all">{m.common.all}</option>
           </select>
         </div>
       )}
@@ -404,6 +404,7 @@ function ProjectDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const m = useMessages();
   const action = project ? updateProject : createProject;
   const [state, formAction, pending] = useActionState<ProjectState, FormData>(action, undefined);
   useEffect(() => {
@@ -417,45 +418,45 @@ function ProjectDialog({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="card max-h-[92dvh] w-full max-w-lg overflow-auto rounded-b-none rounded-t-2xl p-5 sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold">{project ? "Editează proiect" : "Proiect nou"}</h2>
-          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">
+          <h2 className="text-base font-bold">{project ? m.projects.editTitle : m.projects.newTitle}</h2>
+          <button onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label={m.common.close}>
             <IconX className="size-4" />
           </button>
         </div>
         <form action={formAction} className="flex flex-col gap-3">
           {project && <input type="hidden" name="id" value={project.id} />}
-          <input name="name" defaultValue={project?.name ?? ""} placeholder="Nume proiect *" required className={input} />
-          <textarea name="description" defaultValue={project?.description ?? ""} placeholder="Descriere" rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
+          <input name="name" defaultValue={project?.name ?? ""} placeholder={m.projects.namePlaceholder} required className={input} />
+          <textarea name="description" defaultValue={project?.description ?? ""} placeholder={m.projects.descriptionPlaceholder} rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
           <select name="status" defaultValue={project?.status ?? "ACTIVE"} className={input}>
-            <option value="ACTIVE">Activ</option>
-            <option value="ON_HOLD">În așteptare</option>
-            <option value="DONE">Finalizat</option>
-            <option value="ARCHIVED">Arhivat</option>
+            <option value="ACTIVE">{m.projects.status.ACTIVE}</option>
+            <option value="ON_HOLD">{m.projects.status.ON_HOLD}</option>
+            <option value="DONE">{m.projects.status.DONE}</option>
+            <option value="ARCHIVED">{m.projects.status.ARCHIVED}</option>
           </select>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-soft">Client (opțional — pentru facturare)</label>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.projects.clientLabel}</label>
             <select name="clientId" defaultValue={project?.clientId ?? ""} className={input}>
-              <option value="">Fără client</option>
+              <option value="">{m.projects.noClient}</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <p className="text-xs text-ink-soft">Asignarea proiectului se moștenește automat de task-urile noi:</p>
+          <p className="text-xs text-ink-soft">{m.projects.assignNote}</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <select name="assigneeId" defaultValue={project?.assigneeId ?? ""} className={input}>
-              <option value="">Persoană…</option>
+              <option value="">{m.projects.personPlaceholder}</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
             <select name="teamId" defaultValue={project?.teamId ?? ""} className={input}>
-              <option value="">…sau echipă</option>
+              <option value="">{m.projects.teamPlaceholder}</option>
               {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-soft">Locație (opțional)</label>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">{m.projects.locationLabel}</label>
             <input
               name="address"
               defaultValue={project?.address ?? ""}
-              placeholder="Adresă"
+              placeholder={m.projects.addressPlaceholder}
               className={input}
             />
             <div className="mt-2">
@@ -467,7 +468,7 @@ function ProjectDialog({
           </div>
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
-            {pending ? "Se salvează…" : "Salvează"}
+            {pending ? m.projects.saving : m.common.save}
           </button>
         </form>
       </div>

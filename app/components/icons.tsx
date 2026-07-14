@@ -96,6 +96,22 @@ export function IconChevronLeft({ className = "size-4" }: IconProps) {
   );
 }
 
+export function IconChevronUp({ className = "size-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m18 15-6-6-6 6" />
+    </svg>
+  );
+}
+
+export function IconChevronDown({ className = "size-4" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 export function IconMic({ className = "size-4" }: IconProps) {
   return (
     <svg {...base} className={className}>

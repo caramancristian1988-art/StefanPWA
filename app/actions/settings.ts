@@ -7,6 +7,8 @@ import { settingsSchema, categorySchema } from "@/lib/validation";
 import { DEMO } from "@/lib/demo";
 import { sanitizeReminderPresets } from "@/lib/reminder-presets";
 import type { StatusConfig } from "@/lib/ticket-status-config";
+import { DEFAULT_STATUS_CONFIGS, parseStatusConfigs } from "@/lib/ticket-status-config";
+import type { TaskStatus } from "@prisma/client";
 
 export type SettingsState = { ok?: boolean; error?: string } | undefined;
 
@@ -175,6 +177,61 @@ export async function saveTicketStatusConfig(
     where: { singleton: "main" },
     create: { singleton: "main", ticketStatusConfig: configs as object[] },
     update: { ticketStatusConfig: configs as object[] },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/tickets");
+  return { ok: true };
+}
+
+export async function deleteTicketStatus(
+  key: string,
+  newConfigs: StatusConfig[],
+): Promise<SettingsState> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") return { error: "Doar administratorii pot edita statusurile." };
+  if (DEMO) return { error: DEMO_MSG };
+  if (newConfigs.length === 0) return { error: "Nu poți șterge ultimul status." };
+
+  const firstKey = newConfigs[0].key as TaskStatus;
+
+  await prisma.task.updateMany({
+    where: { status: key as TaskStatus, type: "TICKET" },
+    data: { status: firstKey },
+  });
+
+  await prisma.companySettings.upsert({
+    where: { singleton: "main" },
+    create: { singleton: "main", ticketStatusConfig: newConfigs as object[] },
+    update: { ticketStatusConfig: newConfigs as object[] },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/tickets");
+  return { ok: true };
+}
+
+export async function addTicketStatus(key: string): Promise<SettingsState> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") return { error: "Doar administratorii pot edita statusurile." };
+  if (DEMO) return { error: DEMO_MSG };
+
+  const settings = await prisma.companySettings.findUnique({ where: { singleton: "main" } });
+  const configs = parseStatusConfigs(settings?.ticketStatusConfig);
+
+  if (configs.find((c) => c.key === key)) return { error: "Statusul există deja." };
+
+  const def = DEFAULT_STATUS_CONFIGS.find((c) => c.key === key);
+  const newEntry: StatusConfig = def
+    ? { ...def, order: configs.length }
+    : { key, label: key, color: "#6b7280", notifyOnEnter: false, suppressAll: false, order: configs.length };
+
+  const newConfigs = [...configs, newEntry];
+
+  await prisma.companySettings.upsert({
+    where: { singleton: "main" },
+    create: { singleton: "main", ticketStatusConfig: newConfigs as object[] },
+    update: { ticketStatusConfig: newConfigs as object[] },
   });
 
   revalidatePath("/settings");

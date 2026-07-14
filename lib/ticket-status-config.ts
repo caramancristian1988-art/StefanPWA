@@ -7,6 +7,10 @@ export type StatusConfig = {
   order: number;
 };
 
+export const ALL_STATUS_KEYS = [
+  "NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW", "DONE", "CANCELLED",
+] as const;
+
 export const DEFAULT_STATUS_CONFIGS: StatusConfig[] = [
   { key: "NEW",         label: "Nou",           color: "#0ea5e9", notifyOnEnter: true,  suppressAll: false, order: 0 },
   { key: "ASSIGNED",   label: "Asignat",        color: "#8b5cf6", notifyOnEnter: true,  suppressAll: false, order: 1 },

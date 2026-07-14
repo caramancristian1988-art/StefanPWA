@@ -4,26 +4,26 @@ import { requireUser } from "@/lib/dal";
 import { dashboardStats, listTasks } from "@/lib/queries/tasks";
 import DashboardFilters from "@/app/components/DashboardFilters";
 import type { TaskPriority } from "@prisma/client";
+import { getLocaleFromCookie } from "@/lib/i18n/locale-cookie";
+import { getMessages } from "@/lib/i18n";
+import type { Messages } from "@/lib/i18n/messages/ro";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_RO: Record<string, { label: string; dot: string }> = {
-  NEW:         { label: "Nou",           dot: "bg-st-new" },
-  ASSIGNED:    { label: "Asignat",       dot: "bg-st-new" },
-  READ:        { label: "Citit",         dot: "bg-st-confirmed" },
-  IN_PROGRESS: { label: "În lucru",      dot: "bg-st-progress" },
-  ON_HOLD:     { label: "În așteptare",  dot: "bg-st-noshow" },
-  REVIEW:      { label: "În verificare", dot: "bg-st-confirmed" },
-  DONE:        { label: "Finalizat",     dot: "bg-st-done" },
-  CANCELLED:   { label: "Anulat",        dot: "bg-st-cancelled" },
+const STATUS_DOT: Record<string, string> = {
+  NEW: "bg-st-new", ASSIGNED: "bg-st-new", READ: "bg-st-confirmed",
+  IN_PROGRESS: "bg-st-progress", ON_HOLD: "bg-st-noshow",
+  REVIEW: "bg-st-confirmed", DONE: "bg-st-done", CANCELLED: "bg-st-cancelled",
 };
 
-const PRIO_RO: Record<string, { label: string; cls: string }> = {
-  URGENT: { label: "Urgent",   cls: "bg-red-100 text-red-700" },
-  HIGH:   { label: "Ridicată", cls: "bg-orange-100 text-orange-700" },
-  MEDIUM: { label: "Medie",    cls: "bg-yellow-100 text-yellow-700" },
-  LOW:    { label: "Scăzută",  cls: "bg-[var(--color-surface-2)] text-ink-soft" },
+const PRIO_CLS: Record<string, string> = {
+  URGENT: "bg-red-100 text-red-700",
+  HIGH:   "bg-orange-100 text-orange-700",
+  MEDIUM: "bg-yellow-100 text-yellow-700",
+  LOW:    "bg-[var(--color-surface-2)] text-ink-soft",
 };
+
+const LOCALE_DATE: Record<string, string> = { ro: "ro-RO", en: "en-GB", ru: "ru-RU" };
 
 function buildPageButtons(page: number, total: number) {
   if (total <= 1) return [];
@@ -39,30 +39,33 @@ async function StatsSection({
   userId,
   teamIds,
   role,
+  m,
 }: {
   userId: string;
   teamIds: string[];
   role: "ADMIN" | "STAFF";
+  m: Messages;
 }) {
   const stats = await dashboardStats(userId, teamIds, role);
   const isAdmin = role === "ADMIN";
+  const d = m.dashboard;
   const cards = [
     {
-      label: isAdmin ? "Task-uri deschise" : "Task-urile mele deschise",
+      label: isAdmin ? d.tasksOpenAdmin : d.tasksOpenMine,
       value: stats.tasksOpen,
       accent: "text-ink",
       href: isAdmin ? "/tasks?scope=all" : "/tasks?scope=mine",
     },
     {
-      label: isAdmin ? "Tichete deschise" : "Tichetele mele deschise",
+      label: isAdmin ? d.ticketsOpenAdmin : d.ticketsOpenMine,
       value: stats.ticketsOpen,
       accent: "text-st-confirmed",
       href: isAdmin ? "/tickets?scope=all" : "/tickets?scope=mine",
     },
-    { label: "Active (ale mele)",    value: stats.myOpen,        accent: "text-ink",           href: "/tasks?scope=mine" },
-    { label: "În lucru (ale mele)",  value: stats.myInProgress,  accent: "text-st-progress",   href: "/tasks?scope=mine&status=IN_PROGRESS" },
-    { label: "În verificare",        value: stats.myReview,      accent: "text-st-confirmed",  href: "/tasks?scope=mine&status=REVIEW" },
-    { label: "Proiecte active",      value: stats.projectsActive, accent: "text-brand",        href: "/projects" },
+    { label: d.myActive,       value: stats.myOpen,         accent: "text-ink",          href: "/tasks?scope=mine" },
+    { label: d.myInProgress,   value: stats.myInProgress,   accent: "text-st-progress",  href: "/tasks?scope=mine&status=IN_PROGRESS" },
+    { label: d.myReview,       value: stats.myReview,       accent: "text-st-confirmed", href: "/tasks?scope=mine&status=REVIEW" },
+    { label: d.projectsActive, value: stats.projectsActive, accent: "text-brand",        href: "/projects" },
   ];
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
@@ -98,6 +101,8 @@ async function TasksSection({
   pageSize,
   ps,
   scope,
+  m,
+  dateLocale,
 }: {
   userId: string;
   teamIds: string[];
@@ -107,6 +112,8 @@ async function TasksSection({
   pageSize: number;
   ps: string;
   scope: string;
+  m: Messages;
+  dateLocale: string;
 }) {
   const effectiveScope = (scope === "all" ? "all" : "mine") as "all" | "mine";
   const result = await listTasks({
@@ -121,35 +128,40 @@ async function TasksSection({
 
   const { items, totalPages } = result;
   const pageButtons = buildPageButtons(page, totalPages);
+  const status = m.status as Record<string, string>;
+  const priority = m.priority as Record<string, string>;
 
   return (
     <>
       {items.length === 0 ? (
         <div className="card grid place-items-center p-8 text-center text-sm text-ink-soft">
-          Niciun task activ. Apasă „+" pentru a crea unul.
+          {m.dashboard.noTasks}
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
           {items.map((t) => {
-            const meta = STATUS_RO[t.status] ?? STATUS_RO.NEW;
-            const pMeta = PRIO_RO[t.priority];
+            const dot = STATUS_DOT[t.status] ?? "bg-st-new";
+            const prioLabel = priority[t.priority];
+            const prioCls = PRIO_CLS[t.priority];
             const due = t.dueAt ? new Date(t.dueAt) : null;
             const overdue = due && due < new Date() && t.status !== "DONE" && t.status !== "CANCELLED";
             return (
               <Link key={t.id} href={`/tasks?open=${t.id}`} className="card tap flex items-center gap-2.5 px-3 py-2.5 hover:border-brand">
-                <span className={`size-2.5 shrink-0 rounded-full ${meta.dot}`} />
+                <span className={`size-2.5 shrink-0 rounded-full ${dot}`} />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{t.title}</span>
-                {pMeta && (
-                  <span className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold sm:inline ${pMeta.cls}`}>
-                    {pMeta.label}
+                {prioLabel && prioCls && (
+                  <span className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold sm:inline ${prioCls}`}>
+                    {prioLabel}
                   </span>
                 )}
                 {due && (
                   <span className={`shrink-0 text-[11px] font-mono ${overdue ? "text-st-cancelled font-semibold" : "text-ink-soft"}`}>
-                    {due.toLocaleDateString("ro-RO", { day: "numeric", month: "short" })}
+                    {due.toLocaleDateString(dateLocale, { day: "numeric", month: "short" })}
                   </span>
                 )}
-                <span className="hidden shrink-0 text-[11px] text-ink-soft sm:inline">{meta.label}</span>
+                <span className="hidden shrink-0 text-[11px] text-ink-soft sm:inline">
+                  {status[t.status] ?? t.status}
+                </span>
               </Link>
             );
           })}
@@ -207,7 +219,10 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<Record<string, string>>;
 }) {
-  const user = await requireUser();
+  const [user, locale] = await Promise.all([requireUser(), getLocaleFromCookie()]);
+  const m = getMessages(locale);
+  const dateLocale = LOCALE_DATE[locale] ?? "ro-RO";
+
   const sp = await searchParams;
   const prio = sp.prio ?? "";
   const sort = sp.sort ?? "";
@@ -217,27 +232,38 @@ export default async function DashboardPage({
   const isAdmin = user.role === "ADMIN";
   const scope = isAdmin && sp.scope === "all" ? "all" : "mine";
 
-  const heading = scope === "all" ? "Toate task-urile" : "Task-urile mele";
+  const heading = scope === "all" ? m.dashboard.allTasks : m.dashboard.myTasks;
   const tasksHref = scope === "all" ? "/tasks?scope=all" : "/tasks?scope=mine";
 
   return (
     <div className="w-full">
       <Suspense fallback={<StatsSkeleton />}>
-        <StatsSection userId={user.id} teamIds={user.teamIds} role={user.role} />
+        <StatsSection userId={user.id} teamIds={user.teamIds} role={user.role} m={m} />
       </Suspense>
 
       <div className="mt-6">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-soft">{heading}</h2>
           <Link href={tasksHref} className="text-xs font-medium text-brand hover:underline">
-            Vezi toate
+            {m.dashboard.viewAll}
           </Link>
         </div>
 
         <DashboardFilters prio={prio} sort={sort} ps={ps} scope={scope} isAdmin={isAdmin} />
 
         <Suspense fallback={<TasksSkeleton />}>
-          <TasksSection userId={user.id} teamIds={user.teamIds} prio={prio} sort={sort} page={page} pageSize={pageSize} ps={ps} scope={scope} />
+          <TasksSection
+            userId={user.id}
+            teamIds={user.teamIds}
+            prio={prio}
+            sort={sort}
+            page={page}
+            pageSize={pageSize}
+            ps={ps}
+            scope={scope}
+            m={m}
+            dateLocale={dateLocale}
+          />
         </Suspense>
       </div>
     </div>

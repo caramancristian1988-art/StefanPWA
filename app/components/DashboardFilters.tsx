@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { useTransition, useEffect, useRef } from "react";
+import { useMessages } from "@/lib/i18n/context";
 
 const STORAGE_KEY = "filters:dashboard";
 
@@ -29,8 +30,10 @@ export default function DashboardFilters({
   const pathname = usePathname();
   const [, start] = useTransition();
   const isFirstRender = useRef(true);
+  const m = useMessages();
+  const d = m.dashboard;
+  const p = m.priority as Record<string, string>;
 
-  // Restaurează din localStorage la primul render dacă URL-ul nu are filtre
   useEffect(() => {
     if (!isFirstRender.current) return;
     isFirstRender.current = false;
@@ -53,7 +56,6 @@ export default function DashboardFilters({
       if (k === "scope" && v === "mine") continue;
       params.set(k, v);
     }
-    // Salvează în localStorage
     try {
       const qs = params.toString();
       if (qs) localStorage.setItem(STORAGE_KEY, qs);
@@ -68,7 +70,6 @@ export default function DashboardFilters({
 
   return (
     <div className="mb-2 flex flex-col gap-2">
-      {/* Scope tabs — doar pentru admini */}
       {isAdmin && (
         <div className="flex gap-1.5">
           {(["mine", "all"] as const).map((s) => (
@@ -82,39 +83,38 @@ export default function DashboardFilters({
                   : "border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]"
               }`}
             >
-              {s === "mine" ? "Ale mele" : "Toate"}
+              {s === "mine" ? d.mine : m.common.all}
             </button>
           ))}
         </div>
       )}
 
-      {/* Filter row */}
       <div className="flex flex-wrap items-center gap-2">
         <select value={prio} onChange={(e) => patch({ prio: e.target.value })} className={fldCls(prio)}>
-          <option value="">Prioritate: toate</option>
-          <option value="URGENT">Urgentă</option>
-          <option value="HIGH">Ridicată</option>
-          <option value="MEDIUM">Medie</option>
-          <option value="LOW">Scăzută</option>
+          <option value="">{d.priorityAll}</option>
+          <option value="URGENT">{p.URGENT}</option>
+          <option value="HIGH">{p.HIGH}</option>
+          <option value="MEDIUM">{p.MEDIUM}</option>
+          <option value="LOW">{p.LOW}</option>
         </select>
         <select value={sort} onChange={(e) => patch({ sort: e.target.value })} className={fldCls(sort)}>
-          <option value="">Sortare: implicit</option>
-          <option value="dueAsc">Deadline ↑ (cele mai apropiate)</option>
-          <option value="dueDesc">Deadline ↓ (cele mai îndepărtate)</option>
+          <option value="">{d.sortDefault}</option>
+          <option value="dueAsc">{d.sortDueAsc}</option>
+          <option value="dueDesc">{d.sortDueDesc}</option>
         </select>
         {hasFilters && (
           <button
             onClick={() => patch({ prio: "", sort: "" })}
             className="tap h-8 rounded-lg border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
           >
-            ✕ Filtre
+            {d.clearFilters}
           </button>
         )}
         <select
           value={ps || "20"}
           onChange={(e) => patch({ ps: e.target.value })}
           className="ml-auto h-8 appearance-none sel-arrow rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] pl-2 pr-7 text-xs outline-none focus:border-brand"
-          title="Înregistrări pe pagină"
+          title={d.perPage}
         >
           <option value="20">20 / pag.</option>
           <option value="50">50 / pag.</option>
@@ -122,7 +122,7 @@ export default function DashboardFilters({
           <option value="200">200 / pag.</option>
           <option value="500">500 / pag.</option>
           <option value="1000">1000 / pag.</option>
-          <option value="all">Toate</option>
+          <option value="all">{m.common.all}</option>
         </select>
       </div>
     </div>

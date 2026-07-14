@@ -5,237 +5,392 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createTaskAction } from "@/app/actions/tasks";
 import { quickCreateProject } from "@/app/actions/projects";
-import { quickCreateClient } from "@/app/actions/clients";
+import { voiceCreateClient, quickCreateClient } from "@/app/actions/clients";
+import { quickDraftInvoice } from "@/app/actions/invoices";
 import { useToast } from "./toast";
 import { IconX, IconMic } from "./icons";
+import type { UniversalVoiceParsed } from "@/lib/validation";
 
 type Phase = "idle" | "rec" | "proc" | "err";
 type Opt = { id: string; name: string };
 
-type ParsedTask = {
-  title?: string;
-  type?: "TASK" | "TICKET";
-  priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-  dueDate?: string;
-  dueTime?: string;
-  assigneeId?: string;
-  teamId?: string;
-  projectId?: string;
-  newProjectName?: string;
-  clientId?: string;
-  newClientName?: string;
-};
-
 type DialogData = {
   transcript: string;
-  parsed: ParsedTask;
+  parsed: UniversalVoiceParsed;
   context: { users: Opt[]; teams: Opt[]; projects: Opt[]; clients: Opt[] };
 };
+
+type Entity = "task" | "ticket" | "project" | "client" | "invoice";
 
 const dlgInput =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
 
-function TaskVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => void }) {
+const ENTITY_LABELS: Record<Entity, string> = {
+  task: "Task",
+  ticket: "Tichet",
+  project: "Proiect",
+  client: "Client",
+  invoice: "Factură",
+};
+
+function chip(active: boolean) {
+  return `tap rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
+    active
+      ? "bg-brand text-white border-brand"
+      : "border-[var(--color-line)] text-ink-soft hover:border-brand/40"
+  }`;
+}
+
+function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: () => void }) {
   const router = useRouter();
   const toast = useToast();
   const { parsed, context } = data;
 
+  const [entity, setEntity] = useState<Entity>((parsed.entity as Entity) ?? "task");
+
+  // Task / Ticket fields
   const [title, setTitle] = useState(parsed.title ?? "");
-  const [type, setType] = useState<"TASK" | "TICKET">(parsed.type ?? "TASK");
-  const [priority, setPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "URGENT">(parsed.priority ?? "MEDIUM");
+  const [taskType, setTaskType] = useState<"TASK" | "TICKET">(entity === "ticket" ? "TICKET" : "TASK");
+  const [priority, setPriority] = useState(parsed.priority ?? "MEDIUM");
   const [dueDate, setDueDate] = useState(parsed.dueDate ?? "");
   const [dueTime, setDueTime] = useState(parsed.dueTime ?? "");
   const [assigneeId, setAssigneeId] = useState(parsed.assigneeId ?? "");
   const [teamId, setTeamId] = useState(parsed.teamId ?? "");
   const [projectId, setProjectId] = useState(parsed.projectId ?? "");
   const [newProjectName, setNewProjectName] = useState(parsed.newProjectName ?? "");
+  const [clientId, setClientId] = useState(parsed.clientId ?? "");
   const [newClientName, setNewClientName] = useState(parsed.newClientName ?? "");
+
+  // Client-only
+  const [clientPhone, setClientPhone] = useState(parsed.clientPhone ?? "");
+  const [clientEmail, setClientEmail] = useState(parsed.clientEmail ?? "");
+
+  // Project-only
+  const [projectDesc, setProjectDesc] = useState(parsed.description ?? "");
+
+  // Invoice
+  const [invoiceDueDate, setInvoiceDueDate] = useState(parsed.invoiceDueDate ?? "");
+  const [invoiceNotes, setInvoiceNotes] = useState(
+    parsed.invoiceNotes ?? parsed.description ?? ""
+  );
+  const [invoiceItems, setInvoiceItems] = useState(
+    parsed.invoiceItems?.length
+      ? parsed.invoiceItems.map((i) => ({ description: i.description, qty: i.qty ?? 1, unitPrice: i.unitPrice ?? 0 }))
+      : [{ description: "", qty: 1, unitPrice: 0 }]
+  );
+
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Keep taskType in sync when switching entity
+  useEffect(() => {
+    setTaskType(entity === "ticket" ? "TICKET" : "TASK");
+  }, [entity]);
+
+  async function resolveProject(): Promise<string | null> {
+    if (projectId) return projectId;
+    if (newProjectName.trim()) {
+      const res = await quickCreateProject(newProjectName.trim());
+      if (!res.ok) { toast.error(`Proiect: ${res.error}`); return null; }
+      toast.success(`Proiect creat: ${res.name}`);
+      return res.id;
+    }
+    return null;
+  }
+
+  async function resolveClient(): Promise<string | null> {
+    if (clientId) return clientId;
+    if (newClientName.trim()) {
+      const res = await quickCreateClient(newClientName.trim());
+      if (res.ok) { toast.success(`Client creat: ${res.name}`); return res.id; }
+    }
+    return null;
+  }
+
+  async function handleTask(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { toast.error("Titlul e obligatoriu."); return; }
     setSubmitting(true);
     try {
-      // Create project if new
-      let resolvedProjectId = projectId;
-      if (!resolvedProjectId && newProjectName.trim()) {
-        const res = await quickCreateProject(newProjectName.trim());
-        if (!res.ok) { toast.error(`Proiect: ${res.error}`); setSubmitting(false); return; }
-        resolvedProjectId = res.id;
-        toast.success(`Proiect creat: ${res.name}`);
-      }
-
-      // Create client if new (standalone — se poate lega manual la proiect)
-      if (newClientName.trim()) {
-        const res = await quickCreateClient(newClientName.trim());
-        if (res.ok) toast.success(`Client creat: ${res.name}`);
-      }
-
-      // Build FormData and submit
+      const resolvedProjectId = await resolveProject();
+      if (resolvedProjectId === null && newProjectName.trim()) { setSubmitting(false); return; }
+      await resolveClient();
       const fd = new FormData();
       fd.append("title", title.trim());
-      fd.append("type", type);
+      fd.append("type", taskType);
       fd.append("priority", priority);
       if (dueDate) fd.append("dueDate", dueDate);
       if (dueTime) fd.append("dueTime", dueTime);
       if (assigneeId) fd.append("assigneeId", assigneeId);
       if (teamId) fd.append("teamId", teamId);
       if (resolvedProjectId) fd.append("projectId", resolvedProjectId);
-
       const result = await createTaskAction(undefined, fd);
       if (result?.error) { toast.error(result.error); setSubmitting(false); return; }
-      toast.success("Task creat");
+      toast.success(taskType === "TICKET" ? "Tichet creat" : "Task creat");
       router.refresh();
       onClose();
-    } catch {
-      toast.error("Eroare la creare. Încearcă din nou.");
-      setSubmitting(false);
-    }
+    } catch { toast.error("Eroare la creare."); setSubmitting(false); }
   }
 
-  const chip = (active: boolean) =>
-    `tap rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
-      active
-        ? "bg-brand text-white border-brand"
-        : "border-[var(--color-line)] text-ink-soft hover:border-brand/40"
-    }`;
+  async function handleProject(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) { toast.error("Numele proiectului e obligatoriu."); return; }
+    setSubmitting(true);
+    try {
+      const res = await quickCreateProject(title.trim());
+      if (!res.ok) { toast.error(res.error); setSubmitting(false); return; }
+      toast.success(`Proiect creat: ${res.name}`);
+      router.push(`/projects`);
+      router.refresh();
+      onClose();
+    } catch { toast.error("Eroare la creare."); setSubmitting(false); }
+  }
+
+  async function handleClient(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) { toast.error("Numele clientului e obligatoriu."); return; }
+    setSubmitting(true);
+    try {
+      const res = await voiceCreateClient(title.trim(), clientPhone || undefined, clientEmail || undefined);
+      if (!res.ok) { toast.error(res.error); setSubmitting(false); return; }
+      toast.success(`Client creat: ${res.name}`);
+      router.push(`/clients`);
+      router.refresh();
+      onClose();
+    } catch { toast.error("Eroare la creare."); setSubmitting(false); }
+  }
+
+  async function handleInvoice(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      let resolvedClientId = clientId;
+      if (!resolvedClientId && newClientName.trim()) {
+        const res = await quickCreateClient(newClientName.trim());
+        if (res.ok) { resolvedClientId = res.id; toast.success(`Client creat: ${res.name}`); }
+      }
+      const res = await quickDraftInvoice({
+        title: title || invoiceNotes || "Factură vocală",
+        clientId: resolvedClientId || undefined,
+        projectId: projectId || undefined,
+        dueDate: invoiceDueDate || undefined,
+        notes: invoiceNotes || undefined,
+        items: invoiceItems.filter((i) => i.description.trim()),
+      });
+      if (!res.ok) { toast.error(res.error); setSubmitting(false); return; }
+      toast.success("Factură DRAFT creată — continuați editarea.");
+      router.push(`/invoices/${res.id}`);
+      onClose();
+    } catch { toast.error("Eroare la creare."); setSubmitting(false); }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    if (entity === "task" || entity === "ticket") return handleTask(e);
+    if (entity === "project") return handleProject(e);
+    if (entity === "client") return handleClient(e);
+    if (entity === "invoice") return handleInvoice(e);
+  }
+
+  const submitLabel = submitting
+    ? "Se creează…"
+    : entity === "task" ? "Creează task"
+    : entity === "ticket" ? "Creează tichet"
+    : entity === "project" ? "Creează proiect"
+    : entity === "client" ? "Creează client"
+    : "Creează factură DRAFT";
 
   return (
     <div
       style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", padding: "16px" }}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="card rounded-2xl p-5 shadow-2xl" style={{ width: "100%", maxWidth: "512px", maxHeight: "85vh", overflowY: "auto" }}>
+      <div className="card rounded-2xl p-5 shadow-2xl" style={{ width: "100%", maxWidth: "560px", maxHeight: "90vh", overflowY: "auto" }}>
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-base font-bold">Confirmare task vocal</h2>
+            <h2 className="text-base font-bold">Confirmare comandă vocală</h2>
             {data.transcript && (
               <p className="mt-0.5 text-xs text-ink-soft">
-                „{data.transcript.length > 90 ? `${data.transcript.slice(0, 90)}…` : data.transcript}"
+                „{data.transcript.length > 100 ? `${data.transcript.slice(0, 100)}…` : data.transcript}"
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="tap grid size-9 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]"
-            aria-label="Închide"
-          >
+          <button type="button" onClick={onClose} className="tap grid size-9 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">
             <IconX className="size-4" />
           </button>
         </div>
 
+        {/* Entity switcher */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          {(["task", "ticket", "project", "client", "invoice"] as Entity[]).map((e) => (
+            <button key={e} type="button" onClick={() => setEntity(e)} className={chip(entity === e)}>
+              {ENTITY_LABELS[e]}
+            </button>
+          ))}
+        </div>
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          {/* Title */}
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titlu *"
-            required
-            autoFocus
-            className={dlgInput}
-          />
+          {/* TASK / TICKET */}
+          {(entity === "task" || entity === "ticket") && (
+            <>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titlu *" required autoFocus className={dlgInput} />
 
-          {/* Type */}
-          <div className="flex flex-wrap gap-2">
-            {(["TASK", "TICKET"] as const).map((t) => (
-              <button key={t} type="button" onClick={() => setType(t)} className={chip(type === t)}>
-                {t === "TASK" ? "Task" : "Tichet"}
-              </button>
-            ))}
-          </div>
-
-          {/* Priority */}
-          <div className="flex flex-wrap gap-2">
-            {(["LOW", "MEDIUM", "HIGH", "URGENT"] as const).map((p) => (
-              <button key={p} type="button" onClick={() => setPriority(p)} className={chip(priority === p)}>
-                {p === "LOW" ? "Scăzută" : p === "MEDIUM" ? "Medie" : p === "HIGH" ? "Ridicată" : "Urgentă"}
-              </button>
-            ))}
-          </div>
-
-          {/* Date + Time */}
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent (opțional)</label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className={dlgInput}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ink-soft">Ora</label>
-              <input
-                type="time"
-                value={dueTime}
-                onChange={(e) => setDueTime(e.target.value)}
-                className={dlgInput}
-              />
-            </div>
-          </div>
-
-          {/* Assignee + Team */}
-          <div className="grid gap-2 sm:grid-cols-2">
-            <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={dlgInput}>
-              <option value="">Persoană…</option>
-              {context.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-            <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={dlgInput}>
-              <option value="">…sau echipă</option>
-              {context.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
-
-          {/* Project */}
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-soft">Proiect</label>
-            {newProjectName && !projectId ? (
-              <div className="flex items-center gap-2">
-                <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">
-                  + Proiect nou: {newProjectName}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setNewProjectName("")}
-                  className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]"
-                >
-                  Anulează
-                </button>
+              <div className="flex flex-wrap gap-2">
+                {(["TASK", "TICKET"] as const).map((t) => (
+                  <button key={t} type="button" onClick={() => { setTaskType(t); setEntity(t === "TICKET" ? "ticket" : "task"); }} className={chip(taskType === t)}>
+                    {t === "TASK" ? "Task" : "Tichet"}
+                  </button>
+                ))}
               </div>
-            ) : (
-              <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={dlgInput}>
-                <option value="">Fără proiect</option>
-                {context.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            )}
-          </div>
 
-          {/* New client notice */}
-          {newClientName && (
-            <div className="flex items-center justify-between rounded-xl border border-amber-300/40 bg-amber-50 px-3 py-2.5 text-xs dark:bg-amber-500/10">
-              <span className="text-amber-800 dark:text-amber-300">
-                + Client nou va fi creat: <strong>{newClientName}</strong>
-              </span>
-              <button
-                type="button"
-                onClick={() => setNewClientName("")}
-                className="tap ml-2 shrink-0 text-ink-soft hover:text-ink"
-              >
-                Anulează
-              </button>
-            </div>
+              <div className="flex flex-wrap gap-2">
+                {(["LOW", "MEDIUM", "HIGH", "URGENT"] as const).map((p) => (
+                  <button key={p} type="button" onClick={() => setPriority(p)} className={chip(priority === p)}>
+                    {p === "LOW" ? "Scăzut" : p === "MEDIUM" ? "Mediu" : p === "HIGH" ? "Ridicat" : "Urgent"}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-ink-soft">Scadent</label>
+                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={dlgInput} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-ink-soft">Ora</label>
+                  <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} className={dlgInput} />
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={dlgInput}>
+                  <option value="">Persoană…</option>
+                  {context.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+                <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={dlgInput}>
+                  <option value="">…sau echipă</option>
+                  {context.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">Proiect</label>
+                {newProjectName && !projectId ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">+ Proiect nou: {newProjectName}</span>
+                    <button type="button" onClick={() => setNewProjectName("")} className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">Anulează</button>
+                  </div>
+                ) : (
+                  <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={dlgInput}>
+                    <option value="">Fără proiect</option>
+                    {context.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                )}
+              </div>
+
+              {newClientName && (
+                <div className="flex items-center justify-between rounded-xl border border-amber-300/40 bg-amber-50 px-3 py-2.5 text-xs dark:bg-amber-500/10">
+                  <span className="text-amber-800 dark:text-amber-300">+ Client nou va fi creat: <strong>{newClientName}</strong></span>
+                  <button type="button" onClick={() => setNewClientName("")} className="tap ml-2 shrink-0 text-ink-soft hover:text-ink">Anulează</button>
+                </div>
+              )}
+            </>
           )}
 
-          <button
-            type="submit"
-            disabled={submitting || !title.trim()}
-            className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60"
-          >
-            {submitting ? "Se creează…" : "Creează task"}
+          {/* PROJECT */}
+          {entity === "project" && (
+            <>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Numele proiectului *" required autoFocus className={dlgInput} />
+              <textarea value={projectDesc} onChange={(e) => setProjectDesc(e.target.value)} placeholder="Descriere (opțional)" rows={3} className={`${dlgInput} h-auto resize-none py-2.5`} />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={dlgInput}>
+                  <option value="">Responsabil…</option>
+                  {context.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+                <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={dlgInput}>
+                  <option value="">…sau echipă</option>
+                  {context.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">Client (opțional)</label>
+                {newClientName && !clientId ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">+ Client nou: {newClientName}</span>
+                    <button type="button" onClick={() => setNewClientName("")} className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">Anulează</button>
+                  </div>
+                ) : (
+                  <select value={clientId} onChange={(e) => setClientId(e.target.value)} className={dlgInput}>
+                    <option value="">Fără client</option>
+                    {context.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* CLIENT */}
+          {entity === "client" && (
+            <>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Numele clientului *" required autoFocus className={dlgInput} />
+              <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Telefon (opțional)" type="tel" className={dlgInput} />
+              <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Email (opțional)" type="email" className={dlgInput} />
+            </>
+          )}
+
+          {/* INVOICE */}
+          {entity === "invoice" && (
+            <>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titlu / subiect factură (opțional)" className={dlgInput} />
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">Client</label>
+                {newClientName && !clientId ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 truncate rounded-xl border border-brand/40 bg-brand/5 px-3 py-2.5 text-sm text-brand">+ Client nou: {newClientName}</span>
+                    <button type="button" onClick={() => setNewClientName("")} className="tap h-11 shrink-0 rounded-xl border border-[var(--color-line)] px-3 text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">Anulează</button>
+                  </div>
+                ) : (
+                  <select value={clientId} onChange={(e) => setClientId(e.target.value)} className={dlgInput}>
+                    <option value="">Fără client</option>
+                    {context.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">Proiect</label>
+                <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={dlgInput}>
+                  <option value="">Fără proiect</option>
+                  {context.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">Termen plată</label>
+                <input type="date" value={invoiceDueDate} onChange={(e) => setInvoiceDueDate(e.target.value)} className={dlgInput} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ink-soft">Linii factură</label>
+                <div className="flex flex-col gap-1.5">
+                  {invoiceItems.map((item, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_5rem_6rem_2rem] gap-1.5">
+                      <input value={item.description} onChange={(e) => { const n = [...invoiceItems]; n[i] = { ...n[i], description: e.target.value }; setInvoiceItems(n); }} placeholder="Descriere" className={dlgInput} />
+                      <input type="number" value={item.qty} min={1} onChange={(e) => { const n = [...invoiceItems]; n[i] = { ...n[i], qty: Number(e.target.value) }; setInvoiceItems(n); }} className={dlgInput} />
+                      <input type="number" value={item.unitPrice} min={0} step="0.01" onChange={(e) => { const n = [...invoiceItems]; n[i] = { ...n[i], unitPrice: Number(e.target.value) }; setInvoiceItems(n); }} placeholder="Preț" className={dlgInput} />
+                      <button type="button" onClick={() => setInvoiceItems(invoiceItems.filter((_, j) => j !== i))} className="tap grid size-11 place-items-center rounded-xl border border-[var(--color-line)] text-ink-soft hover:bg-[var(--color-surface-2)]">
+                        <IconX className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setInvoiceItems([...invoiceItems, { description: "", qty: 1, unitPrice: 0 }])} className="tap h-9 rounded-xl border border-dashed border-[var(--color-line)] text-xs text-ink-soft hover:bg-[var(--color-surface-2)]">
+                    + Adaugă linie
+                  </button>
+                </div>
+              </div>
+              <textarea value={invoiceNotes} onChange={(e) => setInvoiceNotes(e.target.value)} placeholder="Note / observații (opțional)" rows={2} className={`${dlgInput} h-auto resize-none py-2.5`} />
+              <p className="text-xs text-ink-soft">Factura va fi creată ca DRAFT — o poți edita complet înainte de trimitere.</p>
+            </>
+          )}
+
+          <button type="submit" disabled={submitting} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">
+            {submitLabel}
           </button>
         </form>
       </div>
@@ -300,8 +455,8 @@ export default function VoiceTaskButton() {
           type="button"
           onClick={phase === "rec" ? stop : start}
           disabled={phase === "proc"}
-          title={phase === "rec" ? "Oprește înregistrarea" : "Task/tichet prin voce"}
-          aria-label="Task prin voce"
+          title={phase === "rec" ? "Oprește înregistrarea" : "Comandă vocală (task/tichet/proiect/client/factură)"}
+          aria-label="Comandă vocală"
           className={`tap grid size-11 place-items-center rounded-xl ${
             phase === "rec"
               ? "animate-pulse bg-st-cancelled text-white"
@@ -322,7 +477,7 @@ export default function VoiceTaskButton() {
       </div>
 
       {dialogData && mounted && createPortal(
-        <TaskVoiceDialog
+        <UniversalVoiceDialog
           data={dialogData}
           onClose={() => {
             setDialogData(null);

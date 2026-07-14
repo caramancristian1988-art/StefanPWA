@@ -1,6 +1,9 @@
 import "server-only";
 import { env } from "../env";
-import { voiceParsedSchema, taskVoiceParsedSchema, type VoiceParsed, type TaskVoiceParsed } from "../validation";
+import {
+  voiceParsedSchema, taskVoiceParsedSchema, universalVoiceParsedSchema,
+  type VoiceParsed, type TaskVoiceParsed, type UniversalVoiceParsed,
+} from "../validation";
 import { todayKey, tomorrowKey, addDaysToKey } from "../date";
 
 export type TaskContext = {
@@ -176,5 +179,95 @@ export async function transcribeAndParseTask(
 ): Promise<{ transcript: string; parsed: TaskVoiceParsed }> {
   const transcript = await transcribeAudio(buffer, filename, mime);
   const parsed = await parseTaskCommand(transcript, tz, context);
+  return { transcript, parsed };
+}
+
+/** Extrage orice entitate CRM (task/ticket/proiect/client/factură) dintr-o comandă vocală. */
+export async function parseUniversalCommand(
+  transcript: string,
+  tz: string,
+  context: TaskContext,
+): Promise<UniversalVoiceParsed> {
+  if (!env.ai.openaiApiKey) throw new VoiceError("AI nu este configurat (lipsește OPENAI_API_KEY).");
+  if (!transcript) return { entity: "task" };
+
+  const fmt = (list: { id: string; name: string }[]) =>
+    list.length ? list.map((x) => `${x.id}=${x.name}`).join(", ") : "—";
+
+  const system = [
+    "Ești un asistent CRM care extrage date structurate dintr-o comandă vocală în română.",
+    "Detectează tipul entității și extrage câmpurile relevante.",
+    "Răspunde DOAR cu JSON valid, fără text suplimentar.",
+    "",
+    "Câmpul 'entity' (obligatoriu): 'task'|'ticket'|'project'|'client'|'invoice'",
+    "  tichet/ticket/reclamație/sesizare → 'ticket'",
+    "  proiect → 'project'",
+    "  client/companie/firmă/partener → 'client'",
+    "  factură/factura/invoice/bon → 'invoice'",
+    "  altfel → 'task'",
+    "",
+    "Câmpuri comune (pentru orice entitate):",
+    "  title: string — titlu/nume scurt principal",
+    "  description: string — descriere suplimentară (opțional)",
+    "",
+    "Câmpuri task/ticket:",
+    "  priority: 'LOW'|'MEDIUM'|'HIGH'|'URGENT' — scăzut→LOW, mediu→MEDIUM, important→HIGH, urgent/critic→URGENT",
+    `  dueDate: 'YYYY-MM-DD' — azi=${todayKey(tz)}, mâine=${tomorrowKey(tz)}, zile: ${dateContext(tz)}`,
+    "  dueTime: 'HH:mm' (24h) — 'la 3' în context business = 15:00",
+    `  assigneeId: exact ID din: ${fmt(context.users)} — potrivire fuzzy după nume`,
+    `  teamId: exact ID din: ${fmt(context.teams)}`,
+    `  projectId: exact ID din: ${fmt(context.projects)} (dacă proiectul există)`,
+    "  newProjectName: string (dacă proiectul menționat NU există în lista de mai sus)",
+    `  clientId: exact ID din: ${fmt(context.clients)} (dacă clientul există)`,
+    "  newClientName: string (dacă clientul menționat NU există în lista de mai sus)",
+    "",
+    "Câmpuri suplimentare project:",
+    `  clientId, newClientName, assigneeId, teamId — la fel ca mai sus`,
+    "",
+    "Câmpuri client:",
+    "  clientPhone: string — număr de telefon",
+    "  clientEmail: string — adresă email",
+    "",
+    "Câmpuri invoice:",
+    `  clientId: exact ID din: ${fmt(context.clients)} (dacă clientul există)`,
+    "  newClientName: string (dacă clientul nu există)",
+    `  projectId: exact ID din: ${fmt(context.projects)} (dacă proiectul există)`,
+    "  invoiceAmount: number — suma totală menționată",
+    `  invoiceDueDate: 'YYYY-MM-DD' — termenul de plată`,
+    "  invoiceNotes: string — observații/note",
+    "  invoiceItems: array de {description:string, qty:number, unitPrice:number} — linii din factură",
+    "",
+    "REGULI: omite câmpurile lipsă. Nu inventa ID-uri. Nu seta simultan xId și newXName pentru același obiect.",
+  ].join("\n");
+
+  const res = await fetch(`${OPENAI}/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.ai.openaiApiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: env.ai.parseModel,
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [{ role: "system", content: system }, { role: "user", content: transcript }],
+    }),
+  });
+  if (!res.ok) throw new VoiceError(`Procesare AI eșuată (${res.status}).`);
+
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const raw = data.choices?.[0]?.message?.content ?? "{}";
+  let obj: unknown;
+  try { obj = JSON.parse(raw); } catch { throw new VoiceError("Răspuns AI invalid."); }
+  const parsed = universalVoiceParsedSchema.safeParse(obj);
+  return parsed.success ? parsed.data : { entity: "task" };
+}
+
+export async function transcribeAndParseUniversal(
+  buffer: ArrayBuffer,
+  filename: string,
+  mime: string,
+  tz: string,
+  context: TaskContext,
+): Promise<{ transcript: string; parsed: UniversalVoiceParsed }> {
+  const transcript = await transcribeAudio(buffer, filename, mime);
+  const parsed = await parseUniversalCommand(transcript, tz, context);
   return { transcript, parsed };
 }

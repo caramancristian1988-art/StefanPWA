@@ -132,6 +132,46 @@ export async function saveInvoice(payload: InvoicePayload): Promise<InvoiceActio
   return { ok: true, id: res.id };
 }
 
+export type QuickDraftResult = { ok: true; id: string } | { ok: false; error: string };
+
+/** Crează o factură DRAFT minimă — pentru dialogul vocal (utilizatorul o editează după). */
+export async function quickDraftInvoice(opts: {
+  title?: string;
+  clientId?: string;
+  projectId?: string;
+  dueDate?: string;
+  notes?: string;
+  items?: { description: string; qty?: number; unitPrice?: number }[];
+}): Promise<QuickDraftResult> {
+  const user = await requireUser();
+  if (!can(user, "invoices.create")) return { ok: false, error: "Fără permisiune." };
+  if (DEMO) return { ok: false, error: "Mod demo: conectează o bază de date." };
+
+  const lineItems = opts.items?.length
+    ? opts.items.map((i) => ({
+        description: i.description || "Serviciu",
+        quantity: i.qty ?? 1,
+        unitPrice: i.unitPrice ?? 0,
+        taxRate: 0,
+      }))
+    : [{ description: opts.title || "Serviciu", quantity: 1, unitPrice: 0, taxRate: 0 }];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const res = await saveInvoice({
+    status: "DRAFT",
+    issueDate: today,
+    dueDate: opts.dueDate ?? null,
+    clientId: opts.clientId ?? null,
+    projectId: opts.projectId ?? null,
+    taskIds: [],
+    notes: opts.notes ?? opts.title ?? "",
+    terms: "",
+    items: lineItems,
+  });
+
+  return res.ok ? { ok: true, id: res.id! } : { ok: false, error: res.error ?? "Eroare" };
+}
+
 export async function setInvoiceStatus(
   id: string,
   status: string,

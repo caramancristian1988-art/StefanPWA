@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getUserTimezone } from "@/lib/queries/settings";
-import { transcribeAudio, parseTaskCommand, VoiceError } from "@/lib/services/voice";
+import { transcribeAudio, parseUniversalCommand, VoiceError } from "@/lib/services/voice";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     const context = { users, teams, projects, clients };
     const buffer = await audio.arrayBuffer();
     const transcript = await transcribeAudio(buffer, "voice.webm", audio.type || "audio/webm");
-    const parsed = await parseTaskCommand(transcript, tz, context);
+    const parsed = await parseUniversalCommand(transcript, tz, context);
 
     await prisma.voiceCommandLog
       .create({ data: { userId: user.id, source: "WEB", transcript, parsedJson: parsed, status: "PARSED" } })

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
   markAllNotificationsRead,
   markNotificationRead,
@@ -19,11 +19,44 @@ type Row = {
   createdAt: string | Date;
 };
 
-export default function NotificationsList({ items }: { items: Row[] }) {
+function buildPageButtons(page: number, total: number): (number | "…")[] {
+  if (total <= 1) return [];
+  const out: (number | "…")[] = [];
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || Math.abs(i - page) <= 2) out.push(i);
+    else if (out[out.length - 1] !== "…") out.push("…");
+  }
+  return out;
+}
+
+export default function NotificationsList({
+  items,
+  page,
+  totalPages,
+  ps,
+  total,
+}: {
+  items: Row[];
+  page: number;
+  totalPages: number;
+  ps: number;
+  total: number;
+}) {
   const router = useRouter();
+  const pathname = usePathname();
   const toast = useToast();
+  const [, startNav] = useTransition();
   const [rows, setRows] = useState(items);
   const hasUnread = rows.some((r) => !r.read);
+
+  function nav(updates: Record<string, string | number>) {
+    const params = new URLSearchParams();
+    const merged = { page: String(page), ps: String(ps), ...Object.fromEntries(Object.entries(updates).map(([k, v]) => [k, String(v)])) };
+    if (merged.page && merged.page !== "1") params.set("page", merged.page);
+    if (merged.ps && merged.ps !== "20") params.set("ps", merged.ps);
+    const qs = params.toString();
+    startNav(() => router.push(`${pathname}${qs ? `?${qs}` : ""}`));
+  }
 
   function markAll() {
     setRows((r) => r.map((x) => ({ ...x, read: true })));
@@ -48,11 +81,34 @@ export default function NotificationsList({ items }: { items: Row[] }) {
     if (r.url) router.push(r.url);
   }
 
+  const pageButtons = buildPageButtons(page, totalPages);
+  const start = (page - 1) * ps + 1;
+  const end = Math.min(page * ps, total);
+
   return (
     <>
-      <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-lg font-bold">Notificări</h1>
-        <div className="flex gap-2">
+      {/* Header */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold">Notificări</h1>
+          {total > 0 && (
+            <span className="rounded-full bg-[var(--color-surface-2)] px-2.5 py-0.5 text-xs text-ink-soft">
+              {total}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Per-page selector */}
+          <select
+            value={ps}
+            onChange={(e) => nav({ ps: e.target.value, page: "1" })}
+            title="Notificări pe pagină"
+            className="h-8 appearance-none rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] pl-2 pr-7 text-xs outline-none focus:border-brand sel-arrow"
+          >
+            {[10, 20, 50, 100].map((n) => (
+              <option key={n} value={n}>{n} / pag.</option>
+            ))}
+          </select>
           <button
             onClick={markAll}
             disabled={!hasUnread}
@@ -69,6 +125,14 @@ export default function NotificationsList({ items }: { items: Row[] }) {
         </div>
       </div>
 
+      {/* Count info */}
+      {total > ps && (
+        <p className="mb-2 text-xs text-ink-soft">
+          {start}–{end} din {total} notificări
+        </p>
+      )}
+
+      {/* List */}
       {rows.length === 0 ? (
         <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">
           Nicio notificare.
@@ -91,6 +155,45 @@ export default function NotificationsList({ items }: { items: Row[] }) {
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {pageButtons.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-1">
+          {page > 1 && (
+            <button
+              onClick={() => nav({ page: page - 1 })}
+              className="tap grid h-8 place-items-center rounded-lg border border-[var(--color-line)] px-3 text-sm hover:bg-[var(--color-surface-2)]"
+            >
+              ‹
+            </button>
+          )}
+          {pageButtons.map((b, i) =>
+            b === "…" ? (
+              <span key={`e${i}`} className="px-1 text-xs text-ink-soft">…</span>
+            ) : (
+              <button
+                key={b}
+                onClick={() => nav({ page: b })}
+                className={`tap grid size-8 place-items-center rounded-lg text-sm ${
+                  b === page
+                    ? "bg-brand font-semibold text-white"
+                    : "border border-[var(--color-line)] text-ink hover:bg-[var(--color-surface-2)]"
+                }`}
+              >
+                {b}
+              </button>
+            )
+          )}
+          {page < totalPages && (
+            <button
+              onClick={() => nav({ page: page + 1 })}
+              className="tap grid h-8 place-items-center rounded-lg border border-[var(--color-line)] px-3 text-sm hover:bg-[var(--color-surface-2)]"
+            >
+              ›
+            </button>
+          )}
         </div>
       )}
     </>

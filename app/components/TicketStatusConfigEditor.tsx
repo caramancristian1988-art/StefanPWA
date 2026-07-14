@@ -29,16 +29,14 @@ function Toggle({
       title={title}
       aria-pressed={checked}
       className={[
-        "relative h-7 w-12 flex-shrink-0 rounded-full border-2 transition-colors",
-        checked
-          ? `${activeColor} border-transparent`
-          : "border-[var(--color-line)] bg-[var(--color-surface-2)]",
+        "relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200",
+        checked ? activeColor : "bg-gray-300 dark:bg-gray-600",
       ].join(" ")}
     >
       <span
         className={[
-          "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-150",
-          checked ? "translate-x-[22px]" : "translate-x-0.5",
+          "absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200",
+          checked ? "translate-x-5" : "translate-x-0",
         ].join(" ")}
       />
     </button>

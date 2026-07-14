@@ -58,6 +58,32 @@ export type QuickCreateResult =
   | { ok: true; id: string; name: string }
   | { ok: false; error: string };
 
+/** Creare rapidă cu nume, telefon, email — pentru dialog vocal universal. */
+export async function voiceCreateClient(
+  name: string,
+  phone?: string,
+  email?: string,
+): Promise<QuickCreateResult> {
+  const user = await requireUser();
+  if (!can(user, "clients.create")) return { ok: false, error: "Fără permisiune." };
+  if (DEMO) return { ok: false, error: DEMO_MSG };
+  const n = name.trim();
+  if (!n) return { ok: false, error: "Numele e obligatoriu." };
+  const client = await prisma.client.create({
+    data: {
+      userId: user.id,
+      name: n,
+      phone: phone?.trim() || null,
+      email: email?.trim().toLowerCase() || null,
+    },
+    select: { id: true, name: true },
+  });
+  await logAudit(actor(user), { action: "client.create", module: "Clients", objectId: client.id, objectName: client.name });
+  revalidatePath("/clients");
+  revalidateTag("clients", "max");
+  return { ok: true, id: client.id, name: client.name };
+}
+
 /** Creare rapidă (inline) doar cu numele — pentru dialoguri (task/factură). */
 export async function quickCreateClient(name: string): Promise<QuickCreateResult> {
   const user = await requireUser();

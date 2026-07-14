@@ -132,8 +132,41 @@ export const taskVoiceParsedSchema = z.object({
   newClientName: z.string().trim().optional(),
 });
 
+/** Schema universală pentru orice comandă vocală CRM. */
+export const universalVoiceParsedSchema = z.object({
+  entity: z.enum(["task", "ticket", "project", "client", "invoice"]).default("task"),
+  // Titlu principal (task title / project name / client name / invoice desc)
+  title: z.string().trim().optional(),
+  // Task/Ticket
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+  dueDate: z.string().regex(dateKeyRe).optional(),
+  dueTime: z.string().regex(timeRe).optional(),
+  assigneeId: z.string().trim().optional(),
+  teamId: z.string().trim().optional(),
+  projectId: z.string().trim().optional(),
+  newProjectName: z.string().trim().optional(),
+  // Client comun (task/project/invoice)
+  clientId: z.string().trim().optional(),
+  newClientName: z.string().trim().optional(),
+  // Project
+  description: z.string().trim().optional(),
+  // Client extra
+  clientPhone: z.string().trim().optional(),
+  clientEmail: z.string().trim().optional(),
+  // Invoice
+  invoiceAmount: z.number().optional(),
+  invoiceDueDate: z.string().regex(dateKeyRe).optional(),
+  invoiceNotes: z.string().trim().optional(),
+  invoiceItems: z.array(z.object({
+    description: z.string(),
+    qty: z.number().default(1),
+    unitPrice: z.number().default(0),
+  })).optional(),
+});
+
 export type QuickAppointmentInput = z.infer<typeof quickAppointmentSchema>;
 export type ClientInput = z.infer<typeof clientSchema>;
 export type SettingsInput = z.infer<typeof settingsSchema>;
 export type VoiceParsed = z.infer<typeof voiceParsedSchema>;
 export type TaskVoiceParsed = z.infer<typeof taskVoiceParsedSchema>;
+export type UniversalVoiceParsed = z.infer<typeof universalVoiceParsedSchema>;

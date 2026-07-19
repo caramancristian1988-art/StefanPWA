@@ -180,7 +180,7 @@ function UniversalVoiceDialog({ data, onClose }: { data: DialogData; onClose: ()
       });
       if (!res.ok) { toast.error(res.error); setSubmitting(false); return; }
       toast.success(m.voice.invoiceDraftCreated);
-      router.push(`/invoices/${res.id}`);
+      router.push(`/invoices/${res.id}/edit`);
       onClose();
     } catch { toast.error(m.voice.createError); setSubmitting(false); }
   }

@@ -840,7 +840,7 @@ export async function updateTask(taskId: string, actorId: string, input: UpdateT
       description: true, priority: true, dueAt: true,
       assigneeId: true, teamId: true, projectId: true,
       creatorId: true, extraAssigneeIds: true, extraTeamIds: true,
-      assignee: { select: { name: true } },
+      assignee: { select: { name: true, teamIds: true } },
       team: { select: { name: true } },
       project: { select: { name: true } },
     },

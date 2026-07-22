@@ -29,7 +29,7 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
 
   const statusLabels = m.projects.status;
 
-  function pinPopupHtml(pin: { id: string; seq?: number | null; name: string; status: string; address: string | null; taskCount: number }) {
+  function pinPopupHtml(pin: { id: string; seq?: number | null; name: string; status: string; address: string | null; taskCount: number; lat: number; lng: number }) {
     const seq = pin.seq != null ? `<span style="font-family:monospace;font-size:11px;background:#eff6ff;color:#2563eb;padding:1px 6px;border-radius:4px;margin-right:6px">#${String(pin.seq).padStart(3, "0")}</span>` : "";
     const statusLabel = statusLabels[pin.status as keyof typeof statusLabels] ?? pin.status;
     return `
@@ -120,6 +120,8 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
                 status: p.status,
                 address: p.address,
                 taskCount: p.taskCount,
+                lat: p.lat,
+                lng: p.lng,
               },
             })),
           },
@@ -224,6 +226,8 @@ export default function ProjectsMapView({ pins }: { pins: ProjectPin[] }) {
               status: p.status as string,
               address: p.address as string | null,
               taskCount: p.taskCount as number,
+              lat: p.lat as number,
+              lng: p.lng as number,
             }))
             .addTo(map);
         });

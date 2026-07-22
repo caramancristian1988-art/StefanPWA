@@ -167,11 +167,9 @@ export default function InvoicesList({
                     <option key={s} value={s}>{INVOICE_STATUS[s].label}</option>
                   ))}
                 </select>
-                {r.status === "DRAFT" && (
-                  <Link href={`/invoices/${r.id}/edit`} className="tap rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs hover:bg-[var(--color-surface-2)]">
-                    {m.common.edit}
-                  </Link>
-                )}
+                <Link href={`/invoices/${r.id}/edit`} className="tap rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs hover:bg-[var(--color-surface-2)]">
+                  {m.common.edit}
+                </Link>
                 <button onClick={() => copyLink(r.publicToken)} className="tap rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs hover:bg-[var(--color-surface-2)]">
                   {copied === r.publicToken ? m.invoices.copied : m.invoices.copyLink}
                 </button>

@@ -7,6 +7,7 @@ import { requireUser, type CurrentUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { DEMO } from "@/lib/demo";
 import { createInvoice, updateInvoice } from "@/lib/services/invoices";
+import { getSettings } from "@/lib/queries/settings";
 import { logAudit } from "@/lib/services/audit";
 import { notifyUsers, observerRecipients } from "@/lib/services/notifications";
 import { sendInvoiceEmail } from "@/lib/email";
@@ -28,14 +29,19 @@ function notifyClientEmail(invoiceId: string) {
           dueDate: true,
           publicToken: true,
           status: true,
+          userId: true,
           client: { select: { name: true, email: true } },
         },
       });
-      if (!inv || inv.status !== "SENT" || !inv.client?.email) return;
-      const company = await prisma.companySettings.findFirst({
-        where: { singleton: "main" },
-        select: { companyName: true, emailFromName: true, emailFromAddr: true },
-      });
+      if (!inv || inv.status !== "SENT") return;
+      if (!inv.client?.email) {
+        console.warn(`[invoices] email neconfigurat/lipsă pentru clientul facturii ${inv.number} — trimitere sărită`);
+        return;
+      }
+      const [company, senderSettings] = await Promise.all([
+        prisma.companySettings.findFirst({ where: { singleton: "main" }, select: { companyName: true } }),
+        getSettings(inv.userId),
+      ]);
       await sendInvoiceEmail({
         to: inv.client.email,
         clientName: inv.client.name,
@@ -45,11 +51,12 @@ function notifyClientEmail(invoiceId: string) {
         dueDate: inv.dueDate,
         publicUrl: `${env.appUrl}/invoice/public/${inv.publicToken}`,
         companyName: company?.companyName || null,
-        fromName: company?.emailFromName || null,
-        fromAddr: company?.emailFromAddr || null,
+        fromName: senderSettings.emailFromName || null,
+        fromAddr: senderSettings.emailFromAddr || null,
       });
-    } catch {
-      /* best-effort */
+      console.log(`[invoices] email factură ${inv.number} trimis către ${inv.client.email}`);
+    } catch (e) {
+      console.error(`[invoices] eșec trimitere email factură ${invoiceId}:`, e);
     }
   });
 }

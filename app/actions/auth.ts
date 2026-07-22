@@ -8,6 +8,7 @@ import { createSession, destroySession } from "@/lib/session";
 import { loginSchema } from "@/lib/validation";
 import { ensureDefaultCategories } from "@/lib/queries/categories";
 import { getSettings } from "@/lib/queries/settings";
+import { seedDemoData } from "@/lib/services/demo-seed";
 import { getCurrentUser } from "@/lib/dal";
 import { logAudit } from "@/lib/services/audit";
 import { DEMO } from "@/lib/demo";
@@ -90,12 +91,14 @@ export async function register(
       email,
       passwordHash: await hashPassword(password),
       role: "ADMIN",
+      isSuperAdmin: true,
     },
     select: { id: true },
   });
 
   await getSettings(user.id); // creează setările default
   await ensureDefaultCategories(user.id);
+  await seedDemoData(user.id); // client/proiect/task/factură de exemplu
   await createSession(user.id, await requestMeta());
   redirect("/dashboard");
 }

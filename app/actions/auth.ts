@@ -106,8 +106,9 @@ export async function register(
 }
 
 /**
- * Cerere de resetare parolă uitată (neautentificat). Nu dezvăluie dacă emailul
- * există în sistem — răspunde mereu cu succes generic (previne enumerarea conturilor).
+ * Cerere de resetare parolă uitată (neautentificat). La cerere explicită,
+ * dezvăluie dacă emailul există în sistem (mai clar pentru useri, la un CRM
+ * intern riscul de enumerare a conturilor e acceptabil).
  */
 export async function requestPasswordReset(
   _prev: AuthState,
@@ -121,15 +122,18 @@ export async function requestPasswordReset(
     where: { email },
     select: { id: true, name: true, isActive: true },
   });
-  if (user?.isActive) {
-    const code = await createVerificationCode(user.id, "PASSWORD_RESET");
-    try {
-      await sendVerificationCodeEmail({ to: email, name: user.name, code, purpose: "PASSWORD_RESET" });
-    } catch (e) {
-      console.error("[auth] eșec trimitere cod resetare parolă:", e);
-    }
+  if (!user || !user.isActive) {
+    return { error: "Nu există niciun cont cu acest email." };
   }
-  redirect(`/reset-password?email=${encodeURIComponent(email)}`);
+
+  const code = await createVerificationCode(user.id, "PASSWORD_RESET");
+  try {
+    await sendVerificationCodeEmail({ to: email, name: user.name, code, purpose: "PASSWORD_RESET" });
+  } catch (e) {
+    console.error("[auth] eșec trimitere cod resetare parolă:", e);
+    return { error: "Contul există, dar trimiterea emailului a eșuat. Verifică setările SMTP." };
+  }
+  redirect(`/reset-password?email=${encodeURIComponent(email)}&sent=1`);
 }
 
 /** Confirmă codul primit pe email și setează parola nouă (flux „am uitat parola"). */

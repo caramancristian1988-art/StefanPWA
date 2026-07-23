@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
 export default async function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ email?: string }>;
+  searchParams: Promise<{ email?: string; sent?: string }>;
 }) {
   if (!env.isConfigured) redirect("/dashboard");
-  const { email = "" } = await searchParams;
+  const { email = "", sent } = await searchParams;
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-5">
@@ -19,7 +19,9 @@ export default async function ResetPasswordPage({
         <div className="mb-6">
           <h1 className="text-lg font-bold leading-5">Resetare parolă</h1>
           <p className="mt-1 text-xs text-ink-soft">
-            Dacă emailul există în sistem, ai primit un cod de 6 cifre. Introdu-l mai jos împreună cu noua parolă.
+            {sent === "1"
+              ? "Am trimis un cod de 6 cifre pe email. Introdu-l mai jos împreună cu noua parolă."
+              : "Introdu codul de 6 cifre primit pe email, împreună cu noua parolă."}
           </p>
         </div>
 

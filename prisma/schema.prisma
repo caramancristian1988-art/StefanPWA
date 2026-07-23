@@ -163,6 +163,21 @@ model User {
   taskAttachments TaskAttachment[]
   invoices       Invoice[]
   notifications  Notification[]
+  verificationCodes VerificationCode[]
+}
+
+// Coduri de unică folosință trimise pe email (schimbare parolă / resetare parolă uitată).
+model VerificationCode {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   String   // PASSWORD_CHANGE | PASSWORD_RESET
+  codeHash  String   // hash SHA-256 al codului din 6 cifre — codul brut nu se stochează niciodată
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose, createdAt])
 }
 
 model Notification {

@@ -220,12 +220,14 @@ export default function ApaCanalInvoicePublic({
           </table>
 
           {/* Recalculări/Penalitate (text) + linie albastră până la casetă + totaluri (casetă, mai în dreapta) */}
-          <div className="flex items-start" style={{ fontSize: "2.9mm" }}>
-            <div className="flex flex-col justify-start" style={{ lineHeight: 1.3, paddingTop: "2mm", paddingBottom: "0.6mm", borderBottom: `1.5px solid ${COLOR_BOX_BLUE}` }}>
-              <p>Recalculări:{invoice.recalculari ? ` ${num2(invoice.recalculari)}` : ""}</p>
-              <p>Penalitate:{invoice.penalitati ? ` ${num2(invoice.penalitati)}` : ""}</p>
+          <div className="flex items-start" style={{ fontSize: "2.9mm", marginTop: "3mm" }}>
+            <div className="flex flex-1 items-stretch">
+              <div className="shrink-0" style={{ lineHeight: 1.3, paddingTop: "2mm", paddingBottom: "0.6mm", borderBottom: `1.5px solid ${COLOR_BOX_BLUE}` }}>
+                <p>Recalculări:{invoice.recalculari ? ` ${num2(invoice.recalculari)}` : ""}</p>
+                <p>Penalitate:{invoice.penalitati ? ` ${num2(invoice.penalitati)}` : ""}</p>
+              </div>
+              <div className="flex-1" style={{ borderBottom: `1.5px solid ${COLOR_BOX_BLUE}`, marginRight: "3mm" }} />
             </div>
-            <div className="flex-1" style={{ borderBottom: `1.5px solid ${COLOR_BOX_BLUE}`, marginRight: "3mm", marginTop: "9.5mm" }} />
             <div className="shrink-0" style={{ width: "58mm", background: COLOR_BOX_BLUE, borderRadius: "3mm", padding: "2mm 3mm" }}>
               <div className="flex justify-between whitespace-nowrap">
                 <span>Suma calculată</span>

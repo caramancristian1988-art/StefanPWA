@@ -22,12 +22,12 @@ export default async function PublicInvoicePage({
 
   if (invoice.kind === "APA_CANAL") {
     return (
-      <main className="min-h-dvh bg-zinc-100 p-4 text-zinc-900 print:bg-white print:p-0">
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-4 flex items-center justify-between print:hidden">
-            <h1 className="text-sm font-medium text-zinc-500">Factură {invoice.number}</h1>
-            <PrintButton token={token} origin={env.appUrl} />
-          </div>
+      <main className="min-h-dvh bg-[#f2f2f2] print:bg-white">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 pt-4 no-print print:hidden">
+          <h1 className="text-sm font-medium text-zinc-500">Factură {invoice.number}</h1>
+          <PrintButton token={token} origin={env.appUrl} />
+        </div>
+        <div className="invoice-preview-wrapper">
           <ApaCanalInvoicePublic invoice={invoice} company={company} />
         </div>
       </main>

@@ -145,11 +145,11 @@ export default function ApaCanalInvoicePublic({
             <p className="font-bold uppercase">{invoice.consumerName || invoice.client?.name || ""}</p>
           </div>
 
-          <div style={{ gridColumn: 1, gridRow: 2, marginTop: "9mm" }}>
+          <div style={{ gridColumn: 1, gridRow: 2, marginTop: "15mm" }}>
             <ConsumptionChart points={points} />
             <ConsumptionChartLabels points={points} />
           </div>
-          <table className="text-center" style={{ gridColumn: 2, gridRow: 2, marginTop: "9mm", fontSize: "2.8mm" }}>
+          <table className="text-center" style={{ gridColumn: 2, gridRow: 2, marginTop: "15mm", fontSize: "2.8mm" }}>
             <thead>
               <tr style={{ color: COLOR_BORDER }}>
                 <th className="whitespace-nowrap font-medium" style={{ padding: "0 2mm 1mm" }}>Numărul<br />contorului</th>
@@ -172,11 +172,11 @@ export default function ApaCanalInvoicePublic({
         <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: "1 / 3" }}>
           {company.apaCanalLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "40mm", width: "40mm" }} />
+            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "46mm", width: "46mm" }} />
           ) : null}
         </div>
 
-        <div className="text-center self-center" style={{ gridColumn: 2, gridRow: 3, color: COLOR_TEXT, fontSize: "3.3mm", lineHeight: 1.1 }}>
+        <div className="text-center self-start" style={{ gridColumn: 2, gridRow: 3, marginTop: "9.7mm", color: COLOR_TEXT, fontSize: "4mm", lineHeight: 1.15 }}>
           <p>{company.apaCanalAddress}</p>
           <p>{company.apaCanalEmail}</p>
           <p className="font-semibold">{company.apaCanalCompanyLine}</p>

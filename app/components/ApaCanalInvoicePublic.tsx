@@ -56,8 +56,8 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
   for (let v = yMax; v >= 0; v -= step) ySteps.push(Math.round(v * 100) / 100);
 
   return (
-    <div className="flex h-40 gap-1.5 overflow-hidden p-1.5" style={{ background: COLOR_BG }}>
-      <div className="flex h-full shrink-0 flex-col justify-between text-right text-[9px] leading-none" style={{ color: COLOR_BORDER }}>
+    <div className="flex h-64 gap-2 overflow-hidden p-2" style={{ background: COLOR_BG }}>
+      <div className="flex h-full shrink-0 flex-col justify-between text-right text-[10px] leading-none" style={{ color: COLOR_BORDER }}>
         {ySteps.map((s) => <span key={s}>{s}</span>)}
       </div>
       <div className="relative flex-1">
@@ -70,11 +70,11 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
           />
         ))}
         {/* Bare */}
-        <div className="relative flex h-full items-end gap-[3px]">
+        <div className="relative flex h-full items-end gap-1">
           {points.map((p, i) => (
             <div key={i} className="flex h-full flex-1 flex-col items-center justify-end">
               <div
-                className="w-full max-w-[18px]"
+                className="w-full max-w-[26px]"
                 style={{ height: `${Math.max(1, (p.value / yMax) * 100)}%`, background: COLOR_BAR }}
                 title={`${p.label}: ${p.value} m³`}
               />
@@ -89,11 +89,11 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
 function ConsumptionChartLabels({ points }: { points: ConsumPoint[] }) {
   if (points.length === 0) return null;
   return (
-    <div className="flex gap-1.5">
-      <div className="w-[22px] shrink-0" />
-      <div className="flex flex-1 gap-[3px]">
+    <div className="flex gap-2">
+      <div className="w-[26px] shrink-0" />
+      <div className="flex flex-1 gap-1">
         {points.map((p, i) => (
-          <span key={i} className="flex-1 text-center text-[9px]" style={{ color: COLOR_BORDER }}>{p.label}</span>
+          <span key={i} className="flex-1 text-center text-[10px]" style={{ color: COLOR_BORDER }}>{p.label}</span>
         ))}
       </div>
     </div>
@@ -119,83 +119,67 @@ export default function ApaCanalInvoicePublic({
       className="overflow-x-auto rounded-2xl p-6 text-[13px] shadow-sm ring-1 ring-zinc-200 print:rounded-none print:p-4 print:shadow-none print:ring-0"
       style={{ background: COLOR_BG, color: COLOR_TEXT }}
     >
-      <div className="min-w-[800px]">
-        <h1 className="mb-4 text-base font-semibold">
+      <div className="min-w-[900px]">
+        <h1 className="mb-2 text-base font-semibold">
           Factura pentru serviciul de alimentare cu apă și de canalizare
         </h1>
+        <div className="mb-4 h-[3px]" style={{ background: COLOR_BOX_BLUE }} />
 
-        <div className="grid grid-cols-[1fr_320px] gap-4">
-          {/* ── Rând 1: header stânga | logo+info dreapta ── */}
-          <div className="col-start-1 row-start-1 flex justify-between gap-3">
-            <div className="shrink-0 space-y-0.5 whitespace-nowrap">
-              <p>Data emiterii: <b>{fmtDate(invoice.issueDate)}</b></p>
-              <p>Data limită de achitare: <b>{fmtDate(invoice.dueDate)}</b></p>
+        <div className="grid grid-cols-[1fr_360px] gap-6">
+          {/* ── Coloana principală ── */}
+          <div className="flex flex-col gap-4">
+            {/* Date + cont personal + consumator */}
+            <div className="flex justify-between gap-3">
+              <div className="shrink-0 space-y-0.5 whitespace-nowrap">
+                <p>Data emiterii: <b>{fmtDate(invoice.issueDate)}</b></p>
+                <p>Data limită de achitare: <b>{fmtDate(invoice.dueDate)}</b></p>
+              </div>
+              <div className="space-y-0.5 text-right">
+                <p className="whitespace-nowrap font-bold">
+                  Cont personal: {invoice.contPersonal || "—"}
+                  {invoice.sectorNr && (
+                    <span className="ml-2 rounded px-1 text-[11px] font-normal" style={{ border: `1.5px solid ${COLOR_TEXT}` }}>
+                      sector nr. {invoice.sectorNr}
+                    </span>
+                  )}
+                </p>
+                <p>Adresa locului de consum:</p>
+                <p>{invoice.consumAddress || "—"}</p>
+                <p className="font-bold uppercase">{invoice.consumerName || invoice.client?.name || ""}</p>
+              </div>
             </div>
-            <div className="space-y-0.5 text-right">
-              <p className="whitespace-nowrap font-bold">
-                Cont personal: {invoice.contPersonal || "—"}
-                {invoice.sectorNr && (
-                  <span className="ml-2 rounded px-1 text-[11px] font-normal" style={{ border: `1px solid ${COLOR_BORDER}` }}>
-                    sector nr. {invoice.sectorNr}
-                  </span>
-                )}
-              </p>
-              <p>Adresa locului de consum:</p>
-              <p>{invoice.consumAddress || "—"}</p>
-              <p className="font-bold uppercase">{invoice.consumerName || invoice.client?.name || ""}</p>
+
+            {/* Grafic + tabel contor — contur comun, datele contorului centrate pe verticală, în dreapta */}
+            <div className="flex items-center gap-6 p-2" style={{ border: `1px solid ${COLOR_BORDER}` }}>
+              <div className="flex-1">
+                <ConsumptionChart points={points} />
+                <ConsumptionChartLabels points={points} />
+              </div>
+              <table className="shrink-0 text-center text-[12px]">
+                <thead>
+                  <tr style={{ color: COLOR_BORDER }}>
+                    <th className="whitespace-nowrap px-3 pb-1.5 font-medium">Numărul<br />contorului</th>
+                    <th className="whitespace-nowrap px-3 pb-1.5 font-medium">Indicii<br />precedenți</th>
+                    <th className="whitespace-nowrap px-3 pb-1.5 font-medium">Indicii<br />actuali</th>
+                    <th className="whitespace-nowrap px-3 pb-1.5 font-medium">Volum<br />estimativ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="font-semibold">
+                    <td className="whitespace-nowrap px-3">{invoice.meterNumber || "—"}</td>
+                    <td className="whitespace-nowrap px-3">{invoice.meterPrevReading || "—"}</td>
+                    <td className="whitespace-nowrap px-3">{invoice.meterCurrReading || "—"}</td>
+                    <td className="whitespace-nowrap px-3">{invoice.isEstimatedVolume ? "DA" : ""}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </div>
 
-          <div className="col-start-2 row-start-1 flex flex-col items-center gap-2 self-start text-center">
-            {company.apaCanalLogo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="h-28 w-28 shrink-0 rounded-lg object-contain" />
-            ) : null}
-            <div className="space-y-1.5 text-[12px] leading-relaxed" style={{ color: COLOR_TEXT }}>
-              <p>{company.apaCanalAddress}</p>
-              <p>{company.apaCanalEmail}</p>
-              <p className="font-semibold">{company.apaCanalCompanyLine}</p>
-              <p>{company.apaCanalCodFiscal}</p>
-            </div>
-          </div>
-
-          {/* ── Rând 2: grafic+contor stânga | Anunț dreapta (aliniate pe același rând) ── */}
-          <div className="col-start-1 row-start-2 mt-4 flex items-center gap-4 p-2" style={{ border: `1px solid ${COLOR_BORDER}` }}>
-            <div className="flex-1">
-              <ConsumptionChart points={points} />
-              <ConsumptionChartLabels points={points} />
-            </div>
-            <table className="shrink-0 text-center text-[11px]">
-              <thead>
-                <tr style={{ color: COLOR_BORDER }}>
-                  <th className="whitespace-nowrap px-2 pb-1 font-medium">Numărul<br />contorului</th>
-                  <th className="whitespace-nowrap px-2 pb-1 font-medium">Indicii<br />precedenți</th>
-                  <th className="whitespace-nowrap px-2 pb-1 font-medium">Indicii<br />actuali</th>
-                  <th className="whitespace-nowrap px-2 pb-1 font-medium">Volum<br />estimativ</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="font-semibold">
-                  <td className="whitespace-nowrap px-2">{invoice.meterNumber || "—"}</td>
-                  <td className="whitespace-nowrap px-2">{invoice.meterPrevReading || "—"}</td>
-                  <td className="whitespace-nowrap px-2">{invoice.meterCurrReading || "—"}</td>
-                  <td className="whitespace-nowrap px-2">{invoice.isEstimatedVolume ? "DA" : ""}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="col-start-2 row-start-2 mt-4 self-start rounded-2xl p-4 text-center" style={{ background: COLOR_BOX_BLUE }}>
-            <p className="mb-1.5 text-base font-bold" style={{ color: COLOR_RED }}>Anunț !</p>
-            <p className="text-[11px] leading-relaxed" style={{ color: COLOR_TEXT }}>{company.apaCanalAnuntText}</p>
-          </div>
-
-          {/* ── Rând 3: perioadă+servicii+atenție stânga | contacte dreapta ── */}
-          <div className="col-start-1 row-start-3 mt-4 flex flex-col gap-4">
             {invoice.billingPeriodLabel && (
               <p className="font-semibold">Perioada de calcul: {invoice.billingPeriodLabel.toUpperCase()}</p>
             )}
 
+            {/* Servicii + (Recalculări/Penalitate ca text simplu) + totaluri (casetă albastră separată) */}
             <div className="flex gap-4">
               <table className="flex-1 text-[12px]">
                 <thead>
@@ -225,12 +209,14 @@ export default function ApaCanalInvoicePublic({
                   )}
                 </tbody>
               </table>
+            </div>
 
-              <div className="w-56 shrink-0 space-y-1 rounded-2xl p-3" style={{ background: COLOR_BOX_BLUE }}>
-                <div className="flex justify-between whitespace-nowrap">
-                  <span>Recalculări:</span>
-                  <span className="tabular-nums">{invoice.recalculari ? num2(invoice.recalculari) : ""}</span>
-                </div>
+            <div className="flex items-start gap-4">
+              <div className="space-y-1.5">
+                <p>Recalculări:{invoice.recalculari ? ` ${num2(invoice.recalculari)}` : ""}</p>
+                <p>Penalitate:{invoice.penalitati ? ` ${num2(invoice.penalitati)}` : ""}</p>
+              </div>
+              <div className="w-64 shrink-0 space-y-1 rounded-2xl p-3" style={{ background: COLOR_BOX_BLUE }}>
                 <div className="flex justify-between whitespace-nowrap">
                   <span>Suma calculată</span>
                   <span className="tabular-nums">{num2(sumaCalculata)}</span>
@@ -239,12 +225,6 @@ export default function ApaCanalInvoicePublic({
                   <span>Datorii(+)/avans(-)</span>
                   <span className="tabular-nums">{num2(invoice.datoriiAvans)}</span>
                 </div>
-                {invoice.penalitati !== 0 && (
-                  <div className="flex justify-between whitespace-nowrap">
-                    <span>Penalitate:</span>
-                    <span className="tabular-nums">{num2(invoice.penalitati)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between whitespace-nowrap pt-1 text-base font-bold" style={{ borderTop: `1px solid ${COLOR_TEXT}` }}>
                   <span>Suma spre plată :</span>
                   <span className="tabular-nums">{num2(invoice.grandTotal)}</span>
@@ -253,15 +233,36 @@ export default function ApaCanalInvoicePublic({
             </div>
 
             {/* ATENȚIE */}
-            <div className="rounded-2xl p-3" style={{ background: COLOR_BOX_BLUE }}>
-              <p className="mb-1 font-bold" style={{ color: COLOR_RED }}>ATENȚIE !</p>
-              <p className="text-[11px] leading-relaxed" style={{ color: COLOR_TEXT }}>{company.apaCanalAtentieText}</p>
+            <div className="rounded-2xl p-4" style={{ background: COLOR_BOX_BLUE }}>
+              <p className="mb-1 text-lg font-bold" style={{ color: COLOR_RED }}>ATENȚIE !</p>
+              <p className="text-[12px] leading-relaxed" style={{ color: COLOR_TEXT }}>{company.apaCanalAtentieText}</p>
             </div>
           </div>
 
-          <div className="col-start-2 row-start-3 mt-4 self-start text-[11px]">
-            <p className="mb-1 font-semibold">Contacte: <span className="font-normal text-brand">{company.apaCanalContactName}</span></p>
-            <div className="space-y-0.5 whitespace-pre-line">{company.apaCanalContactsText}</div>
+          {/* ── Sidebar dreapta ── */}
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col items-center gap-2 text-center">
+              {company.apaCanalLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="h-44 w-44 shrink-0 object-contain" />
+              ) : null}
+              <div className="space-y-1.5 text-[13px] leading-relaxed" style={{ color: COLOR_TEXT }}>
+                <p>{company.apaCanalAddress}</p>
+                <p>{company.apaCanalEmail}</p>
+                <p className="font-semibold">{company.apaCanalCompanyLine}</p>
+                <p>{company.apaCanalCodFiscal}</p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl p-6 text-center" style={{ background: COLOR_BOX_BLUE }}>
+              <p className="mb-2 text-xl font-bold" style={{ color: COLOR_RED }}>Anunț !</p>
+              <p className="text-[12.5px] leading-relaxed" style={{ color: COLOR_TEXT }}>{company.apaCanalAnuntText}</p>
+            </div>
+
+            <div className="text-[11.5px]">
+              <p className="mb-1 font-semibold">Contacte: <span className="font-normal text-brand">{company.apaCanalContactName}</span></p>
+              <div className="space-y-0.5 whitespace-pre-line">{company.apaCanalContactsText}</div>
+            </div>
           </div>
         </div>
       </div>

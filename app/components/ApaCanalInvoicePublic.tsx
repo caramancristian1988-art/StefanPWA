@@ -56,7 +56,7 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
   for (let v = yMax; v >= 0; v -= step) ySteps.push(Math.round(v * 100) / 100);
 
   return (
-    <div className="flex h-64 gap-2 overflow-hidden p-2" style={{ background: COLOR_BG }}>
+    <div className="flex h-64 gap-2 overflow-hidden p-2" style={{ background: COLOR_BG, border: `1px solid ${COLOR_BORDER}` }}>
       <div className="flex h-full shrink-0 flex-col justify-between text-right text-[10px] leading-none" style={{ color: COLOR_BORDER }}>
         {ySteps.map((s) => <span key={s}>{s}</span>)}
       </div>
@@ -149,8 +149,8 @@ export default function ApaCanalInvoicePublic({
               </div>
             </div>
 
-            {/* Grafic + tabel contor — contur comun, datele contorului centrate pe verticală, în dreapta */}
-            <div className="flex items-center gap-6 p-2" style={{ border: `1px solid ${COLOR_BORDER}` }}>
+            {/* Grafic (cu conturul lui propriu) + tabel contor independent, în dreapta, centrat pe verticală */}
+            <div className="flex items-center gap-6">
               <div className="flex-1">
                 <ConsumptionChart points={points} />
                 <ConsumptionChartLabels points={points} />

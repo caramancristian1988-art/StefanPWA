@@ -28,27 +28,53 @@ type ApaCanalInvoiceData = {
 
 const num2 = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** Grafic cu bare + linii orizontale de grilă la fiecare 5 unități, ca în modelul primit. */
 function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
   if (points.length === 0) return null;
   const maxVal = Math.max(...points.map((p) => p.value), 5);
   const yMax = Math.ceil(maxVal / 5) * 5;
-  const ySteps = [yMax, yMax * 0.75, yMax * 0.5, yMax * 0.25, 0];
+  const stepCount = yMax / 5;
+  const ySteps = Array.from({ length: stepCount + 1 }, (_, i) => yMax - i * 5); // yMax..0
 
   return (
-    <div className="flex h-40 gap-2">
-      <div className="flex h-full flex-col justify-between py-0.5 text-[9px] text-zinc-400">
-        {ySteps.map((s) => <span key={s}>{Math.round(s)}</span>)}
+    <div className="flex h-40 gap-1.5 border border-zinc-300 bg-white p-1.5">
+      <div className="flex h-full flex-col justify-between text-right text-[9px] leading-none text-zinc-500">
+        {ySteps.map((s) => <span key={s}>{s}</span>)}
       </div>
-      <div className="flex flex-1 items-end gap-1 border-b border-l border-zinc-300 pb-0 pl-1">
+      <div className="relative flex-1">
+        {/* Linii orizontale de grilă */}
+        {ySteps.map((s) => (
+          <div
+            key={s}
+            className="absolute left-0 right-0 border-t border-zinc-200"
+            style={{ bottom: `${(s / yMax) * 100}%` }}
+          />
+        ))}
+        {/* Bare */}
+        <div className="relative flex h-full items-end gap-[3px]">
+          {points.map((p, i) => (
+            <div key={i} className="flex h-full flex-1 flex-col items-center justify-end">
+              <div
+                className="w-full max-w-[18px] bg-[#4472c4]"
+                style={{ height: `${Math.max(1, (p.value / yMax) * 100)}%` }}
+                title={`${p.label}: ${p.value} m³`}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConsumptionChartLabels({ points }: { points: ConsumPoint[] }) {
+  if (points.length === 0) return null;
+  return (
+    <div className="flex gap-1.5">
+      <div className="w-[18px] shrink-0" />
+      <div className="flex flex-1 gap-[3px]">
         {points.map((p, i) => (
-          <div key={i} className="flex h-full flex-1 flex-col items-center justify-end">
-            <div
-              className="w-full max-w-[16px] rounded-t-[1px] bg-sky-500"
-              style={{ height: `${Math.max(2, (p.value / yMax) * 100)}%` }}
-              title={`${p.label}: ${p.value} m³`}
-            />
-            <span className="mt-1 text-[9px] text-zinc-500">{p.label}</span>
-          </div>
+          <span key={i} className="flex-1 text-center text-[9px] text-zinc-500">{p.label}</span>
         ))}
       </div>
     </div>
@@ -103,6 +129,7 @@ export default function ApaCanalInvoicePublic({
           <div className="flex flex-col gap-4 sm:flex-row">
             <div className="flex-1">
               <ConsumptionChart points={points} />
+              <ConsumptionChartLabels points={points} />
             </div>
             <table className="text-center text-[11px]">
               <thead>

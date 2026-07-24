@@ -179,7 +179,7 @@ export default function ApaCanalInvoicePublic({
           </table>
         </div>
 
-        <div className="text-center self-start" style={{ gridColumn: 2, gridRow: 3, marginTop: "3mm", color: COLOR_TEXT, fontSize: "2.7mm", lineHeight: 1.5 }}>
+        <div className="text-center self-center" style={{ gridColumn: 2, gridRow: 3, color: COLOR_TEXT, fontSize: "2.7mm", lineHeight: 1.5 }}>
           <p>{company.apaCanalAddress}</p>
           <p>{company.apaCanalEmail}</p>
           <p className="font-semibold">{company.apaCanalCompanyLine}</p>

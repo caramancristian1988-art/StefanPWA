@@ -6,7 +6,7 @@ import { saveInvoice, type InvoicePayload } from "@/app/actions/invoices";
 import { quickCreateClient } from "@/app/actions/clients";
 import { money, INVOICE_STATUS, type InvoiceStatusKey } from "./invoice-meta";
 import { useToast } from "./toast";
-import { IconTrash, IconPlus, IconCheck, IconX } from "./icons";
+import { IconPlus, IconCheck, IconX } from "./icons";
 
 type Opt = { id: string; name: string };
 type ConsumPoint = { label: string; value: string };
@@ -87,9 +87,24 @@ export default function ApaCanalInvoiceForm({
   const [penalitati, setPenalitati] = useState(initial?.penalitati ?? "0");
   const [datoriiAvans, setDatoriiAvans] = useState(initial?.datoriiAvans ?? "0");
 
-  const [consumption, setConsumption] = useState<ConsumPoint[]>(
-    initial?.monthlyConsumption?.length ? initial.monthlyConsumption : [],
-  );
+  // Grilă fixă de 12 luni (calculate din data emiterii), ca să fie greu de ratat —
+  // în loc de o listă la care trebuie să adaugi manual fiecare lună.
+  const monthLabels = useMemo(() => {
+    const d = new Date(issueDate || todayStr());
+    if (Number.isNaN(d.getTime())) return Array.from({ length: 12 }, (_, i) => String(i + 1));
+    return Array.from({ length: 12 }, (_, i) => {
+      const dt = new Date(d.getFullYear(), d.getMonth() - (11 - i), 1);
+      return String(dt.getMonth() + 1);
+    });
+  }, [issueDate]);
+
+  const [consumValues, setConsumValues] = useState<string[]>(() => {
+    if (initial?.monthlyConsumption?.length) {
+      const byLabel = new Map(initial.monthlyConsumption.map((p) => [p.label, p.value]));
+      return monthLabels.map((l) => byLabel.get(l) ?? "");
+    }
+    return Array(12).fill("");
+  });
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -122,14 +137,8 @@ export default function ApaCanalInvoiceForm({
     return { apaSuma, canalSuma, sumaCalculata, sumaSprePlata };
   }, [apaVolum, apaTarif, canalVolum, canalTarif, recalculari, penalitati, datoriiAvans]);
 
-  function addConsumPoint() {
-    setConsumption((prev) => [...prev, { label: "", value: "" }]);
-  }
-  function setConsumPoint(i: number, patch: Partial<ConsumPoint>) {
-    setConsumption((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
-  }
-  function removeConsumPoint(i: number) {
-    setConsumption((prev) => prev.filter((_, idx) => idx !== i));
+  function setConsumValue(i: number, v: string) {
+    setConsumValues((prev) => prev.map((x, idx) => (idx === i ? v : x)));
   }
 
   async function submit(status: "DRAFT" | "SENT" | "PAID" | "CANCELLED" | "OVERDUE") {
@@ -167,9 +176,7 @@ export default function ApaCanalInvoiceForm({
         recalculari: num(recalculari),
         penalitati: num(penalitati),
         datoriiAvans: num(datoriiAvans),
-        monthlyConsumption: consumption
-          .filter((p) => p.label.trim() !== "")
-          .map((p) => ({ label: p.label.trim(), value: num(p.value) })),
+        monthlyConsumption: monthLabels.map((l, i) => ({ label: l, value: num(consumValues[i]) })),
       },
     };
     const res = await saveInvoice(payload);
@@ -328,22 +335,26 @@ export default function ApaCanalInvoiceForm({
       </div>
 
       <div className="card flex flex-col gap-3 p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold">Consum lunar (pentru grafic)</h2>
-          <button onClick={addConsumPoint} className="tap rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-strong">
-            + Adaugă lună
-          </button>
+        <h2 className="text-base font-bold">Consum lunar (grafic pe factură)</h2>
+        <p className="-mt-2 text-xs text-ink-soft">
+          Volumul (m³) pentru fiecare din ultimele 12 luni, calculate automat de la data emiterii. Lasă gol dacă nu ai date pentru o lună — bara rămâne 0.
+        </p>
+        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
+          {monthLabels.map((l, i) => (
+            <div key={i}>
+              <label className="mb-1 block text-[10px] font-semibold text-ink-soft">Luna {l}</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={consumValues[i]}
+                onChange={(e) => setConsumValue(i, e.target.value)}
+                placeholder="m³"
+                className={input}
+              />
+            </div>
+          ))}
         </div>
-        {consumption.length === 0 && <p className="text-sm text-ink-soft">Fără date — graficul nu va apărea pe factură.</p>}
-        {consumption.map((p, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input value={p.label} onChange={(e) => setConsumPoint(i, { label: e.target.value })} placeholder="Lună (ex. 7)" className={`${input} w-24`} />
-            <input type="number" inputMode="decimal" step="any" value={p.value} onChange={(e) => setConsumPoint(i, { value: e.target.value })} placeholder="Volum m³" className={input} />
-            <button onClick={() => removeConsumPoint(i)} className="tap grid size-9 shrink-0 place-items-center rounded-lg border border-[var(--color-line)] text-st-cancelled hover:bg-[var(--color-surface-2)]">
-              <IconTrash className="size-4" />
-            </button>
-          </div>
-        ))}
       </div>
 
       {error && <p className="text-sm text-st-cancelled">{error}</p>}

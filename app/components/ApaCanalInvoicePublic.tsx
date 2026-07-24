@@ -122,7 +122,7 @@ export default function ApaCanalInvoicePublic({
           <h1 style={{ fontSize: "4mm", fontWeight: 600, margin: "0 0 1.5mm" }}>
             Factura pentru serviciul de alimentare cu apă și de canalizare
           </h1>
-          <div style={{ height: "0.6mm", width: "calc(100% - 45mm)", background: COLOR_BOX_BLUE }} />
+          <div style={{ height: "0.6mm", width: "calc(100% - 65mm)", background: COLOR_BOX_BLUE }} />
         </div>
 
         {/* ── Rânduri 2-3, coloana principală: grid comun (1fr | auto) ca "Cont personal" să înceapă exact unde începe tabelul contorului ── */}
@@ -169,14 +169,14 @@ export default function ApaCanalInvoicePublic({
           </table>
         </div>
 
-        <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: 2, marginTop: "2.5mm" }}>
+        <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: "1 / 3" }}>
           {company.apaCanalLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "40mm", width: "40mm" }} />
           ) : null}
         </div>
 
-        <div className="text-center self-center" style={{ gridColumn: 2, gridRow: 3, color: COLOR_TEXT, fontSize: "3.3mm", lineHeight: 1.5 }}>
+        <div className="text-center self-center" style={{ gridColumn: 2, gridRow: 3, color: COLOR_TEXT, fontSize: "3.3mm", lineHeight: 1.1 }}>
           <p>{company.apaCanalAddress}</p>
           <p>{company.apaCanalEmail}</p>
           <p className="font-semibold">{company.apaCanalCompanyLine}</p>

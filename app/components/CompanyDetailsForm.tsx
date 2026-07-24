@@ -35,7 +35,7 @@ export default function CompanyDetailsForm({
   function onApaCanalFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 700_000) {
+    if (f.size > 5_000_000) {
       setApaCanalWarn(m.company.logoTooLarge);
       return;
     }
@@ -52,7 +52,7 @@ export default function CompanyDetailsForm({
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 700_000) {
+    if (f.size > 5_000_000) {
       setWarn(m.company.logoTooLarge);
       return;
     }

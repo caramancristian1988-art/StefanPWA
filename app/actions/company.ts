@@ -26,13 +26,15 @@ export async function updateCompanySettings(
   if (!companyName) return { error: "Numele companiei e obligatoriu." };
 
   const logo = String(formData.get("logo") ?? "");
-  // Logo: data URL (base64). Limităm la ~700KB ca să nu îngreunăm DB-ul.
-  if (logo && logo.length > 950_000) {
-    return { error: "Logo prea mare (max ~700KB). Alege o imagine mai mică." };
+  // Logo: data URL (base64), stocat direct în documentul CompanySettings din MongoDB.
+  // MongoDB are o limită dură de 16MB per document, deci nu poate fi "fără limită" —
+  // 7MB de text base64 (~5MB fișier original) lasă loc suficient pentru restul câmpurilor.
+  if (logo && logo.length > 7_000_000) {
+    return { error: "Logo prea mare (max ~5MB). Alege o imagine mai mică." };
   }
   const apaCanalLogo = String(formData.get("apaCanalLogo") ?? "");
-  if (apaCanalLogo && apaCanalLogo.length > 950_000) {
-    return { error: "Logo Apă-Canal prea mare (max ~700KB). Alege o imagine mai mică." };
+  if (apaCanalLogo && apaCanalLogo.length > 7_000_000) {
+    return { error: "Logo Apă-Canal prea mare (max ~5MB). Alege o imagine mai mică." };
   }
 
   const reqText = (key: string, fallback: string) => String(formData.get(key) ?? "").trim() || fallback;

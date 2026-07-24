@@ -145,11 +145,11 @@ export default function ApaCanalInvoicePublic({
             <p className="font-bold uppercase">{invoice.consumerName || invoice.client?.name || ""}</p>
           </div>
 
-          <div style={{ gridColumn: 1, gridRow: 2, marginTop: "3mm" }}>
+          <div style={{ gridColumn: 1, gridRow: 2, marginTop: "9mm" }}>
             <ConsumptionChart points={points} />
             <ConsumptionChartLabels points={points} />
           </div>
-          <table className="text-center" style={{ gridColumn: 2, gridRow: 2, marginTop: "3mm", fontSize: "2.8mm" }}>
+          <table className="text-center" style={{ gridColumn: 2, gridRow: 2, marginTop: "9mm", fontSize: "2.8mm" }}>
             <thead>
               <tr style={{ color: COLOR_BORDER }}>
                 <th className="whitespace-nowrap font-medium" style={{ padding: "0 2mm 1mm" }}>Numărul<br />contorului</th>
@@ -172,7 +172,7 @@ export default function ApaCanalInvoicePublic({
         <div className="flex flex-col items-center self-start" style={{ gridColumn: 2, gridRow: "1 / 3" }}>
           {company.apaCanalLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "34mm", width: "40mm" }} />
+            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "40mm", width: "40mm" }} />
           ) : null}
           <p className="text-center font-bold" style={{ marginTop: "1mm", fontSize: "4mm", color: COLOR_TEXT }}>{company.apaCanalCompanyLine}</p>
         </div>
@@ -221,12 +221,12 @@ export default function ApaCanalInvoicePublic({
           </table>
 
           {/* Recalculări/Penalitate (text) + linie albastră până la casetă + totaluri (casetă, mai în dreapta) */}
-          <div className="flex items-stretch" style={{ fontSize: "2.9mm" }}>
+          <div className="flex items-start" style={{ fontSize: "2.9mm" }}>
             <div className="flex flex-col justify-start" style={{ lineHeight: 1.3, paddingTop: "2mm", paddingBottom: "0.6mm", borderBottom: `1.5px solid ${COLOR_BOX_BLUE}` }}>
               <p>Recalculări:{invoice.recalculari ? ` ${num2(invoice.recalculari)}` : ""}</p>
               <p>Penalitate:{invoice.penalitati ? ` ${num2(invoice.penalitati)}` : ""}</p>
             </div>
-            <div className="flex-1 self-end" style={{ borderBottom: `1.5px solid ${COLOR_BOX_BLUE}`, marginRight: "3mm", marginBottom: "0.6mm" }} />
+            <div className="flex-1" style={{ borderBottom: `1.5px solid ${COLOR_BOX_BLUE}`, marginRight: "3mm", marginTop: "9.5mm" }} />
             <div className="shrink-0" style={{ width: "58mm", background: COLOR_BOX_BLUE, borderRadius: "3mm", padding: "2mm 3mm" }}>
               <div className="flex justify-between whitespace-nowrap">
                 <span>Suma calculată</span>

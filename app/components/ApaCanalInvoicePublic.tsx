@@ -169,12 +169,11 @@ export default function ApaCanalInvoicePublic({
           </table>
         </div>
 
-        <div className="flex flex-col items-center self-start" style={{ gridColumn: 2, gridRow: "1 / 3" }}>
+        <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: "1 / 3" }}>
           {company.apaCanalLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "40mm", width: "40mm" }} />
           ) : null}
-          <p className="text-center font-bold" style={{ marginTop: "1mm", fontSize: "4mm", color: COLOR_TEXT }}>{company.apaCanalCompanyLine}</p>
         </div>
 
         <div className="text-center self-center" style={{ gridColumn: 2, gridRow: 3, color: COLOR_TEXT, fontSize: "3.3mm", lineHeight: 1.1 }}>

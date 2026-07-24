@@ -146,17 +146,11 @@ export default function ApaCanalInvoicePublic({
           </div>
         </div>
 
-        <div className="flex flex-col items-center text-center self-start" style={{ gridColumn: 2, gridRow: 2, marginTop: "2.5mm", gap: "1mm" }}>
+        <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: 2, marginTop: "2.5mm" }}>
           {company.apaCanalLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "20mm", width: "20mm" }} />
+            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "32mm", width: "32mm" }} />
           ) : null}
-          <div style={{ color: COLOR_TEXT, fontSize: "2.7mm", lineHeight: 1.5 }}>
-            <p>{company.apaCanalAddress}</p>
-            <p>{company.apaCanalEmail}</p>
-            <p className="font-semibold">{company.apaCanalCompanyLine}</p>
-            <p>{company.apaCanalCodFiscal}</p>
-          </div>
         </div>
 
         {/* ── Rând 3: grafic+contor (stânga) | Anunț (dreapta, aliniat "în dreptul" rândului cu contorul) ── */}
@@ -183,6 +177,13 @@ export default function ApaCanalInvoicePublic({
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div className="text-center self-start" style={{ gridColumn: 2, gridRow: 3, marginTop: "3mm", color: COLOR_TEXT, fontSize: "2.7mm", lineHeight: 1.5 }}>
+          <p>{company.apaCanalAddress}</p>
+          <p>{company.apaCanalEmail}</p>
+          <p className="font-semibold">{company.apaCanalCompanyLine}</p>
+          <p>{company.apaCanalCodFiscal}</p>
         </div>
 
         {/* ── Rând 4: rest coloană principală | Anunț + contacte, grupate împreună ── */}

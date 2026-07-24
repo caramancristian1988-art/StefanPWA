@@ -31,6 +31,8 @@ export async function updateCompanySettings(
     return { error: "Logo prea mare (max ~700KB). Alege o imagine mai mică." };
   }
 
+  const reqText = (key: string, fallback: string) => String(formData.get(key) ?? "").trim() || fallback;
+
   const data = {
     companyName,
     logo: logo || null,
@@ -43,6 +45,14 @@ export async function updateCompanySettings(
     currency: String(formData.get("currency") ?? "MDL").trim() || "MDL",
     invoicePrefix: String(formData.get("invoicePrefix") ?? "INV").trim() || "INV",
     appointmentsLabel: String(formData.get("appointmentsLabel") ?? "").trim() || "Programări",
+    apaCanalCompanyLine: reqText("apaCanalCompanyLine", "S.A. Apa-Canal Cahul"),
+    apaCanalAddress: reqText("apaCanalAddress", "mun.Cahul, str.31 August 1989 nr.1"),
+    apaCanalEmail: reqText("apaCanalEmail", "apacanalmega@gmail.com"),
+    apaCanalCodFiscal: reqText("apaCanalCodFiscal", "Cod fiscal 1002603000859"),
+    apaCanalContactName: reqText("apaCanalContactName", "Corneliu"),
+    apaCanalContactsText: reqText("apaCanalContactsText", ""),
+    apaCanalAtentieText: reqText("apaCanalAtentieText", ""),
+    apaCanalAnuntText: reqText("apaCanalAnuntText", ""),
   };
 
   await prisma.companySettings.upsert({

@@ -16,7 +16,29 @@ export type Company = {
   currency: string;
   invoicePrefix: string;
   appointmentsLabel: string;
+  apaCanalCompanyLine: string;
+  apaCanalAddress: string;
+  apaCanalEmail: string;
+  apaCanalCodFiscal: string;
+  apaCanalContactName: string;
+  apaCanalContactsText: string;
+  apaCanalAtentieText: string;
+  apaCanalAnuntText: string;
 };
+
+const APA_CANAL_DEFAULTS = {
+  apaCanalCompanyLine: "S.A. Apa-Canal Cahul",
+  apaCanalAddress: "mun.Cahul, str.31 August 1989 nr.1",
+  apaCanalEmail: "apacanalmega@gmail.com",
+  apaCanalCodFiscal: "Cod fiscal 1002603000859",
+  apaCanalContactName: "Corneliu",
+  apaCanalContactsText:
+    "0 600-99-490 · Controlor Viber/Whatsapp\n0 (299) 2-20-00 · serviciul dispecerat 24/24\n0 601-05-866 · secția evidență și control\n0 605-58-819 · secția calcul\n0 688-96-964 · secția tehnică\n0 688-96-930 · anticamera",
+  apaCanalAtentieText:
+    "Vă atenționăm că în cazul neachitării acestei facturi de plată, în decurs de 10 zile de la data-limită de achitare indicată în ea, în conformitate cu legislația, operatorul este în drept să deconecteze instalațiile interne de apă și de canalizare ce aparțin, de la sistemul public de alimentare cu apă și de canalizare. Reconectarea instalațiilor interne de apă și de canalizare va fi posibilă după eliminarea cauzei care a dus la deconectare și după achitarea tarifului pentru reconectare.",
+  apaCanalAnuntText:
+    "Stimați consumatori, DVS aveți posibilitatea de a transmite indicii contorului de apă prin aplicația Viber sau WhatsApp, pe primul număr indicat mai jos, din data de 17 până pe data de 27.",
+} as const;
 
 const DEFAULTS: Company = {
   companyName: "",
@@ -30,6 +52,7 @@ const DEFAULTS: Company = {
   currency: "MDL",
   invoicePrefix: "INV",
   appointmentsLabel: "Programări",
+  ...APA_CANAL_DEFAULTS,
 };
 
 const SELECT = {
@@ -44,6 +67,14 @@ const SELECT = {
   currency: true,
   invoicePrefix: true,
   appointmentsLabel: true,
+  apaCanalCompanyLine: true,
+  apaCanalAddress: true,
+  apaCanalEmail: true,
+  apaCanalCodFiscal: true,
+  apaCanalContactName: true,
+  apaCanalContactsText: true,
+  apaCanalAtentieText: true,
+  apaCanalAnuntText: true,
 } as const;
 
 const QH_DEFAULTS: QuietHoursConfig = {

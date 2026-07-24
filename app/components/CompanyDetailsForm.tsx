@@ -142,6 +142,49 @@ export default function CompanyDetailsForm({
         <p className="mt-1 text-xs text-ink-soft">{m.company.apptModuleHint}</p>
       </div>
 
+      <details className="rounded-xl border border-[var(--color-line)] p-3">
+        <summary className="cursor-pointer text-sm font-semibold">Factură Apă-Canal</summary>
+        <p className="mt-1 text-xs text-ink-soft">
+          Textele fixe afișate pe facturile de tip „Apă-Canal" (antet, contacte, avertismente). Logo-ul folosit e cel de mai sus.
+        </p>
+        <div className="mt-3 flex flex-col gap-3">
+          <div>
+            <label className={label}>Denumire furnizor</label>
+            <input name="apaCanalCompanyLine" defaultValue={company.apaCanalCompanyLine} className={input} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className={label}>Adresă furnizor</label>
+              <input name="apaCanalAddress" defaultValue={company.apaCanalAddress} className={input} />
+            </div>
+            <div>
+              <label className={label}>Email furnizor</label>
+              <input name="apaCanalEmail" defaultValue={company.apaCanalEmail} className={input} />
+            </div>
+          </div>
+          <div>
+            <label className={label}>Cod fiscal</label>
+            <input name="apaCanalCodFiscal" defaultValue={company.apaCanalCodFiscal} className={input} />
+          </div>
+          <div>
+            <label className={label}>Nume persoană de contact</label>
+            <input name="apaCanalContactName" defaultValue={company.apaCanalContactName} className={input} />
+          </div>
+          <div>
+            <label className={label}>Lista de contacte (un rând pe telefon)</label>
+            <textarea name="apaCanalContactsText" defaultValue={company.apaCanalContactsText} rows={6} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
+          </div>
+          <div>
+            <label className={label}>Text „ATENȚIE"</label>
+            <textarea name="apaCanalAtentieText" defaultValue={company.apaCanalAtentieText} rows={4} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
+          </div>
+          <div>
+            <label className={label}>Text „Anunț"</label>
+            <textarea name="apaCanalAnuntText" defaultValue={company.apaCanalAnuntText} rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
+          </div>
+        </div>
+      </details>
+
       {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
       {state?.ok && <p className="text-sm text-st-done">{m.company.saved}</p>}
 

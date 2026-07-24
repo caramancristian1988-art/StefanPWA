@@ -169,11 +169,12 @@ export default function ApaCanalInvoicePublic({
           </table>
         </div>
 
-        <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: "1 / 3" }}>
+        <div className="flex flex-col items-center self-start" style={{ gridColumn: 2, gridRow: "1 / 3" }}>
           {company.apaCanalLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "40mm", width: "40mm" }} />
+            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "34mm", width: "40mm" }} />
           ) : null}
+          <p className="text-center font-bold" style={{ marginTop: "1mm", fontSize: "4mm", color: COLOR_TEXT }}>{company.apaCanalCompanyLine}</p>
         </div>
 
         <div className="text-center self-center" style={{ gridColumn: 2, gridRow: 3, color: COLOR_TEXT, fontSize: "3.3mm", lineHeight: 1.1 }}>
@@ -258,6 +259,20 @@ export default function ApaCanalInvoicePublic({
           <div style={{ fontSize: "2.7mm" }}>
             <p className="font-semibold" style={{ marginBottom: "1mm" }}>Contacte: <span className="font-normal text-brand">{company.apaCanalContactName}</span></p>
             <div className="whitespace-pre-line" style={{ lineHeight: 1.8 }}>{company.apaCanalContactsText}</div>
+          </div>
+
+          <div className="text-center" style={{ fontSize: "2.7mm" }}>
+            <p className="font-semibold" style={{ marginBottom: "1.5mm" }}>Scanează și achită</p>
+            <div className="flex items-center justify-center" style={{ gap: "3mm" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icons/SpFih6.jpg" alt="Cod QR plată" style={{ width: "20mm", height: "20mm" }} />
+              <div className="flex flex-col items-start" style={{ gap: "2mm" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icons/IMG_3987.PNG" alt="mia" className="object-contain" style={{ height: "5mm", width: "20mm" }} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icons/IMG_3988.PNG" alt="Victoriabank" className="object-contain" style={{ height: "5mm", width: "20mm" }} />
+              </div>
+            </div>
           </div>
         </div>
       </div>

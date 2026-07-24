@@ -47,7 +47,7 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
   for (let v = yMax; v >= 0; v -= step) ySteps.push(Math.round(v * 100) / 100);
 
   return (
-    <div className="flex h-40 gap-1.5 overflow-hidden border border-zinc-300 bg-white p-1.5">
+    <div className="flex h-40 gap-1.5 overflow-hidden bg-white p-1.5">
       <div className="flex h-full shrink-0 flex-col justify-between text-right text-[9px] leading-none text-zinc-500">
         {ySteps.map((s) => <span key={s}>{s}</span>)}
       </div>
@@ -112,7 +112,7 @@ export default function ApaCanalInvoicePublic({
           Factura pentru serviciul de alimentare cu apă și de canalizare
         </h1>
 
-        <div className="grid grid-cols-[1fr_240px] gap-6">
+        <div className="grid grid-cols-[1fr_280px] gap-6">
           {/* ── Coloana principală ── */}
           <div className="flex flex-col gap-4">
             {/* Date + cont personal + consumator */}
@@ -136,8 +136,8 @@ export default function ApaCanalInvoicePublic({
               </div>
             </div>
 
-            {/* Grafic + tabel contor */}
-            <div className="flex gap-4">
+            {/* Grafic + tabel contor — un singur contur comun, datele contorului centrate pe verticală, în dreapta */}
+            <div className="flex items-center gap-4 border border-zinc-300 bg-white p-2">
               <div className="flex-1">
                 <ConsumptionChart points={points} />
                 <ConsumptionChartLabels points={points} />
@@ -232,12 +232,12 @@ export default function ApaCanalInvoicePublic({
 
           {/* ── Sidebar dreapta ── */}
           <div className="flex flex-col gap-4">
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-3">
               {company.apaCanalLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="h-14 w-14 shrink-0 rounded-lg object-contain" />
+                <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="h-16 w-16 shrink-0 rounded-lg object-contain" />
               ) : null}
-              <div className="space-y-0.5 text-[10.5px] leading-snug text-zinc-600">
+              <div className="space-y-1 text-[11.5px] leading-snug text-zinc-600">
                 <p>{company.apaCanalAddress}</p>
                 <p>{company.apaCanalEmail}</p>
                 <p className="font-semibold text-zinc-800">{company.apaCanalCompanyLine}</p>
@@ -245,8 +245,8 @@ export default function ApaCanalInvoicePublic({
               </div>
             </div>
 
-            <div className="rounded-md bg-teal-50 p-3 ring-1 ring-teal-200">
-              <p className="mb-1 font-bold text-teal-700">Anunț !</p>
+            <div className="rounded-md bg-teal-50 p-3 text-center ring-1 ring-teal-200">
+              <p className="mb-1 font-bold text-red-600">Anunț !</p>
               <p className="text-[11px] leading-relaxed text-teal-900">{company.apaCanalAnuntText}</p>
             </div>
 

@@ -30,6 +30,10 @@ export async function updateCompanySettings(
   if (logo && logo.length > 950_000) {
     return { error: "Logo prea mare (max ~700KB). Alege o imagine mai mică." };
   }
+  const apaCanalLogo = String(formData.get("apaCanalLogo") ?? "");
+  if (apaCanalLogo && apaCanalLogo.length > 950_000) {
+    return { error: "Logo Apă-Canal prea mare (max ~700KB). Alege o imagine mai mică." };
+  }
 
   const reqText = (key: string, fallback: string) => String(formData.get(key) ?? "").trim() || fallback;
 
@@ -45,6 +49,7 @@ export async function updateCompanySettings(
     currency: String(formData.get("currency") ?? "MDL").trim() || "MDL",
     invoicePrefix: String(formData.get("invoicePrefix") ?? "INV").trim() || "INV",
     appointmentsLabel: String(formData.get("appointmentsLabel") ?? "").trim() || "Programări",
+    apaCanalLogo: apaCanalLogo || null,
     apaCanalCompanyLine: reqText("apaCanalCompanyLine", "S.A. Apa-Canal Cahul"),
     apaCanalAddress: reqText("apaCanalAddress", "mun.Cahul, str.31 August 1989 nr.1"),
     apaCanalEmail: reqText("apaCanalEmail", "apacanalmega@gmail.com"),

@@ -199,9 +199,9 @@ export default function ApaCanalInvoicePublic({
 
         <aside className="invoice-sidebar">
           <div className="sidebar-logo">
-            {company.logo ? (
+            {company.apaCanalLogo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={company.logo} alt={company.apaCanalCompanyLine} />
+              <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} />
             ) : null}
           </div>
           <div className="sidebar-company-info">

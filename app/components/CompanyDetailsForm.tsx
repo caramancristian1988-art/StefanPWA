@@ -28,6 +28,23 @@ export default function CompanyDetailsForm({
   const [warn, setWarn] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [apaCanalLogo, setApaCanalLogo] = useState<string | null>(company.apaCanalLogo);
+  const [apaCanalWarn, setApaCanalWarn] = useState("");
+  const apaCanalFileRef = useRef<HTMLInputElement>(null);
+
+  function onApaCanalFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 700_000) {
+      setApaCanalWarn(m.company.logoTooLarge);
+      return;
+    }
+    setApaCanalWarn("");
+    const reader = new FileReader();
+    reader.onload = () => setApaCanalLogo(String(reader.result));
+    reader.readAsDataURL(f);
+  }
+
   useEffect(() => {
     if (state?.ok) router.refresh();
   }, [state, router]);
@@ -145,9 +162,33 @@ export default function CompanyDetailsForm({
       <details className="rounded-xl border border-[var(--color-line)] p-3">
         <summary className="cursor-pointer text-sm font-semibold">Factură Apă-Canal</summary>
         <p className="mt-1 text-xs text-ink-soft">
-          Textele fixe afișate pe facturile de tip „Apă-Canal" (antet, contacte, avertismente). Logo-ul folosit e cel de mai sus.
+          Logo-ul și textele fixe afișate pe facturile de tip „Apă-Canal" (antet, contacte, avertismente) — separate de logo-ul principal al firmei de mai sus.
         </p>
         <div className="mt-3 flex flex-col gap-3">
+          <input type="hidden" name="apaCanalLogo" value={apaCanalLogo ?? ""} />
+          <div className="flex items-center gap-4">
+            <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)]">
+              {apaCanalLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={apaCanalLogo} alt="Logo Apă-Canal" className="size-full object-contain" />
+              ) : (
+                <span className="text-xs text-ink-soft">Logo</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <input ref={apaCanalFileRef} type="file" accept="image/*" onChange={onApaCanalFile} className="hidden" />
+              <button type="button" onClick={() => apaCanalFileRef.current?.click()} className="tap rounded-lg border border-[var(--color-line)] px-3 py-2 text-sm hover:bg-[var(--color-surface-2)]">
+                Încarcă logo Apă-Canal
+              </button>
+              {apaCanalLogo && (
+                <button type="button" onClick={() => setApaCanalLogo(null)} className="tap inline-flex items-center gap-1 text-xs text-st-cancelled">
+                  <IconX className="size-3.5" /> Elimină logo
+                </button>
+              )}
+            </div>
+          </div>
+          {apaCanalWarn && <p className="text-sm text-st-cancelled">{apaCanalWarn}</p>}
+
           <div>
             <label className={label}>Denumire furnizor</label>
             <input name="apaCanalCompanyLine" defaultValue={company.apaCanalCompanyLine} className={input} />

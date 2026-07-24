@@ -468,6 +468,8 @@ model CompanySettings {
   quietHoursTz      String  @default("Europe/Bucharest")
 
   // --- Letterhead pentru facturile de tip „Apă-Canal" (editabil, altfel identic cu modelul primit) ---
+  // Logo dedicat (separat de logo-ul principal al firmei) — folosit doar pe facturile Apă-Canal.
+  apaCanalLogo        String?
   apaCanalCompanyLine String @default("S.A. Apa-Canal Cahul")
   apaCanalAddress     String @default("mun.Cahul, str.31 August 1989 nr.1")
   apaCanalEmail       String @default("apacanalmega@gmail.com")

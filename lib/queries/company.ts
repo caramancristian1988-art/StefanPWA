@@ -16,6 +16,7 @@ export type Company = {
   currency: string;
   invoicePrefix: string;
   appointmentsLabel: string;
+  apaCanalLogo: string | null;
   apaCanalCompanyLine: string;
   apaCanalAddress: string;
   apaCanalEmail: string;
@@ -52,6 +53,7 @@ const DEFAULTS: Company = {
   currency: "MDL",
   invoicePrefix: "INV",
   appointmentsLabel: "Programări",
+  apaCanalLogo: null,
   ...APA_CANAL_DEFAULTS,
 };
 
@@ -67,6 +69,7 @@ const SELECT = {
   currency: true,
   invoicePrefix: true,
   appointmentsLabel: true,
+  apaCanalLogo: true,
   apaCanalCompanyLine: true,
   apaCanalAddress: true,
   apaCanalEmail: true,

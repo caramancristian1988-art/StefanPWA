@@ -172,7 +172,7 @@ export default function ApaCanalInvoicePublic({
         <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: "1 / 3" }}>
           {company.apaCanalLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "54mm", width: "54mm" }} />
+            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "68mm", width: "68mm" }} />
           ) : null}
         </div>
 

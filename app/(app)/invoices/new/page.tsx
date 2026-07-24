@@ -71,6 +71,8 @@ export default async function NewInvoicePage({
           clients={clients}
           currency={company.currency}
           canCreateClient={can(user, "clients.create")}
+          defaultTarifApa={company.apaCanalTarifApa}
+          defaultTarifCanal={company.apaCanalTarifCanal}
         />
       ) : (
         <InvoiceForm

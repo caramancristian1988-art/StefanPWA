@@ -25,6 +25,8 @@ export type Company = {
   apaCanalContactsText: string;
   apaCanalAtentieText: string;
   apaCanalAnuntText: string;
+  apaCanalTarifApa: number;
+  apaCanalTarifCanal: number;
 };
 
 const APA_CANAL_DEFAULTS = {
@@ -55,6 +57,8 @@ const DEFAULTS: Company = {
   appointmentsLabel: "Programări",
   apaCanalLogo: null,
   ...APA_CANAL_DEFAULTS,
+  apaCanalTarifApa: 0,
+  apaCanalTarifCanal: 0,
 };
 
 const SELECT = {
@@ -78,6 +82,8 @@ const SELECT = {
   apaCanalContactsText: true,
   apaCanalAtentieText: true,
   apaCanalAnuntText: true,
+  apaCanalTarifApa: true,
+  apaCanalTarifCanal: true,
 } as const;
 
 const QH_DEFAULTS: QuietHoursConfig = {

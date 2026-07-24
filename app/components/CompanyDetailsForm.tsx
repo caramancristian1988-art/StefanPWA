@@ -223,6 +223,19 @@ export default function CompanyDetailsForm({
             <label className={label}>Text „Anunț"</label>
             <textarea name="apaCanalAnuntText" defaultValue={company.apaCanalAnuntText} rows={3} className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand" />
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className={label}>Tarif implicit apă, lei/m³</label>
+              <input name="apaCanalTarifApa" type="number" inputMode="decimal" step="any" defaultValue={company.apaCanalTarifApa || ""} className={input} />
+            </div>
+            <div>
+              <label className={label}>Tarif implicit canalizare, lei/m³</label>
+              <input name="apaCanalTarifCanal" type="number" inputMode="decimal" step="any" defaultValue={company.apaCanalTarifCanal || ""} className={input} />
+            </div>
+          </div>
+          <p className="-mt-1 text-xs text-ink-soft">
+            Aceste tarife se pre-completează automat la crearea unei facturi noi Apă-Canal — pot fi modificate oricând direct pe factură.
+          </p>
         </div>
       </details>
 

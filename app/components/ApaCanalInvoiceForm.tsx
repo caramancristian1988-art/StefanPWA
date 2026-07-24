@@ -52,11 +52,15 @@ export default function ApaCanalInvoiceForm({
   currency,
   initial,
   canCreateClient = false,
+  defaultTarifApa = 0,
+  defaultTarifCanal = 0,
 }: {
   clients: Opt[];
   currency: string;
   initial?: ApaCanalInitial;
   canCreateClient?: boolean;
+  defaultTarifApa?: number;
+  defaultTarifCanal?: number;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -79,9 +83,9 @@ export default function ApaCanalInvoiceForm({
   const [billingPeriodLabel, setBillingPeriodLabel] = useState(initial?.billingPeriodLabel ?? "");
 
   const [apaVolum, setApaVolum] = useState(initial?.apaVolum ?? "");
-  const [apaTarif, setApaTarif] = useState(initial?.apaTarif ?? "");
+  const [apaTarif, setApaTarif] = useState(initial?.apaTarif ?? (defaultTarifApa ? String(defaultTarifApa) : ""));
   const [canalVolum, setCanalVolum] = useState(initial?.canalVolum ?? "");
-  const [canalTarif, setCanalTarif] = useState(initial?.canalTarif ?? "");
+  const [canalTarif, setCanalTarif] = useState(initial?.canalTarif ?? (defaultTarifCanal ? String(defaultTarifCanal) : ""));
 
   const [recalculari, setRecalculari] = useState(initial?.recalculari ?? "0");
   const [penalitati, setPenalitati] = useState(initial?.penalitati ?? "0");

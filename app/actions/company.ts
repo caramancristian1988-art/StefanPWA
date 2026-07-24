@@ -58,6 +58,8 @@ export async function updateCompanySettings(
     apaCanalContactsText: reqText("apaCanalContactsText", ""),
     apaCanalAtentieText: reqText("apaCanalAtentieText", ""),
     apaCanalAnuntText: reqText("apaCanalAnuntText", ""),
+    apaCanalTarifApa: Number(formData.get("apaCanalTarifApa")) || 0,
+    apaCanalTarifCanal: Number(formData.get("apaCanalTarifCanal")) || 0,
   };
 
   await prisma.companySettings.upsert({

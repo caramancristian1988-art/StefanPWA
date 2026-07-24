@@ -125,14 +125,14 @@ export default function ApaCanalInvoicePublic({
           <div style={{ height: "0.6mm", width: "calc(100% - 45mm)", background: COLOR_BOX_BLUE }} />
         </div>
 
-        {/* ── Rând 2: date+cont personal (stânga) | logo+info (dreapta) ── */}
-        <div className="flex justify-between" style={{ gridColumn: 1, gridRow: 2, marginTop: "2.5mm", fontSize: "3mm" }}>
-          <div className="shrink-0 whitespace-nowrap" style={{ lineHeight: 1.7 }}>
+        {/* ── Rânduri 2-3, coloana principală: grid comun (1fr | auto) ca "Cont personal" să înceapă exact unde începe tabelul contorului ── */}
+        <div style={{ gridColumn: 1, gridRow: "2 / 4", display: "grid", gridTemplateColumns: "1fr auto", columnGap: "5mm", alignItems: "center" }}>
+          <div className="shrink-0 whitespace-nowrap self-start" style={{ gridColumn: 1, gridRow: 1, marginTop: "2.5mm", fontSize: "3mm", lineHeight: 1.7 }}>
             <p>Data emiterii: <b>{fmtDate(invoice.issueDate)}</b></p>
             <p>Data limită de achitare: <b>{fmtDate(invoice.dueDate)}</b></p>
           </div>
-          <div className="text-right" style={{ lineHeight: 1.7 }}>
-            <p className="whitespace-nowrap font-bold">
+          <div className="whitespace-nowrap self-start" style={{ gridColumn: 2, gridRow: 1, marginTop: "2.5mm", fontSize: "3mm", lineHeight: 1.7 }}>
+            <p className="font-bold">
               Cont personal: {invoice.contPersonal || "—"}
               {invoice.sectorNr && (
                 <span className="ml-2 rounded font-normal" style={{ border: `1.5px solid ${COLOR_TEXT}`, padding: "0 1mm", fontSize: "2.6mm" }}>
@@ -144,22 +144,12 @@ export default function ApaCanalInvoicePublic({
             <p>{invoice.consumAddress || "—"}</p>
             <p className="font-bold uppercase">{invoice.consumerName || invoice.client?.name || ""}</p>
           </div>
-        </div>
 
-        <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: 2, marginTop: "2.5mm" }}>
-          {company.apaCanalLogo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "40mm", width: "40mm" }} />
-          ) : null}
-        </div>
-
-        {/* ── Rând 3: grafic+contor (stânga) | Anunț (dreapta, aliniat "în dreptul" rândului cu contorul) ── */}
-        <div className="flex items-center" style={{ gridColumn: 1, gridRow: 3, marginTop: "3mm", gap: "5mm" }}>
-          <div className="flex-1">
+          <div style={{ gridColumn: 1, gridRow: 2, marginTop: "3mm" }}>
             <ConsumptionChart points={points} />
             <ConsumptionChartLabels points={points} />
           </div>
-          <table className="shrink-0 text-center" style={{ fontSize: "2.8mm" }}>
+          <table className="text-center" style={{ gridColumn: 2, gridRow: 2, marginTop: "3mm", fontSize: "2.8mm" }}>
             <thead>
               <tr style={{ color: COLOR_BORDER }}>
                 <th className="whitespace-nowrap font-medium" style={{ padding: "0 2mm 1mm" }}>Numărul<br />contorului</th>
@@ -177,6 +167,13 @@ export default function ApaCanalInvoicePublic({
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: 2, marginTop: "2.5mm" }}>
+          {company.apaCanalLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "40mm", width: "40mm" }} />
+          ) : null}
         </div>
 
         <div className="text-center self-center" style={{ gridColumn: 2, gridRow: 3, color: COLOR_TEXT, fontSize: "3.3mm", lineHeight: 1.5 }}>

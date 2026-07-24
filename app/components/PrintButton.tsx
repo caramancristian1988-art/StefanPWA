@@ -15,8 +15,9 @@ export default function PrintButton({ token, origin }: { token: string; origin: 
       <button
         onClick={() => window.print()}
         className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
+        title="Deschide dialogul de printare — alege „Salvează ca PDF” ca destinație"
       >
-        Descarcă PDF
+        Printează / Salvează ca PDF
       </button>
       <button
         onClick={copy}

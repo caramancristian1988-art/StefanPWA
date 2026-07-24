@@ -185,12 +185,7 @@ export default function ApaCanalInvoicePublic({
           </table>
         </div>
 
-        <div className="text-center self-start" style={{ gridColumn: 2, gridRow: 3, marginTop: "3mm", background: COLOR_BOX_BLUE, borderRadius: "4mm", padding: "2.5mm 3.5mm" }}>
-          <p className="font-bold" style={{ color: COLOR_RED, fontSize: "4mm", margin: "0 0 1mm" }}>Anunț !</p>
-          <p style={{ color: COLOR_TEXT, fontSize: "2.7mm", lineHeight: 1.4 }}>{company.apaCanalAnuntText}</p>
-        </div>
-
-        {/* ── Rând 4: rest coloană principală | contacte ── */}
+        {/* ── Rând 4: rest coloană principală | Anunț + contacte, grupate împreună ── */}
         <div className="flex flex-col" style={{ gridColumn: 1, gridRow: 4, marginTop: "3mm", gap: "2.5mm" }}>
           {invoice.billingPeriodLabel && (
             <p className="font-semibold" style={{ fontSize: "3mm" }}>Perioada de calcul: {invoice.billingPeriodLabel.toUpperCase()}</p>
@@ -256,9 +251,16 @@ export default function ApaCanalInvoicePublic({
           </div>
         </div>
 
-        <div className="self-start" style={{ gridColumn: 2, gridRow: 4, marginTop: "3mm", fontSize: "2.7mm" }}>
-          <p className="font-semibold" style={{ marginBottom: "1mm" }}>Contacte: <span className="font-normal text-brand">{company.apaCanalContactName}</span></p>
-          <div className="whitespace-pre-line" style={{ lineHeight: 1.8 }}>{company.apaCanalContactsText}</div>
+        <div className="flex flex-col self-start" style={{ gridColumn: 2, gridRow: 4, marginTop: "3mm", gap: "3mm" }}>
+          <div className="text-center" style={{ background: COLOR_BOX_BLUE, borderRadius: "4mm", padding: "2.5mm 3.5mm" }}>
+            <p className="font-bold" style={{ color: COLOR_RED, fontSize: "4mm", margin: "0 0 1mm" }}>Anunț !</p>
+            <p style={{ color: COLOR_TEXT, fontSize: "2.7mm", lineHeight: 1.4 }}>{company.apaCanalAnuntText}</p>
+          </div>
+
+          <div style={{ fontSize: "2.7mm" }}>
+            <p className="font-semibold" style={{ marginBottom: "1mm" }}>Contacte: <span className="font-normal text-brand">{company.apaCanalContactName}</span></p>
+            <div className="whitespace-pre-line" style={{ lineHeight: 1.8 }}>{company.apaCanalContactsText}</div>
+          </div>
         </div>
       </div>
 

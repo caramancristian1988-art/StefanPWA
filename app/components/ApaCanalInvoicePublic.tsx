@@ -244,8 +244,8 @@ export default function ApaCanalInvoicePublic({
             </div>
           </div>
 
-          {/* ATENȚIE */}
-          <div style={{ background: COLOR_BOX_BLUE, borderRadius: "3.5mm", padding: "2.5mm 3.5mm", flex: 1 }}>
+          {/* ATENȚIE — se mulează pe conținut, nu se întinde până jos */}
+          <div style={{ background: COLOR_BOX_BLUE, borderRadius: "3.5mm", padding: "2.5mm 3.5mm" }}>
             <p className="font-bold" style={{ color: COLOR_RED, fontSize: "4mm", margin: "0 0 1mm" }}>ATENȚIE !</p>
             <p style={{ color: COLOR_TEXT, fontSize: "2.8mm", lineHeight: 1.5 }}>{company.apaCanalAtentieText}</p>
           </div>

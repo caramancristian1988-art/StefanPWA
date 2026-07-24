@@ -107,12 +107,12 @@ export default function ApaCanalInvoicePublic({
 
   return (
     <article className="overflow-x-auto rounded-2xl bg-white p-6 text-[13px] text-zinc-900 shadow-sm ring-1 ring-zinc-200 print:rounded-none print:p-4 print:shadow-none print:ring-0">
-      <div className="min-w-[740px]">
+      <div className="min-w-[800px]">
         <h1 className="mb-4 text-base font-semibold">
           Factura pentru serviciul de alimentare cu apă și de canalizare
         </h1>
 
-        <div className="grid grid-cols-[1fr_280px] gap-6">
+        <div className="grid grid-cols-[1fr_320px] gap-4">
           {/* ── Coloana principală ── */}
           <div className="flex flex-col gap-4">
             {/* Date + cont personal + consumator */}
@@ -231,13 +231,13 @@ export default function ApaCanalInvoicePublic({
           </div>
 
           {/* ── Sidebar dreapta ── */}
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start gap-3">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col items-center gap-2 text-center">
               {company.apaCanalLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="h-16 w-16 shrink-0 rounded-lg object-contain" />
+                <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="h-28 w-28 shrink-0 rounded-lg object-contain" />
               ) : null}
-              <div className="space-y-1 text-[11.5px] leading-snug text-zinc-600">
+              <div className="space-y-1.5 text-[12px] leading-relaxed text-zinc-600">
                 <p>{company.apaCanalAddress}</p>
                 <p>{company.apaCanalEmail}</p>
                 <p className="font-semibold text-zinc-800">{company.apaCanalCompanyLine}</p>
@@ -245,9 +245,9 @@ export default function ApaCanalInvoicePublic({
               </div>
             </div>
 
-            <div className="rounded-md bg-teal-50 p-3 text-center ring-1 ring-teal-200">
-              <p className="mb-1 font-bold text-red-600">Anunț !</p>
-              <p className="text-[11px] leading-relaxed text-teal-900">{company.apaCanalAnuntText}</p>
+            <div className="rounded-2xl bg-[#8fd8e7] p-4 text-center">
+              <p className="mb-1.5 text-base font-bold text-red-600">Anunț !</p>
+              <p className="text-[11px] leading-relaxed text-sky-950">{company.apaCanalAnuntText}</p>
             </div>
 
             <div className="text-[11px] text-zinc-700">

@@ -250,7 +250,7 @@ export default function ApaCanalInvoicePublic({
         </div>
 
         <div className="flex flex-col self-start" style={{ gridColumn: 2, gridRow: 4, marginTop: "3mm", gap: "3mm" }}>
-          <div className="text-center" style={{ background: COLOR_BOX_BLUE, borderRadius: "4mm", padding: "2.5mm 3.5mm" }}>
+          <div className="text-center" style={{ background: COLOR_BOX_BLUE, borderRadius: "7mm", padding: "2.5mm 3.5mm" }}>
             <p className="font-bold" style={{ color: COLOR_RED, fontSize: "4mm", margin: "0 0 1mm" }}>Anunț !</p>
             <p style={{ color: COLOR_TEXT, fontSize: "2.7mm", lineHeight: 1.4 }}>{company.apaCanalAnuntText}</p>
           </div>

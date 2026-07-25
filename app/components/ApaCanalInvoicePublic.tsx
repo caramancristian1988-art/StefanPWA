@@ -125,8 +125,12 @@ export default function ApaCanalInvoicePublic({
           <div style={{ height: "0.6mm", width: "calc(100% - 65mm)", background: COLOR_BOX_BLUE }} />
         </div>
 
-        {/* ── Rânduri 2-3, coloana principală: grid comun (1fr | auto) ca "Cont personal" să înceapă exact unde începe tabelul contorului ── */}
-        <div style={{ gridColumn: 1, gridRow: "2 / 4", display: "grid", gridTemplateColumns: "1fr auto", columnGap: "5mm", alignItems: "center" }}>
+        {/* ── Rânduri 2-3, pe toată lățimea: UN SINGUR grid (chart | cont-personal/tabel | logo/text)
+             — evită să depindem de repartizarea automată (imprevizibilă) a înălțimii între rândurile
+             grid-ului exterior atunci când elementele se întind pe mai multe rânduri; aici tabelul
+             contorului și textul companiei sunt literalmente pe același rând de grid, deci sunt
+             mereu perfect aliniate, indiferent de ce se schimbă în jur. ── */}
+        <div style={{ gridColumn: "1 / -1", gridRow: "2 / 4", display: "grid", gridTemplateColumns: "1fr auto 27%", columnGap: "5mm" }}>
           <div className="shrink-0 whitespace-nowrap self-start" style={{ gridColumn: 1, gridRow: 1, marginTop: "2.5mm", fontSize: "3mm", lineHeight: 1.7 }}>
             <p>Data emiterii: <b>{fmtDate(invoice.issueDate)}</b></p>
             <p>Data limită de achitare: <b>{fmtDate(invoice.dueDate)}</b></p>
@@ -144,12 +148,18 @@ export default function ApaCanalInvoicePublic({
             <p>{invoice.consumAddress || "—"}</p>
             <p className="font-bold uppercase">{invoice.consumerName || invoice.client?.name || ""}</p>
           </div>
+          <div className="flex justify-center self-start" style={{ gridColumn: 3, gridRow: 1 }}>
+            {company.apaCanalLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "42mm", width: "42mm" }} />
+            ) : null}
+          </div>
 
-          <div style={{ gridColumn: 1, gridRow: 2, marginTop: "15mm" }}>
+          <div style={{ gridColumn: 1, gridRow: 2, marginTop: "15mm", alignSelf: "center" }}>
             <ConsumptionChart points={points} />
             <ConsumptionChartLabels points={points} />
           </div>
-          <table className="text-center" style={{ gridColumn: 2, gridRow: 2, marginTop: "15mm", fontSize: "2.8mm" }}>
+          <table className="text-center" style={{ gridColumn: 2, gridRow: 2, marginTop: "15mm", alignSelf: "start", fontSize: "2.8mm" }}>
             <thead>
               <tr style={{ color: COLOR_BORDER }}>
                 <th className="whitespace-nowrap font-medium" style={{ padding: "0 2mm 1mm" }}>Numărul<br />contorului</th>
@@ -167,20 +177,12 @@ export default function ApaCanalInvoicePublic({
               </tr>
             </tbody>
           </table>
-        </div>
-
-        <div className="flex justify-center self-start" style={{ gridColumn: 2, gridRow: "1 / 3" }}>
-          {company.apaCanalLogo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="shrink-0 object-contain" style={{ height: "42mm", width: "42mm" }} />
-          ) : null}
-        </div>
-
-        <div className="text-center self-start" style={{ gridColumn: 2, gridRow: 3, marginTop: "9.2mm", color: COLOR_TEXT, fontSize: "4mm", lineHeight: 1.15 }}>
-          <p>{company.apaCanalAddress}</p>
-          <p>{company.apaCanalEmail}</p>
-          <p className="font-semibold">{company.apaCanalCompanyLine}</p>
-          <p>{company.apaCanalCodFiscal}</p>
+          <div className="text-center" style={{ gridColumn: 3, gridRow: 2, marginTop: "15mm", alignSelf: "start", color: COLOR_TEXT, fontSize: "4mm", lineHeight: 1.15 }}>
+            <p>{company.apaCanalAddress}</p>
+            <p>{company.apaCanalEmail}</p>
+            <p className="font-semibold">{company.apaCanalCompanyLine}</p>
+            <p>{company.apaCanalCodFiscal}</p>
+          </div>
         </div>
 
         {/* ── Rând 4: rest coloană principală | Anunț + contacte, grupate împreună ── */}

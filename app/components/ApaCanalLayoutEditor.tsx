@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import type { Company } from "@/lib/queries/company";
-import type { ApaCanalLayout, ApaCanalPositionalKey, ApaCanalTextKey } from "@/lib/apa-canal-layout";
-import { APA_CANAL_POSITIONAL_LABELS, APA_CANAL_TEXT_LABELS, APA_CANAL_LAYOUT_DEFAULTS } from "@/lib/apa-canal-layout";
+import type { ApaCanalLayout, ApaCanalElementKey } from "@/lib/apa-canal-layout";
+import { APA_CANAL_ELEMENT_LABELS, APA_CANAL_TEXT_KEYS, APA_CANAL_LAYOUT_DEFAULTS, MM_TO_PX } from "@/lib/apa-canal-layout";
 import type { LayoutState } from "@/app/actions/company";
 import ApaCanalInvoicePublic, { type ApaCanalInvoiceData } from "./ApaCanalInvoicePublic";
 import { useToast } from "./toast";
@@ -40,6 +40,8 @@ const SAMPLE_INVOICE: ApaCanalInvoiceData = {
 const inputCls = "h-9 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 text-sm outline-none focus:border-brand";
 const labelCls = "mb-1 block text-xs font-semibold text-ink-soft";
 
+const ELEMENT_KEYS = Object.keys(APA_CANAL_ELEMENT_LABELS) as ApaCanalElementKey[];
+
 export default function ApaCanalLayoutEditor({
   company,
   onSave,
@@ -49,18 +51,23 @@ export default function ApaCanalLayoutEditor({
 }) {
   const toast = useToast();
   const [layout, setLayout] = useState<ApaCanalLayout>(company.apaCanalLayout ?? {});
+  const [selected, setSelected] = useState<ApaCanalElementKey>("logo");
   const [pending, startTransition] = useTransition();
 
-  function setPositional(key: ApaCanalPositionalKey, patch: Partial<ApaCanalLayout[ApaCanalPositionalKey]>) {
+  // Factura se randează la mărime reală (297mm ≈ 1122px). Am încercat inițial s-o scalăm
+  // vizual (CSS transform:scale) ca să încapă în containerul disponibil, dar combinația
+  // transform:scale + react-rnd (bazat pe re-resizable/react-draggable) e nesigură — delta-urile
+  // de mouse raportate la resize ies complet distorsionate chiar cu `scale` trecut corect.
+  // Soluție robustă: fără scalare, doar scroll orizontal (comportament nativ react-rnd, fiabil).
+  const PAGE_W_PX = 297 * MM_TO_PX;
+  const PAGE_H_PX = 210 * MM_TO_PX;
+
+  function patch(key: ApaCanalElementKey, next: Partial<ApaCanalLayout[ApaCanalElementKey]>) {
     setLayout((prev) => {
       const base = APA_CANAL_LAYOUT_DEFAULTS[key];
       const current = prev[key] ?? base;
-      return { ...prev, [key]: { ...current, ...patch } };
+      return { ...prev, [key]: { ...current, ...next } };
     });
-  }
-
-  function setText(key: ApaCanalTextKey, patch: Partial<{ fontSizeMm: number; bold: boolean }>) {
-    setLayout((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }
 
   function save() {
@@ -75,75 +82,93 @@ export default function ApaCanalLayoutEditor({
     setLayout({});
   }
 
+  function resetOne(key: ApaCanalElementKey) {
+    setLayout((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
+  const base = APA_CANAL_LAYOUT_DEFAULTS[selected];
+  const val = layout[selected] ?? base;
+  const isTextKey = APA_CANAL_TEXT_KEYS.includes(selected);
+
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
       <div className="min-w-0 flex-1 overflow-auto rounded-2xl border border-[var(--color-line)] bg-zinc-100 p-4">
-        <ApaCanalInvoicePublic
-          invoice={SAMPLE_INVOICE}
-          company={company}
-          layout={layout}
-          editable
-          onLayoutChange={(key, override) => setLayout((prev) => ({ ...prev, [key]: override }))}
-        />
+        <div style={{ width: PAGE_W_PX, height: PAGE_H_PX }}>
+          <ApaCanalInvoicePublic
+            invoice={SAMPLE_INVOICE}
+            company={company}
+            layout={layout}
+            editable
+            onLayoutChange={(key, override) => setLayout((prev) => ({ ...prev, [key]: override }))}
+          />
+        </div>
       </div>
 
       <div className="flex w-full flex-col gap-4 lg:w-80 lg:shrink-0">
         <div className="card flex flex-col gap-3 p-4">
-          <h3 className="text-sm font-bold">Elemente poziționabile</h3>
-          <p className="-mt-2 text-xs text-ink-soft">Trage/redimensionează direct pe factură, sau editează exact aici (mm).</p>
-          {(Object.keys(APA_CANAL_POSITIONAL_LABELS) as ApaCanalPositionalKey[]).map((key) => {
-            const base = APA_CANAL_LAYOUT_DEFAULTS[key];
-            const val = layout[key] ?? base;
-            return (
-              <div key={key} className="rounded-xl border border-[var(--color-line)] p-3">
-                <p className="mb-2 text-xs font-semibold">{APA_CANAL_POSITIONAL_LABELS[key]}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={labelCls}>X (mm)</label>
-                    <input type="number" step="0.1" className={inputCls} value={val.xMm ?? base.xMm}
-                      onChange={(e) => setPositional(key, { xMm: Number(e.target.value) })} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Y (mm)</label>
-                    <input type="number" step="0.1" className={inputCls} value={val.yMm ?? base.yMm}
-                      onChange={(e) => setPositional(key, { yMm: Number(e.target.value) })} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Lățime (mm)</label>
-                    <input type="number" step="0.1" className={inputCls} value={val.widthMm ?? base.widthMm}
-                      onChange={(e) => setPositional(key, { widthMm: Number(e.target.value) })} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Înălțime/grosime (mm)</label>
-                    <input type="number" step="0.1" className={inputCls} value={val.heightMm ?? base.heightMm}
-                      onChange={(e) => setPositional(key, { heightMm: Number(e.target.value) })} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          <h3 className="text-sm font-bold">Elemente</h3>
+          <p className="-mt-2 text-xs text-ink-soft">
+            Trage/redimensionează direct pe factură (dreptunghiurile punctate), sau alege un element aici pentru control exact.
+          </p>
+          <select
+            className={inputCls}
+            value={selected}
+            onChange={(e) => setSelected(e.target.value as ApaCanalElementKey)}
+          >
+            {ELEMENT_KEYS.map((key) => (
+              <option key={key} value={key}>{APA_CANAL_ELEMENT_LABELS[key]}</option>
+            ))}
+          </select>
 
-        <div className="card flex flex-col gap-3 p-4">
-          <h3 className="text-sm font-bold">Text — mărime și grosime</h3>
-          {(Object.keys(APA_CANAL_TEXT_LABELS) as ApaCanalTextKey[]).map((key) => (
-            <div key={key} className="rounded-xl border border-[var(--color-line)] p-3">
-              <p className="mb-2 text-xs font-semibold">{APA_CANAL_TEXT_LABELS[key]}</p>
-              <div className="flex items-end gap-3">
-                <div className="flex-1">
-                  <label className={labelCls}>Mărime font (mm)</label>
-                  <input type="number" step="0.1" className={inputCls} value={layout[key]?.fontSizeMm ?? ""}
-                    placeholder="implicit"
-                    onChange={(e) => setText(key, { fontSizeMm: e.target.value === "" ? undefined : Number(e.target.value) })} />
-                </div>
-                <label className="flex h-9 items-center gap-1.5 text-xs font-medium">
-                  <input type="checkbox" className="size-4 accent-[var(--color-brand)]" checked={!!layout[key]?.bold}
-                    onChange={(e) => setText(key, { bold: e.target.checked })} />
-                  Bold
-                </label>
-              </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={labelCls}>X (mm)</label>
+              <input type="number" step="0.1" className={inputCls} value={val.xMm ?? base.xMm}
+                onChange={(e) => patch(selected, { xMm: Number(e.target.value) })} />
             </div>
-          ))}
+            <div>
+              <label className={labelCls}>Y (mm)</label>
+              <input type="number" step="0.1" className={inputCls} value={val.yMm ?? base.yMm}
+                onChange={(e) => patch(selected, { yMm: Number(e.target.value) })} />
+            </div>
+            <div>
+              <label className={labelCls}>Lățime (mm)</label>
+              <input type="number" step="0.1" className={inputCls} value={val.widthMm ?? base.widthMm}
+                onChange={(e) => patch(selected, { widthMm: Number(e.target.value) })} />
+            </div>
+            <div>
+              <label className={labelCls}>Înălțime (mm)</label>
+              <input type="number" step="0.1" className={inputCls} value={val.heightMm ?? base.heightMm}
+                onChange={(e) => patch(selected, { heightMm: Number(e.target.value) })} />
+            </div>
+          </div>
+
+          {isTextKey && (
+            <div className="flex items-end gap-3 border-t border-[var(--color-line)] pt-3">
+              <div className="flex-1">
+                <label className={labelCls}>Mărime font (mm)</label>
+                <input type="number" step="0.1" className={inputCls} value={layout[selected]?.fontSizeMm ?? ""}
+                  placeholder="implicit"
+                  onChange={(e) => patch(selected, { fontSizeMm: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </div>
+              <label className="flex h-9 items-center gap-1.5 text-xs font-medium">
+                <input type="checkbox" className="size-4 accent-[var(--color-brand)]" checked={!!layout[selected]?.bold}
+                  onChange={(e) => patch(selected, { bold: e.target.checked })} />
+                Bold
+              </label>
+            </div>
+          )}
+
+          <button
+            onClick={() => resetOne(selected)}
+            className="tap h-9 rounded-lg border border-[var(--color-line)] text-xs font-medium hover:bg-[var(--color-surface-2)]"
+          >
+            Resetează doar acest element
+          </button>
         </div>
 
         <div className="flex gap-2">
@@ -151,7 +176,7 @@ export default function ApaCanalLayoutEditor({
             {pending ? "Se salvează…" : "Salvează șablonul"}
           </button>
           <button onClick={reset} disabled={pending} className="tap h-11 rounded-xl border border-[var(--color-line)] px-4 text-sm font-medium hover:bg-[var(--color-surface-2)]">
-            Resetează
+            Resetează tot
           </button>
         </div>
       </div>

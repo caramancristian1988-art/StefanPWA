@@ -116,15 +116,25 @@ function ConsumptionChartLabels({ points }: { points: ConsumPoint[] }) {
 type FieldState = { overridden: boolean; textStyle: React.CSSProperties };
 
 /**
- * Fiecare element de pe factură trece prin acest wrapper. Dacă nu există suprascriere și nu
- * suntem în editor, se randează exact ca înainte (în flux normal, grid/flex) — nicio schimbare
- * de comportament pentru facturile care nu ating niciodată editorul. Dacă există o suprascriere
- * sau suntem în modul editabil, elementul iese din flux și se poziționează absolut față de
- * `.invoice-page` (px<->mm), opțional cu mâner de tras/redimensionat (Rnd) în editor.
+ * Fiecare element de pe factură trece prin acest wrapper. Dacă firma nu are deloc un șablon
+ * salvat, se randează exact ca înainte (în flux normal, grid/flex) — nicio schimbare de
+ * comportament pentru facturile care nu ating niciodată editorul.
+ *
+ * Odată ce EXISTĂ un șablon salvat (chiar dacă doar CÂTEVA elemente au fost mutate), TOATE cele
+ * 17 elemente trec la poziționare absolută (override ?? implicit) — nu doar cele explicit
+ * suprascrise. Motiv: un element scos din flux (poziționat absolut) nu mai ocupă loc în
+ * grid/flex-ul original, iar grila își recalculează lățimile coloanelor pe baza elementelor
+ * RĂMASE în flux — deci, dacă doar meterTable are o suprascriere iar chart rămâne în flux,
+ * coloana "auto" (dimensionată după meterTable) se micșorează și coloana "1fr" a graficului se
+ * lărgește, făcând graficul să se suprapună peste tabelul contorului poziționat absolut. Editorul
+ * nu are niciodată această problemă fiindcă scoate mereu TOATE elementele din flux deodată
+ * (simetric) — de-asta arăta corect acolo dar greșit pe factura reală. Trecând toate elementele
+ * la absolut simultan, imediat ce oricare are o suprascriere, eliminăm asimetria.
  */
 function LayoutField({
   elementKey,
   layout,
+  hasCustomLayout,
   editable,
   onChange,
   defaultStyle,
@@ -134,6 +144,8 @@ function LayoutField({
 }: {
   elementKey: ApaCanalElementKey;
   layout?: ApaCanalLayout | null;
+  /** Adevărat dacă firma are ORICE șablon salvat (indiferent dacă acest element anume a fost mutat). */
+  hasCustomLayout?: boolean;
   editable?: boolean;
   onChange?: (key: ApaCanalElementKey, override: ApaCanalElementOverride) => void;
   defaultStyle: React.CSSProperties;
@@ -152,7 +164,7 @@ function LayoutField({
     ...(override?.bold ? { fontWeight: 700 } : {}),
   };
 
-  if (!editable && !override) {
+  if (!editable && !hasCustomLayout) {
     return <div style={defaultStyle}>{children({ overridden: false, textStyle })}</div>;
   }
 
@@ -246,12 +258,14 @@ export default function ApaCanalInvoicePublic({
   // direct în `.invoice-page` — vezi explicația din LayoutField.
   const [pageEl, setPageEl] = useState<HTMLDivElement | null>(null);
 
+  const hasCustomLayout = !!layout && Object.keys(layout).length > 0;
+
   const field = (
     elementKey: ApaCanalElementKey,
     defaultStyle: React.CSSProperties,
     children: (state: FieldState) => React.ReactNode,
   ) => (
-    <LayoutField elementKey={elementKey} layout={layout} editable={editable} onChange={onLayoutChange} defaultStyle={defaultStyle} scale={previewScale} portalTarget={pageEl}>
+    <LayoutField elementKey={elementKey} layout={layout} hasCustomLayout={hasCustomLayout} editable={editable} onChange={onLayoutChange} defaultStyle={defaultStyle} scale={previewScale} portalTarget={pageEl}>
       {children}
     </LayoutField>
   );

@@ -155,11 +155,11 @@ export default function ApaCanalInvoicePublic({
             ) : null}
           </div>
 
-          <div style={{ gridColumn: 1, gridRow: 2, marginTop: "15mm", alignSelf: "center" }}>
+          <div style={{ gridColumn: 1, gridRow: 2, marginTop: "3mm", alignSelf: "center" }}>
             <ConsumptionChart points={points} />
             <ConsumptionChartLabels points={points} />
           </div>
-          <table className="text-center" style={{ gridColumn: 2, gridRow: 2, marginTop: "15mm", alignSelf: "start", fontSize: "2.8mm" }}>
+          <table className="text-center" style={{ gridColumn: 2, gridRow: 2, marginTop: "3mm", alignSelf: "start", fontSize: "2.8mm" }}>
             <thead>
               <tr style={{ color: COLOR_BORDER }}>
                 <th className="whitespace-nowrap font-medium" style={{ padding: "0 2mm 1mm" }}>Numărul<br />contorului</th>
@@ -177,7 +177,7 @@ export default function ApaCanalInvoicePublic({
               </tr>
             </tbody>
           </table>
-          <div className="text-center" style={{ gridColumn: 3, gridRow: 2, marginTop: "15mm", alignSelf: "start", color: COLOR_TEXT, fontSize: "4mm", lineHeight: 1.15 }}>
+          <div className="text-center" style={{ gridColumn: 3, gridRow: 2, marginTop: "3mm", alignSelf: "start", color: COLOR_TEXT, fontSize: "4mm", lineHeight: 1.15 }}>
             <p>{company.apaCanalAddress}</p>
             <p>{company.apaCanalEmail}</p>
             <p className="font-semibold">{company.apaCanalCompanyLine}</p>

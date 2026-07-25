@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import type { Company } from "@/lib/queries/company";
 import type { ApaCanalLayout, ApaCanalElementKey } from "@/lib/apa-canal-layout";
 import { APA_CANAL_ELEMENT_LABELS, APA_CANAL_TEXT_KEYS, APA_CANAL_LAYOUT_DEFAULTS, MM_TO_PX } from "@/lib/apa-canal-layout";
@@ -54,13 +54,35 @@ export default function ApaCanalLayoutEditor({
   const [selected, setSelected] = useState<ApaCanalElementKey>("logo");
   const [pending, startTransition] = useTransition();
 
-  // Factura se randează la mărime reală (297mm ≈ 1122px). Am încercat inițial s-o scalăm
-  // vizual (CSS transform:scale) ca să încapă în containerul disponibil, dar combinația
-  // transform:scale + react-rnd (bazat pe re-resizable/react-draggable) e nesigură — delta-urile
-  // de mouse raportate la resize ies complet distorsionate chiar cu `scale` trecut corect.
-  // Soluție robustă: fără scalare, doar scroll orizontal (comportament nativ react-rnd, fiabil).
   const PAGE_W_PX = 297 * MM_TO_PX;
   const PAGE_H_PX = 210 * MM_TO_PX;
+
+  // Factura se randează la mărime reală (297mm ≈ 1122px), care de obicei depășește lățimea
+  // disponibilă lângă panoul lateral — coloana din dreapta (logo/text companie/Anunț/Contacte/
+  // Scanează) ieșea din zona vizibilă fără niciun indiciu că mai trebuie scrollat orizontal,
+  // ceea ce părea că acele elemente "lipsesc". Rezolvare: scalăm vizual containerul ca să încapă
+  // mereu în lățime, transmițând același factor lui react-rnd prin prop-ul `scale` (necesar ca
+  // să convertească corect delta-urile de mouse la trage/redimensionare).
+  //
+  // Important: NU randăm factura editabilă până nu știm scala reală. react-rnd sincronizează
+  // poziția internă cu DOM-ul la montare/actualizare folosind `scale` — dacă am monta întâi cu
+  // scala implicită (1) și am schimba-o imediat după (la prima măsurătoare), acel du-te-vino
+  // (montare → schimbare scală fără remontare completă) producea poziții duble/greșite. Montând
+  // o singură dată, direct cu scala corectă, problema dispare (verificat cu teste reale de mouse).
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const update = () => {
+      const availW = el.clientWidth - 32; // p-4 = 16px pe fiecare parte
+      setScale(Math.min(1, Math.round((availW / PAGE_W_PX) * 100) / 100));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [PAGE_W_PX]);
 
   function patch(key: ApaCanalElementKey, next: Partial<ApaCanalLayout[ApaCanalElementKey]>) {
     setLayout((prev) => {
@@ -96,16 +118,21 @@ export default function ApaCanalLayoutEditor({
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
-      <div className="min-w-0 flex-1 overflow-auto rounded-2xl border border-[var(--color-line)] bg-zinc-100 p-4">
-        <div style={{ width: PAGE_W_PX, height: PAGE_H_PX }}>
-          <ApaCanalInvoicePublic
-            invoice={SAMPLE_INVOICE}
-            company={company}
-            layout={layout}
-            editable
-            onLayoutChange={(key, override) => setLayout((prev) => ({ ...prev, [key]: override }))}
-          />
-        </div>
+      <div ref={previewRef} className="min-w-0 flex-1 overflow-auto rounded-2xl border border-[var(--color-line)] bg-zinc-100 p-4">
+        {scale !== null && (
+          <div style={{ width: PAGE_W_PX * scale, height: PAGE_H_PX * scale }}>
+            <div style={{ width: PAGE_W_PX, height: PAGE_H_PX, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+              <ApaCanalInvoicePublic
+                invoice={SAMPLE_INVOICE}
+                company={company}
+                layout={layout}
+                editable
+                previewScale={scale}
+                onLayoutChange={(key, override) => setLayout((prev) => ({ ...prev, [key]: override }))}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex w-full flex-col gap-4 lg:w-80 lg:shrink-0">

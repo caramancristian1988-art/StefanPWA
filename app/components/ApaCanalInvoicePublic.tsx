@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Rnd } from "react-rnd";
 import type { Company } from "@/lib/queries/company";
 import { fmtDate } from "./invoice-meta";
@@ -40,7 +42,7 @@ export type ApaCanalInvoiceData = {
 // Paleta exactă extrasă din modelul de factură Apă-Canal.
 const COLOR_BG = "#FCFDFC";
 const COLOR_BOX_BLUE = "#86D3EA";
-const COLOR_BAR = "#5492B2";
+const COLOR_BAR = "#2C5F7C";
 const COLOR_TEXT = "#202C2A";
 const COLOR_BORDER = "#AEB0B0";
 const COLOR_BORDER_LIGHT = "#D9DDDD";
@@ -67,7 +69,7 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
   for (let v = yMax; v >= 0; v -= step) ySteps.push(Math.round(v * 100) / 100);
 
   return (
-    <div className="flex gap-[1.5mm] overflow-hidden p-[1.5mm]" style={{ height: "44mm", background: COLOR_BG, border: `1px solid ${COLOR_BORDER}` }}>
+    <div className="flex gap-[1.5mm] overflow-hidden p-[1.5mm]" style={{ height: "44mm", background: COLOR_BG, border: `1.5px solid #000000` }}>
       <div className="flex h-full shrink-0 flex-col justify-between text-right leading-none" style={{ color: COLOR_BORDER, fontSize: "2.6mm" }}>
         {ySteps.map((s) => <span key={s}>{s}</span>)}
       </div>
@@ -86,7 +88,7 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
             <div key={i} className="flex h-full flex-1 flex-col items-center justify-end">
               <div
                 className="w-full"
-                style={{ maxWidth: "7mm", height: `${Math.max(1, (p.value / yMax) * 100)}%`, background: COLOR_BAR }}
+                style={{ maxWidth: "7mm", height: `${Math.max(1, (p.value / yMax) * 100)}%`, background: COLOR_BAR, border: "1px solid #000000" }}
                 title={`${p.label}: ${p.value} m³`}
               />
             </div>
@@ -128,6 +130,7 @@ function LayoutField({
   defaultStyle,
   children,
   scale = 1,
+  portalTarget,
 }: {
   elementKey: ApaCanalElementKey;
   layout?: ApaCanalLayout | null;
@@ -137,6 +140,8 @@ function LayoutField({
   children: (state: FieldState) => React.ReactNode;
   /** Factorul de scalare vizuală a previzualizării în editor (react-rnd trebuie să știe de el ca să convertească corect delta-urile de mouse). */
   scale?: number;
+  /** Nodul `.invoice-page` — react-rnd randează prin portal direct în el (vezi explicația de mai jos). */
+  portalTarget?: HTMLElement | null;
 }) {
   const override = layout?.[elementKey];
   // Notă: NU includem chei cu valoare `undefined` — un spread `{...textStyle}` peste un
@@ -168,7 +173,18 @@ function LayoutField({
     );
   }
 
-  return (
+  // Randăm prin portal direct în `.invoice-page`, nu inline la locul din JSX (care e mereu
+  // imbricat în alte div-uri grid/flex de layout). Motiv: la montare, react-rnd își corectează
+  // singur poziția presupunând că PROPRIUL PĂRINTE DOM e chiar blocul de referință (containing
+  // block) pentru poziționarea absolută — dar la noi blocul de referință real e mereu
+  // `.invoice-page` (singurul cu `position:relative`), care poate fi cu multe niveluri mai sus.
+  // Pentru elementele al căror părinte DOM imediat era departe de originea paginii (ex. coloana
+  // din dreapta cu Anunț/Contacte/Scanează, plasată la ~220mm), acea auto-corecție producea
+  // poziții complet greșite (dublate) — verificat direct în sursa react-rnd
+  // (`updateOffsetFromParent`/`componentDidMount`). Portalul elimină problema: părintele DOM
+  // devine chiar `.invoice-page`, exact ce presupune biblioteca.
+  if (!portalTarget) return null;
+  return createPortal(
     <Rnd
       // Necontrolat (`default`, nu `size`/`position`) — cu props controlate, react-rnd
       // "luptă" cu propriul drag intern dacă părintele nu retrimite poziția pe FIECARE
@@ -198,7 +214,8 @@ function LayoutField({
       style={{ outline: `1px dashed ${COLOR_BAR}`, background: "rgba(134,211,234,0.10)" }}
     >
       <div style={{ width: "100%", height: "100%" }}>{children({ overridden: true, textStyle })}</div>
-    </Rnd>
+    </Rnd>,
+    portalTarget,
   );
 }
 
@@ -225,19 +242,23 @@ export default function ApaCanalInvoicePublic({
     ? (invoice.monthlyConsumption as ConsumPoint[])
     : [];
 
+  // Necesar doar în editor (`editable`): ținta portalului prin care randăm fiecare Rnd
+  // direct în `.invoice-page` — vezi explicația din LayoutField.
+  const [pageEl, setPageEl] = useState<HTMLDivElement | null>(null);
+
   const field = (
     elementKey: ApaCanalElementKey,
     defaultStyle: React.CSSProperties,
     children: (state: FieldState) => React.ReactNode,
   ) => (
-    <LayoutField elementKey={elementKey} layout={layout} editable={editable} onChange={onLayoutChange} defaultStyle={defaultStyle} scale={previewScale}>
+    <LayoutField elementKey={elementKey} layout={layout} editable={editable} onChange={onLayoutChange} defaultStyle={defaultStyle} scale={previewScale} portalTarget={pageEl}>
       {children}
     </LayoutField>
   );
 
   return (
     <>
-      <div className="invoice-page">
+      <div className="invoice-page" ref={editable ? setPageEl : undefined}>
         {/* ── Titlu, pe toată lățimea ── */}
         <div style={{ gridColumn: "1 / -1", gridRow: 1 }}>
           {field("title", {}, ({ textStyle }) => (
@@ -247,7 +268,11 @@ export default function ApaCanalInvoicePublic({
           ))}
           {field("titleLine", {}, ({ overridden }) =>
             overridden ? (
-              <div style={{ width: "100%", height: "100%", background: COLOR_BOX_BLUE }} />
+              // Zonă de tras/redimensionat mai generoasă (implicit 3mm) — linia rămâne subțire
+              // vizual (0.6mm), centrată pe verticală în interiorul acelei zone.
+              <div className="flex h-full w-full items-center">
+                <div style={{ width: "100%", height: "0.6mm", background: COLOR_BOX_BLUE }} />
+              </div>
             ) : (
               <div style={{ height: "0.6mm", width: "calc(100% - 65mm)", background: COLOR_BOX_BLUE }} />
             )
@@ -368,8 +393,8 @@ export default function ApaCanalInvoicePublic({
             ))}
 
           {/* Servicii */}
-          {field("servicesTable", {}, () => (
-            <table style={{ fontSize: "2.9mm", width: "100%" }}>
+          {field("servicesTable", {}, ({ textStyle }) => (
+            <table style={{ fontSize: "2.9mm", width: "100%", ...textStyle }}>
               <thead>
                 <tr className="text-left" style={{ borderBottom: `1px solid ${COLOR_BOX_BLUE}`, color: COLOR_BORDER }}>
                   <th className="whitespace-nowrap font-medium" style={{ padding: "0.6mm 0" }}>Denumirea serviciului</th>
@@ -426,7 +451,9 @@ export default function ApaCanalInvoicePublic({
                 { flex: 1, marginRight: "3mm" },
                 ({ overridden }) =>
                   overridden ? (
-                    <div style={{ width: "100%", height: "100%", background: COLOR_BOX_BLUE }} />
+                    <div className="flex h-full w-full items-center">
+                      <div style={{ width: "100%", height: "1.5px", background: COLOR_BOX_BLUE }} />
+                    </div>
                   ) : (
                     <div style={{ height: "100%", borderBottom: `1.5px solid ${COLOR_BOX_BLUE}` }} />
                   ),

@@ -58,7 +58,9 @@ export const APA_CANAL_TEXT_KEYS: ApaCanalElementKey[] = [
   "datesBlock",
   "contPersonalBlock",
   "companyInfoText",
+  "meterTable",
   "billingPeriodText",
+  "servicesTable",
   "recalculariText",
   "totalsBox",
   "atentieBox",
@@ -69,7 +71,7 @@ export const APA_CANAL_TEXT_KEYS: ApaCanalElementKey[] = [
 /** Poziții/mărimi implicite (mm), folosite doar ca punct de plecare în editor înainte de prima ajustare. */
 export const APA_CANAL_LAYOUT_DEFAULTS: Record<ApaCanalElementKey, Required<Pick<ApaCanalElementOverride, "xMm" | "yMm" | "widthMm" | "heightMm">>> = {
   title: { xMm: 5, yMm: 5, widthMm: 200, heightMm: 8 },
-  titleLine: { xMm: 5, yMm: 13, widthMm: 210, heightMm: 0.6 },
+  titleLine: { xMm: 5, yMm: 12, widthMm: 210, heightMm: 3 },
   datesBlock: { xMm: 5, yMm: 16, widthMm: 150, heightMm: 12 },
   contPersonalBlock: { xMm: 165, yMm: 16, widthMm: 50, heightMm: 24 },
   logo: { xMm: 220, yMm: 5, widthMm: 70, heightMm: 40 },
@@ -79,7 +81,7 @@ export const APA_CANAL_LAYOUT_DEFAULTS: Record<ApaCanalElementKey, Required<Pick
   billingPeriodText: { xMm: 5, yMm: 88, widthMm: 150, heightMm: 6 },
   servicesTable: { xMm: 5, yMm: 95, widthMm: 150, heightMm: 18 },
   recalculariText: { xMm: 5, yMm: 118, widthMm: 35, heightMm: 12 },
-  totalsConnectorLine: { xMm: 45, yMm: 128, widthMm: 75, heightMm: 1.5 },
+  totalsConnectorLine: { xMm: 45, yMm: 127, widthMm: 75, heightMm: 3 },
   totalsBox: { xMm: 125, yMm: 115, widthMm: 58, heightMm: 20 },
   atentieBox: { xMm: 5, yMm: 138, widthMm: 150, heightMm: 35 },
   anuntBox: { xMm: 220, yMm: 78, widthMm: 70, heightMm: 35 },

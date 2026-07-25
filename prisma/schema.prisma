@@ -483,6 +483,10 @@ model CompanySettings {
   apaCanalTarifApa   Float @default(0)
   apaCanalTarifCanal Float @default(0)
 
+  // Suprascrieri poziție/mărime pentru editorul vizual al facturii Apă-Canal.
+  // Formă: { [elementKey]: { xMm, yMm, widthMm, heightMm?, fontSizeMm?, bold? } }
+  apaCanalLayout Json?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

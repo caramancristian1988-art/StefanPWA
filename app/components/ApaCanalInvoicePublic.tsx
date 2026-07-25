@@ -1,9 +1,20 @@
+"use client";
+
+import { Rnd } from "react-rnd";
 import type { Company } from "@/lib/queries/company";
 import { fmtDate } from "./invoice-meta";
+import {
+  MM_TO_PX,
+  round1,
+  APA_CANAL_LAYOUT_DEFAULTS,
+  type ApaCanalLayout,
+  type ApaCanalPositionalKey,
+  type ApaCanalElementOverride,
+} from "@/lib/apa-canal-layout";
 
 type ConsumPoint = { label: string; value: number };
 
-type ApaCanalInvoiceData = {
+export type ApaCanalInvoiceData = {
   number: string;
   issueDate: Date;
   dueDate: Date | null;
@@ -100,12 +111,84 @@ function ConsumptionChartLabels({ points }: { points: ConsumPoint[] }) {
   );
 }
 
+/**
+ * Element "poziționabil" (logo, linii): dacă nu există suprascriere și nu suntem în editor,
+ * se randează exact ca înainte (în flux normal, grid/flex). Dacă există o suprascriere sau
+ * suntem în modul editabil, elementul iese din flux și se poziționează absolut față de
+ * `.invoice-page` (px<->mm), opțional cu mâner de tras/redimensionat (Rnd) în editor.
+ */
+function LayoutField({
+  elementKey,
+  layout,
+  editable,
+  onChange,
+  defaultStyle,
+  children,
+}: {
+  elementKey: ApaCanalPositionalKey;
+  layout?: ApaCanalLayout | null;
+  editable?: boolean;
+  onChange?: (key: ApaCanalPositionalKey, override: ApaCanalElementOverride) => void;
+  defaultStyle: React.CSSProperties;
+  children: (overridden: boolean) => React.ReactNode;
+}) {
+  const override = layout?.[elementKey];
+
+  if (!editable && !override) {
+    return <div style={defaultStyle}>{children(false)}</div>;
+  }
+
+  const base = APA_CANAL_LAYOUT_DEFAULTS[elementKey];
+  const ov: Required<Pick<ApaCanalElementOverride, "xMm" | "yMm" | "widthMm" | "heightMm">> = {
+    xMm: override?.xMm ?? base.xMm,
+    yMm: override?.yMm ?? base.yMm,
+    widthMm: override?.widthMm ?? base.widthMm,
+    heightMm: override?.heightMm ?? base.heightMm,
+  };
+
+  if (!editable) {
+    return (
+      <div style={{ position: "absolute", left: `${ov.xMm}mm`, top: `${ov.yMm}mm`, width: `${ov.widthMm}mm`, height: `${ov.heightMm}mm` }}>
+        {children(true)}
+      </div>
+    );
+  }
+
+  return (
+    <Rnd
+      size={{ width: ov.widthMm * MM_TO_PX, height: ov.heightMm * MM_TO_PX }}
+      position={{ x: ov.xMm * MM_TO_PX, y: ov.yMm * MM_TO_PX }}
+      onDragStop={(_e, d) => {
+        onChange?.(elementKey, { ...ov, xMm: round1(d.x / MM_TO_PX), yMm: round1(d.y / MM_TO_PX) });
+      }}
+      onResizeStop={(_e, _dir, ref, _delta, pos) => {
+        onChange?.(elementKey, {
+          widthMm: round1(ref.offsetWidth / MM_TO_PX),
+          heightMm: round1(ref.offsetHeight / MM_TO_PX),
+          xMm: round1(pos.x / MM_TO_PX),
+          yMm: round1(pos.y / MM_TO_PX),
+        });
+      }}
+      bounds="parent"
+      style={{ outline: `1px dashed ${COLOR_BAR}`, background: "rgba(134,211,234,0.12)" }}
+    >
+      {children(true)}
+    </Rnd>
+  );
+}
+
 export default function ApaCanalInvoicePublic({
   invoice,
   company,
+  layout,
+  editable,
+  onLayoutChange,
 }: {
   invoice: ApaCanalInvoiceData;
   company: Company;
+  layout?: ApaCanalLayout | null;
+  editable?: boolean;
+  onLayoutChange?: (key: ApaCanalPositionalKey, override: ApaCanalElementOverride) => void;
 }) {
   const apaItem = invoice.items.find((it) => /alimentare cu apa/i.test(it.description));
   const canalItem = invoice.items.find((it) => /canalizare/i.test(it.description));
@@ -122,7 +205,15 @@ export default function ApaCanalInvoicePublic({
           <h1 style={{ fontSize: "4mm", fontWeight: 600, margin: "0 0 1.5mm" }}>
             Factura pentru serviciul de alimentare cu apă și de canalizare
           </h1>
-          <div style={{ height: "0.6mm", width: "calc(100% - 65mm)", background: COLOR_BOX_BLUE }} />
+          <LayoutField elementKey="titleLine" layout={layout} editable={editable} onChange={onLayoutChange} defaultStyle={{}}>
+            {(overridden) =>
+              overridden ? (
+                <div style={{ width: "100%", height: "100%", background: COLOR_BOX_BLUE }} />
+              ) : (
+                <div style={{ height: "0.6mm", width: "calc(100% - 65mm)", background: COLOR_BOX_BLUE }} />
+              )
+            }
+          </LayoutField>
         </div>
 
         {/* ── Rânduri 2-3, pe toată lățimea: UN SINGUR grid (chart | cont-personal/tabel | logo/text)
@@ -148,12 +239,27 @@ export default function ApaCanalInvoicePublic({
             <p>{invoice.consumAddress || "—"}</p>
             <p className="font-bold uppercase">{invoice.consumerName || invoice.client?.name || ""}</p>
           </div>
-          <div className="flex justify-center self-start" style={{ gridColumn: 3, gridRow: 1 }}>
-            {company.apaCanalLogo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={company.apaCanalLogo} alt={company.apaCanalCompanyLine} className="object-contain" style={{ width: "110mm", maxWidth: "none", height: "auto" }} />
-            ) : null}
-          </div>
+          <LayoutField
+            elementKey="logo"
+            layout={layout}
+            editable={editable}
+            onChange={onLayoutChange}
+            defaultStyle={{ gridColumn: 3, gridRow: 1, display: "flex", justifyContent: "center", alignSelf: "start" }}
+          >
+            {(overridden) =>
+              company.apaCanalLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={company.apaCanalLogo}
+                  alt={company.apaCanalCompanyLine}
+                  className="object-contain"
+                  style={overridden ? { width: "100%", height: "100%" } : { width: "100%", height: "auto" }}
+                />
+              ) : editable ? (
+                <div className="flex h-full w-full items-center justify-center text-xs" style={{ color: COLOR_BORDER, border: `1px dashed ${COLOR_BORDER}` }}>Logo</div>
+              ) : null
+            }
+          </LayoutField>
 
           <div style={{ gridColumn: 1, gridRow: 2, marginTop: "3mm", alignSelf: "center" }}>
             <ConsumptionChart points={points} />
@@ -177,7 +283,19 @@ export default function ApaCanalInvoicePublic({
               </tr>
             </tbody>
           </table>
-          <div className="text-center" style={{ gridColumn: 3, gridRow: 2, marginTop: "3mm", alignSelf: "start", color: COLOR_TEXT, fontSize: "4mm", lineHeight: 1.15 }}>
+          <div
+            className="text-center"
+            style={{
+              gridColumn: 3,
+              gridRow: 2,
+              marginTop: "3mm",
+              alignSelf: "start",
+              color: COLOR_TEXT,
+              fontSize: `${layout?.companyInfoText?.fontSizeMm ?? 4}mm`,
+              fontWeight: layout?.companyInfoText?.bold ? 700 : undefined,
+              lineHeight: 1.15,
+            }}
+          >
             <p>{company.apaCanalAddress}</p>
             <p>{company.apaCanalEmail}</p>
             <p className="font-semibold">{company.apaCanalCompanyLine}</p>
@@ -228,7 +346,21 @@ export default function ApaCanalInvoicePublic({
                 <p>Recalculări:{invoice.recalculari ? ` ${num2(invoice.recalculari)}` : ""}</p>
                 <p>Penalitate:{invoice.penalitati ? ` ${num2(invoice.penalitati)}` : ""}</p>
               </div>
-              <div className="flex-1" style={{ borderBottom: `1.5px solid ${COLOR_BOX_BLUE}`, marginRight: "3mm" }} />
+              <LayoutField
+                elementKey="totalsConnectorLine"
+                layout={layout}
+                editable={editable}
+                onChange={onLayoutChange}
+                defaultStyle={{ flex: 1, marginRight: "3mm" }}
+              >
+                {(overridden) =>
+                  overridden ? (
+                    <div style={{ width: "100%", height: "100%", background: COLOR_BOX_BLUE }} />
+                  ) : (
+                    <div style={{ height: "100%", borderBottom: `1.5px solid ${COLOR_BOX_BLUE}` }} />
+                  )
+                }
+              </LayoutField>
             </div>
             <div className="shrink-0" style={{ width: "58mm", background: COLOR_BOX_BLUE, borderRadius: "3mm", padding: "2mm 3mm" }}>
               <div className="flex justify-between whitespace-nowrap">
@@ -249,14 +381,14 @@ export default function ApaCanalInvoicePublic({
           {/* ATENȚIE — se mulează pe conținut, nu se întinde până jos */}
           <div style={{ background: COLOR_BOX_BLUE, borderRadius: "3.5mm", padding: "2.5mm 3.5mm" }}>
             <p className="font-bold" style={{ color: COLOR_RED, fontSize: "4mm", margin: "0 0 1mm" }}>ATENȚIE !</p>
-            <p style={{ color: COLOR_TEXT, fontSize: "2.8mm", lineHeight: 1.5 }}>{company.apaCanalAtentieText}</p>
+            <p style={{ color: COLOR_TEXT, fontSize: `${layout?.atentieText?.fontSizeMm ?? 2.8}mm`, fontWeight: layout?.atentieText?.bold ? 700 : undefined, lineHeight: 1.5 }}>{company.apaCanalAtentieText}</p>
           </div>
         </div>
 
         <div className="flex flex-col self-start" style={{ gridColumn: 2, gridRow: 4, marginTop: "3mm", gap: "3mm" }}>
           <div className="text-center" style={{ background: COLOR_BOX_BLUE, borderRadius: "7mm", padding: "2.5mm 3.5mm" }}>
             <p className="font-bold" style={{ color: COLOR_RED, fontSize: "4mm", margin: "0 0 1mm" }}>Anunț !</p>
-            <p style={{ color: COLOR_TEXT, fontSize: "2.7mm", lineHeight: 1.4 }}>{company.apaCanalAnuntText}</p>
+            <p style={{ color: COLOR_TEXT, fontSize: `${layout?.anuntText?.fontSizeMm ?? 2.7}mm`, fontWeight: layout?.anuntText?.bold ? 700 : undefined, lineHeight: 1.4 }}>{company.apaCanalAnuntText}</p>
           </div>
 
           <div style={{ fontSize: "2.7mm" }}>
@@ -284,6 +416,7 @@ export default function ApaCanalInvoicePublic({
         @page { size: A4 landscape; margin: 0; }
 
         .invoice-page {
+          position: relative;
           width: 297mm;
           height: 210mm;
           padding: 5mm 5mm 4mm 5mm;

@@ -62,8 +62,8 @@ export async function GET(
     });
   } catch (e) {
     console.error("[invoice/pdf] eșec generare PDF:", e);
-    const detail = process.env.VERCEL_ENV !== "production" ? ` ${e instanceof Error ? e.message : String(e)}` : "";
-    return NextResponse.json({ error: `Nu am putut genera PDF-ul.${detail}` }, { status: 500 });
+    const detail = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: `Nu am putut genera PDF-ul.`, detail }, { status: 500 });
   } finally {
     await browser?.close().catch(() => {});
     await cleanup?.().catch(() => {});

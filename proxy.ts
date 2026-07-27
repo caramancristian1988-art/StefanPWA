@@ -45,8 +45,10 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  // Nu rula pe API (își gestionează singure auth), assets, sw, manifest, iconuri.
+  // Nu rula pe API (își gestionează singure auth), assets, sw, manifest, iconuri, sau
+  // opengraph-image/twitter-image (accesate fără sesiune de crawlerele de preview link —
+  // WhatsApp, Telegram etc. — care nu au cookie-ul de sesiune și ar fi redirecționate la login).
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons|invoice/public|.*\\.(?:png|svg|ico|webmanifest|js|json|txt)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons|invoice/public|opengraph-image|twitter-image|.*\\.(?:png|svg|ico|webmanifest|js|json|txt)$).*)",
   ],
 };

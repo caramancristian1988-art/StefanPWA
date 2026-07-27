@@ -70,7 +70,7 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
 
   return (
     <div className="flex gap-[1.5mm] overflow-hidden p-[1.5mm]" style={{ height: "44mm", background: COLOR_BG, border: `1.5px solid #000000` }}>
-      <div className="flex h-full shrink-0 flex-col justify-between text-right leading-none" style={{ color: COLOR_BORDER, fontSize: "2.6mm" }}>
+      <div className="flex h-full shrink-0 flex-col justify-between text-right leading-none" style={{ color: COLOR_TEXT, fontWeight: 600, fontSize: "2.6mm" }}>
         {ySteps.map((s) => <span key={s}>{s}</span>)}
       </div>
       <div className="relative flex-1">
@@ -79,7 +79,7 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
           <div
             key={s}
             className="absolute left-0 right-0 border-t"
-            style={{ bottom: `${(s / yMax) * 100}%`, borderColor: COLOR_BORDER_LIGHT }}
+            style={{ bottom: `${(s / yMax) * 100}%`, borderColor: "#000000" }}
           />
         ))}
         {/* Bare */}
@@ -106,7 +106,7 @@ function ConsumptionChartLabels({ points }: { points: ConsumPoint[] }) {
       <div className="shrink-0" style={{ width: "7mm" }} />
       <div className="flex flex-1 gap-[0.8mm]">
         {points.map((p, i) => (
-          <span key={i} className="flex-1 text-center" style={{ color: COLOR_BORDER, fontSize: "2.6mm" }}>{p.label}</span>
+          <span key={i} className="flex-1 text-center" style={{ color: COLOR_TEXT, fontWeight: 600, fontSize: "2.6mm" }}>{p.label}</span>
         ))}
       </div>
     </div>

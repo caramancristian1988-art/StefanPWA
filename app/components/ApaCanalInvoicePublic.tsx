@@ -326,8 +326,9 @@ export default function ApaCanalInvoicePublic({
                 <p className="font-bold">
                   Cont personal: {invoice.contPersonal || "—"}
                   {invoice.sectorNr && (
-                    <span className="ml-2 rounded font-normal" style={{ border: `1.5px solid ${COLOR_TEXT}`, padding: "0 1mm", fontSize: "2.6mm" }}>
-                      sector nr. {invoice.sectorNr}
+                    <span className="ml-2 font-normal">
+                      <span className="rounded" style={{ border: `1.5px solid ${COLOR_TEXT}`, padding: "0 1mm", fontSize: "2.6mm" }}>sector nr.</span>{" "}
+                      {invoice.sectorNr}
                     </span>
                   )}
                 </p>

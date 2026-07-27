@@ -42,7 +42,9 @@ export type ApaCanalInvoiceData = {
 // Paleta exactă extrasă din modelul de factură Apă-Canal.
 const COLOR_BG = "#FCFDFC";
 const COLOR_BOX_BLUE = "#86D3EA";
-const COLOR_BAR = "#2C5F7C";
+const COLOR_BAR = "#4472C4";
+const COLOR_BAR_BORDER = "#2F5597";
+const COLOR_CHART_TEXT = "#595959";
 const COLOR_TEXT = "#202C2A";
 const COLOR_BORDER = "#AEB0B0";
 const COLOR_BORDER_LIGHT = "#D9DDDD";
@@ -69,8 +71,8 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
   for (let v = yMax; v >= 0; v -= step) ySteps.push(Math.round(v * 100) / 100);
 
   return (
-    <div className="flex gap-[1.5mm] overflow-hidden p-[1.5mm]" style={{ height: "44mm", background: COLOR_BG, border: `1.5px solid #000000` }}>
-      <div className="flex h-full shrink-0 flex-col justify-between text-right leading-none" style={{ color: COLOR_TEXT, fontWeight: 600, fontSize: "2.6mm" }}>
+    <div className="flex gap-[1.5mm] overflow-hidden p-[1.5mm]" style={{ height: "44mm", background: COLOR_BG, border: `1px solid ${COLOR_BORDER}` }}>
+      <div className="flex h-full shrink-0 flex-col justify-between text-right leading-none" style={{ color: COLOR_CHART_TEXT, fontSize: "2.6mm" }}>
         {ySteps.map((s) => <span key={s}>{s}</span>)}
       </div>
       <div className="relative flex-1">
@@ -79,7 +81,7 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
           <div
             key={s}
             className="absolute left-0 right-0 border-t"
-            style={{ bottom: `${(s / yMax) * 100}%`, borderColor: "#000000" }}
+            style={{ bottom: `${(s / yMax) * 100}%`, borderColor: COLOR_BORDER }}
           />
         ))}
         {/* Bare */}
@@ -88,7 +90,7 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
             <div key={i} className="flex h-full flex-1 flex-col items-center justify-end">
               <div
                 className="w-full"
-                style={{ maxWidth: "7mm", height: `${Math.max(1, (p.value / yMax) * 100)}%`, background: COLOR_BAR, border: "1px solid #000000" }}
+                style={{ maxWidth: "7mm", height: `${Math.max(1, (p.value / yMax) * 100)}%`, background: COLOR_BAR, border: `1px solid ${COLOR_BAR_BORDER}` }}
                 title={`${p.label}: ${p.value} m³`}
               />
             </div>
@@ -106,7 +108,7 @@ function ConsumptionChartLabels({ points }: { points: ConsumPoint[] }) {
       <div className="shrink-0" style={{ width: "7mm" }} />
       <div className="flex flex-1 gap-[0.8mm]">
         {points.map((p, i) => (
-          <span key={i} className="flex-1 text-center" style={{ color: COLOR_TEXT, fontWeight: 600, fontSize: "2.6mm" }}>{p.label}</span>
+          <span key={i} className="flex-1 text-center" style={{ color: COLOR_CHART_TEXT, fontSize: "2.6mm" }}>{p.label}</span>
         ))}
       </div>
     </div>

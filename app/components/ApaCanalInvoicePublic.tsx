@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Rnd } from "react-rnd";
 import type { Company } from "@/lib/queries/company";
@@ -267,6 +267,28 @@ export default function ApaCanalInvoicePublic({
 
   const hasCustomLayout = !!layout && Object.keys(layout).length > 0;
 
+  // Factura publică (nu editor) e A4 landscape la mărime reală (~1122px lățime) — pe telefon
+  // depășește mereu ecranul, deci fără scalare utilizatorul vedea doar o bucată "zoomată",
+  // trebuind să facă pinch-zoom/scroll ca s-o citească. Se scalează doar pe ECRAN (vezi CSS:
+  // `@media print` resetează la mărime reală cu !important, indiferent de această valoare) —
+  // PDF-ul (Playwright emulează print media) și tipărirea rămân neafectate.
+  const scaleWrapRef = useRef<HTMLDivElement>(null);
+  const [autoScale, setAutoScale] = useState(1);
+  useEffect(() => {
+    if (editable) return; // editorul are propriul mecanism de scalare (ApaCanalLayoutEditor)
+    const el = scaleWrapRef.current;
+    if (!el) return;
+    const pageWidthPx = 297 * MM_TO_PX;
+    const update = () => {
+      const availW = el.clientWidth;
+      setAutoScale(availW > 0 ? Math.min(1, availW / pageWidthPx) : 1);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [editable]);
+
   const field = (
     elementKey: ApaCanalElementKey,
     defaultStyle: React.CSSProperties,
@@ -277,8 +299,7 @@ export default function ApaCanalInvoicePublic({
     </LayoutField>
   );
 
-  return (
-    <>
+  const pageContent = (
       <div className="invoice-page" ref={editable ? setPageEl : undefined}>
         {/* ── Titlu, pe toată lățimea ── */}
         <div style={{ gridColumn: "1 / -1", gridRow: 1 }}>
@@ -544,6 +565,19 @@ export default function ApaCanalInvoicePublic({
           ))}
         </div>
       </div>
+  );
+
+  return (
+    <>
+      {editable ? (
+        pageContent
+      ) : (
+        <div ref={scaleWrapRef} className="invoice-scale-outer" style={{ height: `${210 * MM_TO_PX * autoScale}px` }}>
+          <div className="invoice-scale-inner" style={{ "--invoice-scale": autoScale } as React.CSSProperties}>
+            {pageContent}
+          </div>
+        </div>
+      )}
 
       <style>{`
         @page { size: A4 landscape; margin: 0; }
@@ -570,6 +604,23 @@ export default function ApaCanalInvoicePublic({
             margin: 0 auto;
             box-shadow: 0 1px 3px rgba(0,0,0,0.15);
           }
+        }
+
+        .invoice-scale-outer {
+          width: 100%;
+          overflow: hidden;
+        }
+        .invoice-scale-inner {
+          width: 297mm;
+          transform: scale(var(--invoice-scale, 1));
+          transform-origin: top left;
+        }
+        /* !important câștigă peste transform-ul inline la tipărire/PDF (Playwright emulează
+           print media by default) — factura se tipărește mereu la mărime reală, indiferent
+           de scala calculată pentru ecran. */
+        @media print {
+          .invoice-scale-outer { width: auto !important; height: auto !important; }
+          .invoice-scale-inner { transform: none !important; }
         }
 
         @media print {

@@ -322,12 +322,12 @@ export default function ApaCanalInvoicePublic({
             "contPersonalBlock",
             { gridColumn: 2, gridRow: 1, marginTop: "2.5mm", alignSelf: "start" },
             ({ textStyle }) => (
-              <div className="whitespace-nowrap font-bold" style={{ fontSize: "3.6mm", lineHeight: 1.7, color: COLOR_TEXT, ...textStyle }}>
+              <div className="whitespace-nowrap font-bold" style={{ fontSize: "3.6mm", lineHeight: 1.7, color: "#000000", ...textStyle }}>
                 <p>
                   Cont personal: {invoice.contPersonal || "—"}
                   {invoice.sectorNr && (
                     <span className="ml-2 font-normal">
-                      <span className="rounded" style={{ border: `1.5px solid ${COLOR_TEXT}`, padding: "0 1mm", fontSize: "3.1mm" }}>sector nr.</span>{" "}
+                      <span className="rounded" style={{ border: `1.5px solid #000000`, padding: "0 1mm", fontSize: "3.1mm" }}>sector nr.</span>{" "}
                       {invoice.sectorNr}
                     </span>
                   )}

@@ -322,8 +322,8 @@ export default function ApaCanalInvoicePublic({
             "contPersonalBlock",
             { gridColumn: 2, gridRow: 1, marginTop: "2.5mm", alignSelf: "start" },
             ({ textStyle }) => (
-              <div className="whitespace-nowrap" style={{ fontSize: "3mm", lineHeight: 1.7, ...textStyle }}>
-                <p className="font-bold">
+              <div className="whitespace-nowrap font-bold" style={{ fontSize: "3mm", lineHeight: 1.7, color: COLOR_TEXT, ...textStyle }}>
+                <p>
                   Cont personal: {invoice.contPersonal || "—"}
                   {invoice.sectorNr && (
                     <span className="ml-2 font-normal">
@@ -334,7 +334,7 @@ export default function ApaCanalInvoicePublic({
                 </p>
                 <p>Adresa locului de consum:</p>
                 <p>{invoice.consumAddress || "—"}</p>
-                <p className="font-bold uppercase">{invoice.consumerName || invoice.client?.name || ""}</p>
+                <p className="uppercase">{invoice.consumerName || invoice.client?.name || ""}</p>
               </div>
             ),
           )}

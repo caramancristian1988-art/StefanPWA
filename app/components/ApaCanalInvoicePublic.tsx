@@ -42,9 +42,9 @@ export type ApaCanalInvoiceData = {
 // Paleta exactă extrasă din modelul de factură Apă-Canal.
 const COLOR_BG = "#FCFDFC";
 const COLOR_BOX_BLUE = "#86D3EA";
-const COLOR_BAR = "#4472C4";
-const COLOR_BAR_BORDER = "#2F5597";
-const COLOR_CHART_TEXT = "#595959";
+const COLOR_BAR = "#5B9BD5";
+const COLOR_BAR_BORDER = "#2E75B6";
+const COLOR_CHART_TEXT = "#404040";
 const COLOR_TEXT = "#202C2A";
 const COLOR_BORDER = "#AEB0B0";
 const COLOR_BORDER_LIGHT = "#D9DDDD";
@@ -61,11 +61,16 @@ function niceStep(raw: number): number {
   return nice * pow;
 }
 
-/** Grafic cu bare + linii orizontale de grilă (max. ~7 trepte, indiferent de valori). */
+/**
+ * Grafic cu bare + linii orizontale de grilă. Pasul dintre linii se recalculează per factură,
+ * din consumul maxim al LUNII respective (nu e fix) — ținta e ~8 trepte, deci facturi cu consum
+ * mic ies cu pas 5 (0,5,10,15,20...), iar cele cu consum mare ies cu pas 10/20/50 etc., mereu
+ * păstrând un grafic lizibil indiferent de magnitudinea cifrelor.
+ */
 function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
   if (points.length === 0) return null;
   const maxVal = Math.max(...points.map((p) => p.value), 5);
-  const step = niceStep(maxVal / 6);
+  const step = niceStep(maxVal / 8);
   const yMax = Math.ceil(maxVal / step) * step;
   const ySteps: number[] = [];
   for (let v = yMax; v >= 0; v -= step) ySteps.push(Math.round(v * 100) / 100);

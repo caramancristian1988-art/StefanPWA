@@ -371,7 +371,7 @@ export default function ApaCanalInvoicePublic({
             "meterTable",
             { gridColumn: 2, gridRow: 2, marginTop: "3mm", alignSelf: "start" },
             ({ textStyle }) => (
-              <table className="text-center" style={{ fontSize: "2.8mm", ...textStyle }}>
+              <table className="text-center" style={{ fontSize: "3.6mm", ...textStyle }}>
                 <thead>
                   <tr style={{ color: COLOR_BORDER }}>
                     <th className="whitespace-nowrap font-medium" style={{ padding: "0 2mm 1mm" }}>Numărul<br />contorului</th>

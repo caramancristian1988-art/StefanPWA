@@ -73,7 +73,7 @@ export const APA_CANAL_LAYOUT_DEFAULTS: Record<ApaCanalElementKey, Required<Pick
   title: { xMm: 2.2, yMm: 2.2, widthMm: 200, heightMm: 8 },
   titleLine: { xMm: 2.2, yMm: 12, widthMm: 190, heightMm: 3 },
   datesBlock: { xMm: 2.2, yMm: 19.3, widthMm: 75, heightMm: 12 },
-  contPersonalBlock: { xMm: 83.9, yMm: 14.9, widthMm: 107.7, heightMm: 22.3 },
+  contPersonalBlock: { xMm: 80, yMm: 14.9, widthMm: 122, heightMm: 26 },
   logo: { xMm: 205, yMm: 3, widthMm: 88.9, heightMm: 40.1 },
   chart: { xMm: 2.2, yMm: 40.1, widthMm: 96.5, heightMm: 51 },
   meterTable: { xMm: 101.5, yMm: 40.1, widthMm: 90, heightMm: 28.2 },

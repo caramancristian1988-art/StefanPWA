@@ -85,8 +85,8 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
         {ySteps.map((s) => (
           <div
             key={s}
-            className="absolute left-0 right-0 border-t"
-            style={{ bottom: `${(s / yMax) * 100}%`, borderColor: COLOR_BORDER }}
+            className="absolute left-0 right-0"
+            style={{ bottom: `${(s / yMax) * 100}%`, borderTop: `0.5px solid ${COLOR_BORDER_LIGHT}` }}
           />
         ))}
         {/* Bare */}
@@ -95,7 +95,7 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
             <div key={i} className="flex h-full flex-1 flex-col items-center justify-end">
               <div
                 className="w-full"
-                style={{ maxWidth: "7mm", height: `${Math.max(1, (p.value / yMax) * 100)}%`, background: COLOR_BAR, border: `1px solid ${COLOR_BAR_BORDER}` }}
+                style={{ maxWidth: "7mm", height: `${Math.max(1, (p.value / yMax) * 100)}%`, background: COLOR_BAR, border: `0.6px solid ${COLOR_BAR_BORDER}` }}
                 title={`${p.label}: ${p.value} m³`}
               />
             </div>
@@ -322,12 +322,12 @@ export default function ApaCanalInvoicePublic({
             "contPersonalBlock",
             { gridColumn: 2, gridRow: 1, marginTop: "2.5mm", alignSelf: "start" },
             ({ textStyle }) => (
-              <div className="whitespace-nowrap font-bold" style={{ fontSize: "3mm", lineHeight: 1.7, color: COLOR_TEXT, ...textStyle }}>
+              <div className="whitespace-nowrap font-bold" style={{ fontSize: "3.6mm", lineHeight: 1.7, color: COLOR_TEXT, ...textStyle }}>
                 <p>
                   Cont personal: {invoice.contPersonal || "—"}
                   {invoice.sectorNr && (
                     <span className="ml-2 font-normal">
-                      <span className="rounded" style={{ border: `1.5px solid ${COLOR_TEXT}`, padding: "0 1mm", fontSize: "2.6mm" }}>sector nr.</span>{" "}
+                      <span className="rounded" style={{ border: `1.5px solid ${COLOR_TEXT}`, padding: "0 1mm", fontSize: "3.1mm" }}>sector nr.</span>{" "}
                       {invoice.sectorNr}
                     </span>
                   )}

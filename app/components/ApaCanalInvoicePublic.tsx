@@ -282,13 +282,13 @@ export default function ApaCanalInvoicePublic({
           ))}
           {field("titleLine", {}, ({ overridden }) =>
             overridden ? (
-              // Zonă de tras/redimensionat mai generoasă (implicit 3mm) — linia rămâne subțire
-              // vizual (0.6mm), centrată pe verticală în interiorul acelei zone.
+              // Zonă de tras/redimensionat mai generoasă (implicit 3mm) — linia rămâne mai
+              // subțire decât zona de prindere (1.1mm), centrată pe verticală în interior.
               <div className="flex h-full w-full items-center">
-                <div style={{ width: "100%", height: "0.6mm", background: COLOR_BOX_BLUE }} />
+                <div style={{ width: "100%", height: "1.1mm", background: COLOR_BOX_BLUE }} />
               </div>
             ) : (
-              <div style={{ height: "0.6mm", width: "calc(100% - 65mm)", background: COLOR_BOX_BLUE }} />
+              <div style={{ height: "1.1mm", width: "calc(100% - 65mm)", background: COLOR_BOX_BLUE }} />
             )
           )}
         </div>
@@ -450,7 +450,7 @@ export default function ApaCanalInvoicePublic({
                       lineHeight: 1.3,
                       paddingTop: "2mm",
                       paddingBottom: "0.6mm",
-                      borderBottom: overridden ? undefined : `1.5px solid ${COLOR_BOX_BLUE}`,
+                      borderBottom: overridden ? undefined : `2.8px solid ${COLOR_BOX_BLUE}`,
                       height: overridden ? "100%" : undefined,
                       ...textStyle,
                     }}
@@ -466,10 +466,10 @@ export default function ApaCanalInvoicePublic({
                 ({ overridden }) =>
                   overridden ? (
                     <div className="flex h-full w-full items-center">
-                      <div style={{ width: "100%", height: "1.5px", background: COLOR_BOX_BLUE }} />
+                      <div style={{ width: "100%", height: "2.8px", background: COLOR_BOX_BLUE }} />
                     </div>
                   ) : (
-                    <div style={{ height: "100%", borderBottom: `1.5px solid ${COLOR_BOX_BLUE}` }} />
+                    <div style={{ height: "100%", borderBottom: `2.8px solid ${COLOR_BOX_BLUE}` }} />
                   ),
               )}
             </div>

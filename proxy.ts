@@ -7,15 +7,40 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 
 const COOKIE = process.env.SESSION_COOKIE_NAME || "pr_session";
+const CLIENT_COOKIE = "client_session"; // vezi lib/client-session.ts — cookie separat, portal client
 
 // Rute accesibile fără autentificare
 const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password"];
+const PORTAL_PUBLIC_PATHS = ["/portal/login", "/portal/register", "/portal/forgot-password", "/portal/reset-password"];
 
 // Mod demo: fără bază de date/secret, nu blocăm nimic.
 const DEMO = !process.env.DATABASE_URL || !process.env.SESSION_SECRET;
 
+/**
+ * Portalul de client (`/portal/*`) e complet separat de autentificarea de staff — cookie
+ * propriu (`client_session`), pagini publice proprii. Nu se amestecă niciodată cu verificarea
+ * de mai jos (care rulează doar pentru rutele de staff).
+ */
+function proxyPortal(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const hasSession = req.cookies.has(CLIENT_COOKIE);
+  const isPublic = PORTAL_PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+  if (!hasSession && !isPublic) {
+    return NextResponse.redirect(new URL("/portal/login", req.nextUrl));
+  }
+  if (hasSession && isPublic) {
+    return NextResponse.redirect(new URL("/portal", req.nextUrl));
+  }
+  return NextResponse.next();
+}
+
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  if (pathname === "/portal" || pathname.startsWith("/portal/")) {
+    return proxyPortal(req);
+  }
 
   if (DEMO) {
     if (pathname === "/login") {

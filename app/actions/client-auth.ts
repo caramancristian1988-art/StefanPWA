@@ -11,6 +11,7 @@ import {
   consumeClientVerificationCode,
 } from "@/lib/services/client-verification-codes";
 import { sendVerificationCodeEmail } from "@/lib/email";
+import { generateFirstApaCanalInvoice } from "@/lib/services/portal-invoices";
 
 export type ClientAuthState = { error?: string } | undefined;
 
@@ -90,6 +91,15 @@ export async function confirmClientRegistration(
 
   const portalPasswordHash = await hashPassword(newPassword);
   await prisma.client.update({ where: { id: client.id }, data: { email, portalPasswordHash } });
+
+  // Best-effort — dacă generarea eșuează, activarea contului tot reușește; clientul poate
+  // primi factura ulterior, manual, din partea staff-ului.
+  try {
+    await generateFirstApaCanalInvoice(client.id);
+  } catch (e) {
+    console.error("[client-auth] eșec generare primă factură la activare:", e);
+  }
+
   await createClientSession(client.id, await requestMeta());
   redirect("/portal");
 }

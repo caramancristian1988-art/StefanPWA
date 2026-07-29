@@ -9,7 +9,8 @@ export default async function PortalDashboardPage() {
   const client = await requireClient();
 
   const invoices = await prisma.invoice.findMany({
-    where: { clientId: client.id },
+    // DRAFT rămâne intern (nerevizuit încă de staff) — nu trebuie să apară în portal.
+    where: { clientId: client.id, status: { not: "DRAFT" } },
     orderBy: { issueDate: "desc" },
     select: {
       id: true,

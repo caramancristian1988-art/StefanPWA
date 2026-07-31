@@ -10,6 +10,7 @@
     team: "Echipă",
     invoices: "Facturi",
     clients: "Clienți",
+    payers: "Plătitori",
     users: "Utilizatori",
     auditLogs: "Audit Logs",
     telegram: "Telegram",

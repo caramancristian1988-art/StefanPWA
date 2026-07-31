@@ -46,14 +46,19 @@ export async function listClients(
     return { items: filtered, total: filtered.length, page: 1, pageSize, hasMore: false };
   }
 
-  const where = search
-    ? {
-        OR: [
-          { name: { contains: search, mode: "insensitive" as const } },
-          { phone: { contains: search } },
-        ],
-      }
-    : {};
+  // Plătitorii (clienți portal Apă-Canal, cu serie de contor) au propria secțiune ("Plătitori")
+  // — nu aglomerează lista obișnuită de clienți (programări).
+  const where = {
+    meterSeries: null,
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" as const } },
+            { phone: { contains: search } },
+          ],
+        }
+      : {}),
+  };
 
   const [items, total] = await Promise.all([
     prisma.client.findMany({

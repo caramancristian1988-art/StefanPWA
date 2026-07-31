@@ -6,19 +6,65 @@ import {
   invoiceProjectOptions,
 } from "@/lib/queries/invoices";
 import { getCompanySettings } from "@/lib/queries/company";
+import { prisma } from "@/lib/prisma";
 import InvoiceForm from "@/app/components/InvoiceForm";
-import ApaCanalInvoiceForm from "@/app/components/ApaCanalInvoiceForm";
+import ApaCanalInvoiceForm, { type ApaCanalInitial } from "@/app/components/ApaCanalInvoiceForm";
 import { IconChevronLeft, IconDroplet, IconFileText } from "@/app/components/icons";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Prefill "Trimite factură nouă" din pagina unui plătitor: identitate + adresă + contor din
+ * Client, iar indicele precedent continuă din ultima factură a lui (dacă are una) — staff-ul
+ * doar completează indicele actual nou.
+ */
+async function payerPrefill(clientId: string, currency: string): Promise<ApaCanalInitial | undefined> {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, meterSeries: { not: null } },
+    select: { id: true, name: true, meterSeries: true, meterNumber: true, consumAddress: true },
+  });
+  if (!client) return undefined;
+
+  const lastInvoice = await prisma.invoice.findFirst({
+    where: { clientId, kind: "APA_CANAL" },
+    orderBy: { issueDate: "desc" },
+    select: { meterCurrReading: true },
+  });
+
+  return {
+    id: "",
+    status: "DRAFT",
+    issueDate: new Date().toISOString().slice(0, 10),
+    dueDate: "",
+    clientId: client.id,
+    currency,
+    contPersonal: client.meterSeries ?? "",
+    sectorNr: "",
+    consumAddress: client.consumAddress ?? "",
+    consumerName: client.name,
+    meterNumber: client.meterNumber ?? "",
+    meterPrevReading: lastInvoice?.meterCurrReading ?? "0",
+    meterCurrReading: "",
+    isEstimatedVolume: false,
+    billingPeriodLabel: "",
+    apaVolum: "",
+    apaTarif: "",
+    canalVolum: "",
+    canalTarif: "",
+    recalculari: "0",
+    penalitati: "0",
+    datoriiAvans: "0",
+    monthlyConsumption: [],
+  };
+}
+
 export default async function NewInvoicePage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string }>;
+  searchParams: Promise<{ kind?: string; clientId?: string }>;
 }) {
   const user = await requirePermission("invoices.create");
-  const { kind } = await searchParams;
+  const { kind, clientId } = await searchParams;
 
   const backLink = (
     <Link href="/invoices" className="mb-4 inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink">
@@ -59,6 +105,7 @@ export default async function NewInvoicePage({
     invoiceProjectOptions(),
     getCompanySettings(),
   ]);
+  const initial = kind === "apa-canal" && clientId ? await payerPrefill(clientId, company.currency) : undefined;
 
   return (
     <div className="w-full">
@@ -68,6 +115,7 @@ export default async function NewInvoicePage({
       </h1>
       {kind === "apa-canal" ? (
         <ApaCanalInvoiceForm
+          initial={initial}
           clients={clients}
           currency={company.currency}
           canCreateClient={can(user, "clients.create")}

@@ -22,6 +22,7 @@ const NAV: NavItem[] = [
   { href: "/kanban",           labelKey: "kanban",      icon: kanbanIcon(),    perm: "tasks.view" },
   { href: "/calendar",         labelKey: "calendar",    icon: calIcon(),       perm: "tasks.view" },
   { href: "/clients",          labelKey: "clients",     icon: usersIcon(),     perm: "clients.view" },
+  { href: "/platitori",        labelKey: "payers",      icon: invoiceIcon(),   perm: "clients.view" },
   { href: "/invoices",         labelKey: "invoices",    icon: invoiceIcon(),   perm: "invoices.view" },
   { href: "/users",            labelKey: "users",       icon: userIcon(),      perm: "users.manage" },
   { href: "/team",             labelKey: "team",        icon: usersIcon(),     perm: "teams.view" },

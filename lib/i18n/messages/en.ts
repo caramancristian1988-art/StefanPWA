@@ -12,6 +12,7 @@ const en: Messages = {
     team: "Team",
     invoices: "Invoices",
     clients: "Clients",
+    payers: "Payers",
     users: "Users",
     auditLogs: "Audit Logs",
     telegram: "Telegram",

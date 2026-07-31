@@ -12,6 +12,7 @@ import {
   type ApaCanalLayout,
   type ApaCanalElementKey,
   type ApaCanalElementOverride,
+  type ApaCanalCustomImage,
 } from "@/lib/apa-canal-layout";
 
 type ConsumPoint = { label: string; value: number };
@@ -171,8 +172,18 @@ function LayoutField({
     ...(override?.bold ? { fontWeight: 700 } : {}),
   };
 
+  // Text personalizat — înlocuiește complet conținutul normal (vezi ApaCanalElementOverride).
+  const renderContent = (state: FieldState) =>
+    override?.textOverride ? (
+      <div style={{ width: "100%", height: "100%", ...state.textStyle }}>
+        {override.textOverride.split("\n").map((line, i) => <p key={i}>{line}</p>)}
+      </div>
+    ) : (
+      children(state)
+    );
+
   if (!editable && !hasCustomLayout) {
-    return <div style={defaultStyle}>{children({ overridden: false, textStyle })}</div>;
+    return <div style={defaultStyle}>{renderContent({ overridden: false, textStyle })}</div>;
   }
 
   const base = APA_CANAL_LAYOUT_DEFAULTS[elementKey];
@@ -182,12 +193,17 @@ function LayoutField({
     widthMm: override?.widthMm ?? base.widthMm,
     heightMm: override?.heightMm ?? base.heightMm,
   };
-  const merged: ApaCanalElementOverride = { ...ov, fontSizeMm: override?.fontSizeMm, bold: override?.bold };
+  const merged: ApaCanalElementOverride = {
+    ...ov,
+    fontSizeMm: override?.fontSizeMm,
+    bold: override?.bold,
+    textOverride: override?.textOverride,
+  };
 
   if (!editable) {
     return (
       <div style={{ position: "absolute", left: `${ov.xMm}mm`, top: `${ov.yMm}mm`, width: `${ov.widthMm}mm`, height: `${ov.heightMm}mm` }}>
-        {children({ overridden: true, textStyle })}
+        {renderContent({ overridden: true, textStyle })}
       </div>
     );
   }
@@ -232,7 +248,72 @@ function LayoutField({
       scale={scale}
       style={{ outline: `1px dashed ${COLOR_BAR}`, background: "rgba(134,211,234,0.10)" }}
     >
-      <div style={{ width: "100%", height: "100%" }}>{children({ overridden: true, textStyle })}</div>
+      <div style={{ width: "100%", height: "100%" }}>{renderContent({ overridden: true, textStyle })}</div>
+    </Rnd>,
+    portalTarget,
+  );
+}
+
+/**
+ * Fotografie adăugată liber pe factură (nu unul din cele 17 elemente fixe) — aceeași mecanică
+ * de poziționare/portal ca LayoutField, dar mai simplă: doar imagine, fără text/font.
+ */
+function CustomImageField({
+  image,
+  editable,
+  onChange,
+  scale = 1,
+  portalTarget,
+}: {
+  image: ApaCanalCustomImage;
+  editable?: boolean;
+  onChange?: (id: string, patch: Partial<ApaCanalCustomImage>) => void;
+  scale?: number;
+  portalTarget?: HTMLElement | null;
+}) {
+  const img = (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={image.dataUrl}
+      alt=""
+      draggable={false}
+      style={{ width: "100%", height: "100%", objectFit: "contain", pointerEvents: editable ? "none" : undefined }}
+    />
+  );
+
+  if (!editable) {
+    return (
+      <div style={{ position: "absolute", left: `${image.xMm}mm`, top: `${image.yMm}mm`, width: `${image.widthMm}mm`, height: `${image.heightMm}mm` }}>
+        {img}
+      </div>
+    );
+  }
+
+  if (!portalTarget) return null;
+  return createPortal(
+    <Rnd
+      key={`${image.id}-${image.xMm}-${image.yMm}-${image.widthMm}-${image.heightMm}`}
+      default={{
+        x: image.xMm * MM_TO_PX,
+        y: image.yMm * MM_TO_PX,
+        width: image.widthMm * MM_TO_PX,
+        height: image.heightMm * MM_TO_PX,
+      }}
+      onDragStop={(_e, d) => {
+        onChange?.(image.id, { xMm: round1(d.x / MM_TO_PX), yMm: round1(d.y / MM_TO_PX) });
+      }}
+      onResizeStop={(_e, _dir, ref, _delta, pos) => {
+        onChange?.(image.id, {
+          widthMm: round1(ref.offsetWidth / MM_TO_PX),
+          heightMm: round1(ref.offsetHeight / MM_TO_PX),
+          xMm: round1(pos.x / MM_TO_PX),
+          yMm: round1(pos.y / MM_TO_PX),
+        });
+      }}
+      scale={scale}
+      style={{ outline: `1px dashed ${COLOR_BAR}`, background: "rgba(134,211,234,0.10)" }}
+    >
+      <div style={{ width: "100%", height: "100%" }}>{img}</div>
     </Rnd>,
     portalTarget,
   );
@@ -244,6 +325,7 @@ export default function ApaCanalInvoicePublic({
   layout,
   editable,
   onLayoutChange,
+  onCustomImageChange,
   previewScale = 1,
 }: {
   invoice: ApaCanalInvoiceData;
@@ -251,6 +333,7 @@ export default function ApaCanalInvoicePublic({
   layout?: ApaCanalLayout | null;
   editable?: boolean;
   onLayoutChange?: (key: ApaCanalElementKey, override: ApaCanalElementOverride) => void;
+  onCustomImageChange?: (id: string, patch: Partial<ApaCanalCustomImage>) => void;
   /** Factorul de scalare CSS aplicat de containerul din editor (vezi ApaCanalLayoutEditor). */
   previewScale?: number;
 }) {
@@ -564,6 +647,17 @@ export default function ApaCanalInvoicePublic({
             </div>
           ))}
         </div>
+
+        {(layout?.customImages ?? []).map((img) => (
+          <CustomImageField
+            key={img.id}
+            image={img}
+            editable={editable}
+            onChange={onCustomImageChange}
+            scale={previewScale}
+            portalTarget={pageEl}
+          />
+        ))}
       </div>
   );
 

@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import type { Company } from "@/lib/queries/company";
-import type { ApaCanalLayout, ApaCanalElementKey } from "@/lib/apa-canal-layout";
+import type { ApaCanalLayout, ApaCanalElementKey, ApaCanalCustomImage } from "@/lib/apa-canal-layout";
 import { APA_CANAL_ELEMENT_LABELS, APA_CANAL_TEXT_KEYS, APA_CANAL_LAYOUT_DEFAULTS, MM_TO_PX } from "@/lib/apa-canal-layout";
 import type { LayoutState } from "@/app/actions/company";
 import ApaCanalInvoicePublic, { type ApaCanalInvoiceData } from "./ApaCanalInvoicePublic";
@@ -112,6 +112,45 @@ export default function ApaCanalLayoutEditor({
     });
   }
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoWarn, setPhotoWarn] = useState("");
+
+  function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (f.size > 5_000_000) {
+      setPhotoWarn("Fotografia e prea mare (max 5MB).");
+      return;
+    }
+    setPhotoWarn("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      const image: ApaCanalCustomImage = {
+        id: `img-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+        xMm: 100,
+        yMm: 80,
+        widthMm: 60,
+        heightMm: 60,
+        dataUrl,
+      };
+      setLayout((prev) => ({ ...prev, customImages: [...(prev.customImages ?? []), image] }));
+    };
+    reader.readAsDataURL(f);
+  }
+
+  function patchCustomImage(id: string, patch: Partial<ApaCanalCustomImage>) {
+    setLayout((prev) => ({
+      ...prev,
+      customImages: (prev.customImages ?? []).map((img) => (img.id === id ? { ...img, ...patch } : img)),
+    }));
+  }
+
+  function deleteCustomImage(id: string) {
+    setLayout((prev) => ({ ...prev, customImages: (prev.customImages ?? []).filter((img) => img.id !== id) }));
+  }
+
   const base = APA_CANAL_LAYOUT_DEFAULTS[selected];
   const val = layout[selected] ?? base;
   const isTextKey = APA_CANAL_TEXT_KEYS.includes(selected);
@@ -129,6 +168,7 @@ export default function ApaCanalLayoutEditor({
                 editable
                 previewScale={scale}
                 onLayoutChange={(key, override) => setLayout((prev) => ({ ...prev, [key]: override }))}
+                onCustomImageChange={patchCustomImage}
               />
             </div>
           </div>
@@ -175,19 +215,34 @@ export default function ApaCanalLayoutEditor({
           </div>
 
           {isTextKey && (
-            <div className="flex items-end gap-3 border-t border-[var(--color-line)] pt-3">
-              <div className="flex-1">
-                <label className={labelCls}>Mărime font (mm)</label>
-                <input type="number" step="0.1" className={inputCls} value={layout[selected]?.fontSizeMm ?? ""}
-                  placeholder="implicit"
-                  onChange={(e) => patch(selected, { fontSizeMm: e.target.value === "" ? undefined : Number(e.target.value) })} />
+            <>
+              <div className="flex items-end gap-3 border-t border-[var(--color-line)] pt-3">
+                <div className="flex-1">
+                  <label className={labelCls}>Mărime font (mm)</label>
+                  <input type="number" step="0.1" className={inputCls} value={layout[selected]?.fontSizeMm ?? ""}
+                    placeholder="implicit"
+                    onChange={(e) => patch(selected, { fontSizeMm: e.target.value === "" ? undefined : Number(e.target.value) })} />
+                </div>
+                <label className="flex h-9 items-center gap-1.5 text-xs font-medium">
+                  <input type="checkbox" className="size-4 accent-[var(--color-brand)]" checked={!!layout[selected]?.bold}
+                    onChange={(e) => patch(selected, { bold: e.target.checked })} />
+                  Bold
+                </label>
               </div>
-              <label className="flex h-9 items-center gap-1.5 text-xs font-medium">
-                <input type="checkbox" className="size-4 accent-[var(--color-brand)]" checked={!!layout[selected]?.bold}
-                  onChange={(e) => patch(selected, { bold: e.target.checked })} />
-                Bold
-              </label>
-            </div>
+
+              <div>
+                <label className={labelCls}>Text personalizat (înlocuiește conținutul)</label>
+                <textarea
+                  className={`${inputCls} h-20 py-2`}
+                  value={layout[selected]?.textOverride ?? ""}
+                  placeholder="Lasă gol pentru conținutul normal al facturii"
+                  onChange={(e) => patch(selected, { textOverride: e.target.value === "" ? undefined : e.target.value })}
+                />
+                <p className="mt-1 text-[11px] text-ink-soft">
+                  Atenție: pe elemente cu date live (sume, indici, tabele), textul rămâne fix identic pe toate facturile.
+                </p>
+              </div>
+            </>
           )}
 
           <button
@@ -196,6 +251,38 @@ export default function ApaCanalLayoutEditor({
           >
             Resetează doar acest element
           </button>
+        </div>
+
+        <div className="card flex flex-col gap-3 p-4">
+          <h3 className="text-sm font-bold">Fotografii</h3>
+          <p className="-mt-2 text-xs text-ink-soft">Adaugă o imagine liberă, apoi trage/redimensionează pe factură.</p>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="tap h-9 rounded-lg border border-[var(--color-line)] text-xs font-medium hover:bg-[var(--color-surface-2)]"
+          >
+            + Adaugă fotografie
+          </button>
+          {photoWarn && <p className="text-xs text-st-cancelled">{photoWarn}</p>}
+
+          {(layout.customImages ?? []).map((img) => (
+            <div key={img.id} className="flex items-center gap-2 border-t border-[var(--color-line)] pt-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.dataUrl} alt="" className="size-10 shrink-0 rounded-lg border border-[var(--color-line)] object-cover" />
+              <div className="grid flex-1 grid-cols-2 gap-1">
+                <input type="number" step="0.1" className={`${inputCls} h-7 text-xs`} value={img.xMm}
+                  onChange={(e) => patchCustomImage(img.id, { xMm: Number(e.target.value) })} title="X (mm)" />
+                <input type="number" step="0.1" className={`${inputCls} h-7 text-xs`} value={img.yMm}
+                  onChange={(e) => patchCustomImage(img.id, { yMm: Number(e.target.value) })} title="Y (mm)" />
+              </div>
+              <button
+                onClick={() => deleteCustomImage(img.id)}
+                className="tap h-8 shrink-0 rounded-lg border border-[var(--color-line)] px-2 text-xs text-st-cancelled hover:bg-[var(--color-surface-2)]"
+              >
+                Șterge
+              </button>
+            </div>
+          ))}
         </div>
 
         <div className="flex gap-2">

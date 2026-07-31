@@ -28,9 +28,28 @@ export type ApaCanalElementOverride = {
   heightMm?: number;
   fontSizeMm?: number;
   bold?: boolean;
+  /**
+   * Text personalizat — dacă e setat, înlocuiește complet conținutul normal al elementului
+   * (o linie per paragraf). Util pentru texte fixe (titlu, etichete "ATENȚIE!"/"Anunț!"), dar
+   * ATENȚIE: pe elementele care afișează date live ale facturii (sume, indici, tabele), textul
+   * suprascris rămâne fix identic pe TOATE facturile — nu recomandat acolo.
+   */
+  textOverride?: string;
 };
 
-export type ApaCanalLayout = Partial<Record<ApaCanalElementKey, ApaCanalElementOverride>>;
+export type ApaCanalLayout = Partial<Record<ApaCanalElementKey, ApaCanalElementOverride>> & {
+  /** Fotografii adăugate liber pe factură (poziționabile/redimensionabile ca orice element). */
+  customImages?: ApaCanalCustomImage[];
+};
+
+export type ApaCanalCustomImage = {
+  id: string;
+  xMm: number;
+  yMm: number;
+  widthMm: number;
+  heightMm: number;
+  dataUrl: string;
+};
 
 export const APA_CANAL_ELEMENT_LABELS: Record<ApaCanalElementKey, string> = {
   title: "Titlu factură",

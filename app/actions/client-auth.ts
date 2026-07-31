@@ -90,7 +90,11 @@ export async function confirmClientRegistration(
   if (!valid) return { error: "Cod incorect sau expirat. Cere un cod nou." };
 
   const portalPasswordHash = await hashPassword(newPassword);
-  await prisma.client.update({ where: { id: client.id }, data: { email, portalPasswordHash } });
+  const now = new Date();
+  await prisma.client.update({
+    where: { id: client.id },
+    data: { email, portalPasswordHash, portalActivatedAt: now, portalLastLoginAt: now },
+  });
 
   // Best-effort — dacă generarea eșuează, activarea contului tot reușește; clientul poate
   // primi factura ulterior, manual, din partea staff-ului.
@@ -121,6 +125,7 @@ export async function clientLogin(
   const ok = await verifyPassword(password, client.portalPasswordHash);
   if (!ok) return { error: "Email sau parolă greșite." };
 
+  await prisma.client.update({ where: { id: client.id }, data: { portalLastLoginAt: new Date() } });
   await createClientSession(client.id, await requestMeta());
   redirect("/portal");
 }

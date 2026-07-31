@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import type { Company } from "@/lib/queries/company";
 import type { ApaCanalLayout, ApaCanalElementKey, ApaCanalCustomImage } from "@/lib/apa-canal-layout";
-import { APA_CANAL_ELEMENT_LABELS, APA_CANAL_TEXT_KEYS, APA_CANAL_LAYOUT_DEFAULTS, MM_TO_PX } from "@/lib/apa-canal-layout";
+import { APA_CANAL_ELEMENT_LABELS, APA_CANAL_TEXT_KEYS, APA_CANAL_DEFAULT_FONT_MM, APA_CANAL_LAYOUT_DEFAULTS, MM_TO_PX, round1 } from "@/lib/apa-canal-layout";
 import type { LayoutState } from "@/app/actions/company";
 import ApaCanalInvoicePublic, { type ApaCanalInvoiceData } from "./ApaCanalInvoicePublic";
 import { useToast } from "./toast";
@@ -89,6 +89,22 @@ export default function ApaCanalLayoutEditor({
       const base = APA_CANAL_LAYOUT_DEFAULTS[key];
       const current = prev[key] ?? base;
       return { ...prev, [key]: { ...current, ...next } };
+    });
+  }
+
+  // Textul urmează caseta și când înălțimea e schimbată din câmpul numeric (nu doar la tras de
+  // colț pe factură) — vezi explicația din onResizeStop din ApaCanalInvoicePublic.
+  function patchHeight(key: ApaCanalElementKey, newHeightMm: number) {
+    setLayout((prev) => {
+      const base = APA_CANAL_LAYOUT_DEFAULTS[key];
+      const current = prev[key] ?? base;
+      const oldHeightMm = current.heightMm ?? base.heightMm;
+      const isText = (APA_CANAL_TEXT_KEYS as ApaCanalElementKey[]).includes(key);
+      if (!isText || oldHeightMm <= 0) return { ...prev, [key]: { ...current, heightMm: newHeightMm } };
+      const ratio = newHeightMm / oldHeightMm;
+      const currentFontSizeMm = (current as { fontSizeMm?: number }).fontSizeMm ?? APA_CANAL_DEFAULT_FONT_MM[key] ?? 3;
+      const fontSizeMm = Math.min(24, Math.max(1.5, round1(currentFontSizeMm * ratio)));
+      return { ...prev, [key]: { ...current, heightMm: newHeightMm, fontSizeMm } };
     });
   }
 
@@ -210,7 +226,7 @@ export default function ApaCanalLayoutEditor({
             <div>
               <label className={labelCls}>Înălțime (mm)</label>
               <input type="number" step="0.1" className={inputCls} value={val.heightMm ?? base.heightMm}
-                onChange={(e) => patch(selected, { heightMm: Number(e.target.value) })} />
+                onChange={(e) => patchHeight(selected, Number(e.target.value))} />
             </div>
           </div>
 

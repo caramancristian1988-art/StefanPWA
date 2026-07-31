@@ -87,6 +87,27 @@ export const APA_CANAL_TEXT_KEYS: ApaCanalElementKey[] = [
   "contacteBlock",
 ];
 
+/**
+ * Mărimea de font implicită (mm) a fiecărui element de text, folosită ca bază de scalare atunci
+ * când utilizatorul redimensionează caseta (trăgând de colț) — fără asta, textul rămâne mereu la
+ * mărimea lui implicită indiferent cât de mult crește caseta, dând impresia că "doar rama se
+ * mărește, nu și textul".
+ */
+export const APA_CANAL_DEFAULT_FONT_MM: Partial<Record<ApaCanalElementKey, number>> = {
+  title: 4,
+  datesBlock: 3,
+  contPersonalBlock: 3.6,
+  companyInfoText: 4,
+  meterTable: 3.6,
+  billingPeriodText: 3,
+  servicesTable: 2.9,
+  recalculariText: 2.9,
+  totalsBox: 2.9,
+  atentieBox: 2.8,
+  anuntBox: 2.7,
+  contacteBlock: 2.7,
+};
+
 /** Poziții/mărimi implicite (mm), folosite doar ca punct de plecare în editor înainte de prima ajustare. */
 export const APA_CANAL_LAYOUT_DEFAULTS: Record<ApaCanalElementKey, Required<Pick<ApaCanalElementOverride, "xMm" | "yMm" | "widthMm" | "heightMm">>> = {
   title: { xMm: 2.2, yMm: 2.2, widthMm: 200, heightMm: 8 },

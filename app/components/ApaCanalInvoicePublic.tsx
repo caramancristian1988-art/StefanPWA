@@ -9,6 +9,8 @@ import {
   MM_TO_PX,
   round1,
   APA_CANAL_LAYOUT_DEFAULTS,
+  APA_CANAL_TEXT_KEYS,
+  APA_CANAL_DEFAULT_FONT_MM,
   type ApaCanalLayout,
   type ApaCanalElementKey,
   type ApaCanalElementOverride,
@@ -237,12 +239,22 @@ function LayoutField({
         onChange?.(elementKey, { ...merged, xMm: round1(d.x / MM_TO_PX), yMm: round1(d.y / MM_TO_PX) });
       }}
       onResizeStop={(_e, _dir, ref, _delta, pos) => {
+        const newHeightMm = round1(ref.offsetHeight / MM_TO_PX);
+        // Textul urmează caseta: la tras de colț (mărire/micșorare), mărimea fontului se
+        // scalează proporțional cu înălțimea nouă — altfel caseta se mărește dar textul din
+        // ea rămâne mereu la mărimea implicită, dând impresia că "doar rama se mărește".
+        const isText = (APA_CANAL_TEXT_KEYS as ApaCanalElementKey[]).includes(elementKey);
+        const ratio = ov.heightMm > 0 ? newHeightMm / ov.heightMm : 1;
+        const scaledFontSizeMm = isText
+          ? Math.min(24, Math.max(1.5, round1((merged.fontSizeMm ?? APA_CANAL_DEFAULT_FONT_MM[elementKey] ?? 3) * ratio)))
+          : merged.fontSizeMm;
         onChange?.(elementKey, {
           ...merged,
           widthMm: round1(ref.offsetWidth / MM_TO_PX),
-          heightMm: round1(ref.offsetHeight / MM_TO_PX),
+          heightMm: newHeightMm,
           xMm: round1(pos.x / MM_TO_PX),
           yMm: round1(pos.y / MM_TO_PX),
+          ...(isText ? { fontSizeMm: scaledFontSizeMm } : {}),
         });
       }}
       scale={scale}

@@ -14,8 +14,8 @@ export default async function PortalDashboardLayout({
   const company = await getCompanySettings();
 
   return (
-    <div className="min-h-dvh bg-zinc-50">
-      <header className="border-b border-[var(--color-line)] bg-white">
+    <div className="min-h-dvh bg-[var(--color-app)]">
+      <header className="border-b border-[var(--color-line)] bg-[var(--color-surface)]">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <div>
             <p className="text-sm font-bold leading-4">{company.companyName || "Portal client"}</p>

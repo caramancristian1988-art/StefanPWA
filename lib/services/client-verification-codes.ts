@@ -3,6 +3,10 @@ import { createHash, randomInt } from "node:crypto";
 import { prisma } from "../prisma";
 
 const CODE_TTL_MINUTES = 15;
+// Peste acest număr de încercări greșite pe codul activ, îl considerăm blocat — chiar dacă
+// utilizatorul nimerește ulterior codul corect — ca să nu poată fi ghicit prin brute-force
+// (6 cifre = doar 1.000.000 combinații, altfel epuizabile în cele 15 minute de valabilitate).
+const MAX_ATTEMPTS = 5;
 
 export type ClientCodePurpose = "REGISTRATION" | "PASSWORD_RESET";
 
@@ -30,19 +34,32 @@ export async function createClientVerificationCode(
   return code;
 }
 
-/** Verifică un cod și, dacă e valid, îl marchează folosit (nu poate fi refolosit). */
+/**
+ * Verifică un cod și, dacă e valid, îl marchează folosit (nu poate fi refolosit).
+ * Ia mereu cel mai recent cod NEEXPIRAT/nefolosit pentru (clientId, purpose) — nu mai caută
+ * direct după hash — ca să poată număra și limita încercările greșite pe acel cod anume.
+ */
 export async function consumeClientVerificationCode(
   clientId: string,
   purpose: ClientCodePurpose,
   code: string,
 ): Promise<boolean> {
-  const codeHash = hashCode(code.trim());
   const found = await prisma.clientVerificationCode.findFirst({
-    where: { clientId, purpose, codeHash, usedAt: null, expiresAt: { gt: new Date() } },
+    where: { clientId, purpose, usedAt: null, expiresAt: { gt: new Date() } },
     orderBy: { createdAt: "desc" },
-    select: { id: true },
+    select: { id: true, codeHash: true, attempts: true },
   });
   if (!found) return false;
+  if ((found.attempts ?? 0) >= MAX_ATTEMPTS) return false;
+
+  if (found.codeHash !== hashCode(code.trim())) {
+    await prisma.clientVerificationCode.update({
+      where: { id: found.id },
+      data: { attempts: (found.attempts ?? 0) + 1 },
+    });
+    return false;
+  }
+
   await prisma.clientVerificationCode.update({ where: { id: found.id }, data: { usedAt: new Date() } });
   return true;
 }

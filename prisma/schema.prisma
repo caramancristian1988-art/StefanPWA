@@ -180,6 +180,7 @@ model VerificationCode {
   codeHash  String   // hash SHA-256 al codului din 6 cifre — codul brut nu se stochează niciodată
   expiresAt DateTime
   usedAt    DateTime?
+  attempts  Int?     // încercări greșite — blocat după MAX_ATTEMPTS (vezi lib/services/verification-codes.ts)
   createdAt DateTime @default(now())
 
   @@index([userId, purpose, createdAt])
@@ -655,6 +656,7 @@ model ClientVerificationCode {
   codeHash  String
   expiresAt DateTime
   usedAt    DateTime?
+  attempts  Int?      // încercări greșite — blocat după MAX_ATTEMPTS (vezi lib/services/client-verification-codes.ts)
   createdAt DateTime  @default(now())
 
   @@index([clientId, purpose, createdAt])

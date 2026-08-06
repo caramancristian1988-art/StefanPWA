@@ -678,9 +678,20 @@ export default function ApaCanalInvoicePublic({
       {editable ? (
         pageContent
       ) : (
-        <div ref={scaleWrapRef} className="invoice-scale-outer" style={{ height: `${210 * MM_TO_PX * autoScale}px` }}>
-          <div className="invoice-scale-inner" style={{ "--invoice-scale": autoScale } as React.CSSProperties}>
-            {pageContent}
+        // `scaleWrapRef` trebuie să rămână neconstrâns (lățime 100%) — e folosit doar ca să
+        // MĂSOARE lățimea disponibilă a părintelui (ResizeObserver). Cutia efectiv randată e
+        // `invoice-scale-outer`, dimensionată explicit la mărimea VIZUALĂ (deja scalată) a
+        // facturii și centrată cu `margin:auto` — altfel, cu `transform-origin: top left` pe un
+        // element încă lat de 297mm în DOM, factura scalată apărea "lipită" în stânga, cu tot
+        // spațiul gol rămas mereu în dreapta.
+        <div ref={scaleWrapRef} className="invoice-scale-measure">
+          <div
+            className="invoice-scale-outer"
+            style={{ width: `${297 * MM_TO_PX * autoScale}px`, height: `${210 * MM_TO_PX * autoScale}px` }}
+          >
+            <div className="invoice-scale-inner" style={{ "--invoice-scale": autoScale } as React.CSSProperties}>
+              {pageContent}
+            </div>
           </div>
         </div>
       )}
@@ -712,8 +723,11 @@ export default function ApaCanalInvoicePublic({
           }
         }
 
-        .invoice-scale-outer {
+        .invoice-scale-measure {
           width: 100%;
+        }
+        .invoice-scale-outer {
+          margin: 0 auto;
           overflow: hidden;
         }
         .invoice-scale-inner {
@@ -725,7 +739,7 @@ export default function ApaCanalInvoicePublic({
            print media by default) — factura se tipărește mereu la mărime reală, indiferent
            de scala calculată pentru ecran. */
         @media print {
-          .invoice-scale-outer { width: auto !important; height: auto !important; }
+          .invoice-scale-outer { width: auto !important; height: auto !important; margin: 0 !important; }
           .invoice-scale-inner { transform: none !important; }
         }
 

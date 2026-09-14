@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/dal";
+import { can } from "@/lib/permissions";
 import { listInvoices } from "@/lib/queries/invoices";
 import { env } from "@/lib/env";
 import InvoicesList from "@/app/components/InvoicesList";
@@ -13,7 +14,7 @@ export default async function InvoicesPage({
 }: {
   searchParams: Promise<{ status?: string; q?: string; page?: string }>;
 }) {
-  await requirePermission("invoices.view");
+  const user = await requirePermission("invoices.view");
   const sp = await searchParams;
   const status = STATUSES.includes(sp.status as InvoiceStatus)
     ? (sp.status as InvoiceStatus)
@@ -32,6 +33,7 @@ export default async function InvoicesPage({
         status={status ?? ""}
         q={q}
         origin={env.appUrl}
+        canImportApaCanal={can(user, "invoices.create") && can(user, "clients.create") && env.blob.enabled}
       />
     </div>
   );

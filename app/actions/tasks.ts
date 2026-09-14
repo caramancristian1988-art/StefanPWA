@@ -42,9 +42,12 @@ export type TaskListResult = {
 
 export async function listTasksAction(opts: TaskListOpts): Promise<TaskListResult> {
   const user = await requireUser();
+  // STAFF nu poate vedea "all" (task-urile tuturor), dar poate comuta pe "created" — altfel
+  // tab-ul "Creat de mine" e mort pentru el (vezi și blocarea identică din pagina /tasks).
   const scope = (
-    user.role === "STAFF" ? "mine"
-    : (["mine","all","created"].includes(opts.scope ?? "") ? opts.scope : "mine")
+    ["mine","all","created"].includes(opts.scope ?? "") && !(user.role === "STAFF" && opts.scope === "all")
+      ? opts.scope
+      : "mine"
   ) as "mine" | "all" | "created";
   const pageSize = opts.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(opts.ps) || 20));
   return listTasks({

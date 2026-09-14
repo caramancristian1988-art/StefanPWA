@@ -14,6 +14,7 @@ import {
 import { useToast } from "./toast";
 import { IconTrash, IconChevronLeft, IconChevronRight } from "./icons";
 import { useMessages } from "@/lib/i18n/context";
+import ApaCanalJsonImport from "./ApaCanalJsonImport";
 
 type Row = {
   id: string;
@@ -35,6 +36,7 @@ export default function InvoicesList({
   status,
   q,
   origin,
+  canImportApaCanal = false,
 }: {
   items: Row[];
   hasMore: boolean;
@@ -42,6 +44,7 @@ export default function InvoicesList({
   status: string;
   q: string;
   origin: string;
+  canImportApaCanal?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -130,10 +133,14 @@ export default function InvoicesList({
 
       <Link
         href="/invoices/new"
-        className="tap mb-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong"
+        className="tap mb-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong"
       >
         {m.invoices.new}
       </Link>
+
+      {canImportApaCanal && (
+        <ApaCanalJsonImport className="tap mb-4 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[var(--color-line)] text-sm font-medium text-ink-soft hover:bg-[var(--color-surface-2)]" />
+      )}
 
       {rows.length === 0 ? (
         <div className="card grid place-items-center p-10 text-center text-sm text-ink-soft">

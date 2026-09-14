@@ -8,6 +8,14 @@ type ImportResult = { imported: number; total: number; failed: FailedRow[]; enti
 
 type Props = { entity: string; className?: string };
 
+const TEMPLATE_BY_ENTITY: Record<string, string> = {
+  clients: "/templates/model-clienti.csv",
+  tasks: "/templates/model-task-uri.csv",
+  tickets: "/templates/model-task-uri.csv",
+  projects: "/templates/model-proiecte.csv",
+  appointments: "/templates/model-programari.csv",
+};
+
 export default function ImportButton({ entity, className }: Props) {
   const m = useMessages();
   const excelRef = useRef<HTMLInputElement>(null);
@@ -109,7 +117,7 @@ export default function ImportButton({ entity, className }: Props) {
               <div className="border-t border-[var(--color-line)]" />
               <button
                 type="button"
-                className="tap flex w-full items-start gap-3 rounded-b-xl px-3 py-2.5 text-left hover:bg-[var(--color-surface-2)]"
+                className={`tap flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-[var(--color-surface-2)] ${TEMPLATE_BY_ENTITY[entity] ? "" : "rounded-b-xl"}`}
                 onClick={() => { setOpen(false); aiRef.current?.click(); }}
               >
                 <svg className="mt-0.5 size-4 shrink-0 text-brand" viewBox="0 0 20 20" fill="currentColor">
@@ -120,6 +128,25 @@ export default function ImportButton({ entity, className }: Props) {
                   <p className="text-xs text-ink-soft">{m.import.aiDesc}</p>
                 </div>
               </button>
+              {TEMPLATE_BY_ENTITY[entity] && (
+                <>
+                  <div className="border-t border-[var(--color-line)]" />
+                  <a
+                    href={TEMPLATE_BY_ENTITY[entity]}
+                    download
+                    onClick={() => setOpen(false)}
+                    className="tap flex w-full items-start gap-3 rounded-b-xl px-3 py-2.5 text-left hover:bg-[var(--color-surface-2)]"
+                  >
+                    <svg className="mt-0.5 size-4 shrink-0 text-ink-soft" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9.25 3.75a.75.75 0 0 1 1.5 0v7.19l2.47-2.47a.75.75 0 1 1 1.06 1.06l-3.75 3.75a.75.75 0 0 1-1.06 0L5.72 9.53a.75.75 0 0 1 1.06-1.06l2.47 2.47V3.75Z" />
+                      <path d="M3.5 13.25a.75.75 0 0 1 .75.75v1.5c0 .138.112.25.25.25h11a.25.25 0 0 0 .25-.25V14a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 15.5 17h-11A1.75 1.75 0 0 1 2.75 15.25V14a.75.75 0 0 1 .75-.75Z" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium">{m.import.csvTemplate}</p>
+                    </div>
+                  </a>
+                </>
+              )}
             </div>
           </>
         )}

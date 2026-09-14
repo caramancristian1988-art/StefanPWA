@@ -773,7 +773,13 @@ export default function TasksManager({
           blobEnabled={blobEnabled}
           initialProjectId={initialProjectId}
           onClose={() => setCreateType(null)}
-          onCreated={() => router.refresh()}
+          onCreated={(id) => {
+            // Comută pe "Creat de mine" și deschide task-ul proaspăt creat — altfel, dacă a
+            // fost auto-asignat altcuiva (proiect cu asignat implicit), dispare din "Ale mele"
+            // fără nicio explicație vizibilă.
+            applyFilter({}, "created", 1);
+            setOpenId(id);
+          }}
         />
       )}
       {editTask && (
@@ -1185,7 +1191,7 @@ function CreateDialog({
   blobEnabled?: boolean;
   initialProjectId?: string;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (id: string) => void;
 }) {
   const toast = useToast();
   const m = useMessages();
@@ -1230,7 +1236,7 @@ function CreateDialog({
         }
       }
       toast.success(m.common.success);
-      onCreated();
+      onCreated(result.id);
       onClose();
     } catch {
       setFormError(m.common.error);

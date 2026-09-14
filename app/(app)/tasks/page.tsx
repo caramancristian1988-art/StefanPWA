@@ -42,11 +42,13 @@ export default async function TasksPage({
   const sp = await searchParams;
   const locale = await getLocaleFromCookie();
   const m = getMessages(locale);
-  // STAFF vede mereu doar propriile task-uri; ADMIN poate comuta scope din URL
+  // STAFF nu poate vedea "all" (task-urile tuturor); poate însă comuta între "mine" și
+  // "created" — altfel tab-ul "Creat de mine" e mort pentru el (task creat, dar asignat
+  // implicit altcuiva/unui proiect cu asignat propriu, nu mai apare nicăieri pentru STAFF).
   const scope = (
-    user.role === "STAFF"
-      ? "mine"
-      : SCOPE_KEYS.includes(sp.scope as typeof SCOPE_KEYS[number]) ? sp.scope : "mine"
+    SCOPE_KEYS.includes(sp.scope as typeof SCOPE_KEYS[number]) && !(user.role === "STAFF" && sp.scope === "all")
+      ? sp.scope
+      : "mine"
   ) as "mine" | "all" | "created";
   const page = Math.max(1, Number(sp.page) || 1);
   const pageSize = sp.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(sp.ps) || 20));

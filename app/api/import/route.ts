@@ -11,6 +11,7 @@ import {
 import { createTask } from "@/lib/services/tasks";
 import { createAppointment } from "@/lib/services/appointments";
 import { DEFAULT_TZ } from "@/lib/date";
+import type { Prisma } from "@prisma/client";
 
 const TZ = DEFAULT_TZ;
 
@@ -217,7 +218,7 @@ export async function POST(req: Request) {
         });
 
         // Aplică status și/sau client dacă diferă de default
-        const postUpdates: Record<string, unknown> = {};
+        const postUpdates: Prisma.TaskUpdateInput = {};
         if (statusVal && statusVal !== "NEW") postUpdates.status = statusVal;
         if (taskClientId) postUpdates.clientId = taskClientId;
         if (Object.keys(postUpdates).length > 0) {

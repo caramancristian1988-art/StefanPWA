@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { parseWorkbook } from "@/lib/import-utils";
 import { createTask } from "@/lib/services/tasks";
 import { createAppointment } from "@/lib/services/appointments";
+import type { Prisma } from "@prisma/client";
 
 const OPENAI = "https://api.openai.com/v1";
 
@@ -212,7 +213,7 @@ export async function POST(req: Request) {
 
       try {
         const created = await createTask(user.id, { title, description: str(r["Descriere"]) || undefined, type: typeVal, priority: priorityVal, dueAt, assigneeId, teamId, projectId, categoryId });
-        const updates: Record<string, unknown> = {};
+        const updates: Prisma.TaskUpdateInput = {};
         if (statusVal !== "NEW") updates.status = statusVal;
         if (clientId) updates.clientId = clientId;
         if (Object.keys(updates).length) await prisma.task.update({ where: { id: created.id }, data: updates });

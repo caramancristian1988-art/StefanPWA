@@ -32,7 +32,7 @@ export default async function PortalLoginPage({
         <p className="mt-5 text-center text-xs text-ink-soft">
           Nu ai cont?{" "}
           <Link href="/portal/register" className="text-brand hover:underline">
-            Activează-l cu seria contorului
+            Activează-l cu contul personal
           </Link>
         </p>
       </div>

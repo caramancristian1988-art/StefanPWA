@@ -25,21 +25,21 @@ async function requestMeta() {
   };
 }
 
-/** Pasul 1 al înregistrării: verifică seria contorului, trimite codul pe emailul introdus. */
+/** Pasul 1 al înregistrării: verifică contul personal, trimite codul pe emailul introdus. */
 export async function requestClientRegistration(
   _prev: ClientAuthState,
   formData: FormData,
 ): Promise<ClientAuthState> {
   const meterSeries = String(formData.get("meterSeries") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (!meterSeries) return { error: "Introdu seria contorului." };
+  if (!meterSeries) return { error: "Introdu contul personal." };
   if (!EMAIL_RE.test(email)) return { error: "Email invalid." };
 
   const client = await prisma.client.findUnique({
     where: { meterSeries },
     select: { id: true, name: true, portalPasswordHash: true },
   });
-  if (!client) return { error: "Serie contor negăsită. Verifică numărul de pe factură." };
+  if (!client) return { error: "Cont personal negăsit. Verifică numărul de pe factură." };
   if (client.portalPasswordHash) {
     return { error: "Acest cont e deja activat. Folosește autentificarea sau „Am uitat parola”." };
   }

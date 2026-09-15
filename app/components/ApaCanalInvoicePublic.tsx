@@ -447,8 +447,17 @@ export default function ApaCanalInvoicePublic({
                   Cont personal: {invoice.contPersonal || "—"}
                   {invoice.sectorNr && (
                     <span className="ml-2 font-normal">
-                      <span className="rounded" style={{ border: `1.5px solid #000000`, padding: "0 1mm", fontSize: "3.1mm" }}>sector nr.</span>{" "}
-                      {invoice.sectorNr}
+                      {/* Coduri scurte de sector (ex. "5sp", introduse manual de staff) au eticheta
+                          "sector nr."; categoriile descriptive din exportul importat (ex. "Sector
+                          comunal") se afișează simplu — eticheta "nr." nu are sens pentru un cuvânt. */}
+                      {/sector\s/i.test(invoice.sectorNr) ? (
+                        invoice.sectorNr
+                      ) : (
+                        <>
+                          <span className="rounded" style={{ border: `1.5px solid #000000`, padding: "0 1mm", fontSize: "3.1mm" }}>sector nr.</span>{" "}
+                          {invoice.sectorNr}
+                        </>
+                      )}
                     </span>
                   )}
                 </p>

@@ -10,7 +10,7 @@ const COOKIE = process.env.SESSION_COOKIE_NAME || "pr_session";
 const CLIENT_COOKIE = "client_session"; // vezi lib/client-session.ts — cookie separat, portal client
 
 // Rute accesibile fără autentificare
-const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/pingtest"]; // /pingtest: diagnostic temporar
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/pingtest", "/pingtest2"]; // diagnostic temporar
 const PORTAL_PUBLIC_PATHS = ["/portal/login", "/portal/register", "/portal/forgot-password", "/portal/reset-password"];
 
 // Mod demo: fără bază de date/secret, nu blocăm nimic.

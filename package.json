@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "rimraf .next && next build",
+    "build": "rimraf .next && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "db:push": "prisma db push",

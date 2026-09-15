@@ -239,6 +239,14 @@ export function buildApaCanalPlan(
       else meterSeriesCollisions++;
     }
 
+    // Calculat aici (nu mai jos, la construcția facturii) — Client.lastInvoice* trebuie
+    // populat direct la import, ca /platitori (sold, status, sector) să nu depindă de o
+    // reîmprospătare ulterioară care rulează doar la creare/editare individuală de factură.
+    const issueDate = new Date(str(doc["Дата"]));
+    const subtotal = round2(doc["Начислено"]);
+    const datoriiAvans = round2(doc["ОплаченоДолг"]);
+    const grandTotal = round2(subtotal + datoriiAvans);
+
     const nameKey = norm(name);
     const existing = !consumedNames.has(nameKey) ? clientByNameKey.get(nameKey) : undefined;
 
@@ -252,6 +260,10 @@ export function buildApaCanalPlan(
         meterCurrReading: meterCurrReadingNum,
         meterReadingEstimated,
         consumAddress: consumAddress ?? undefined,
+        lastInvoiceStatus: "SENT",
+        lastInvoiceGrandTotal: grandTotal,
+        lastInvoiceSectorNr: sectorNr,
+        lastInvoiceIssueDate: issueDate,
       };
       if (existing.portalActivatedAt) {
         preservedActivated++;
@@ -275,6 +287,10 @@ export function buildApaCanalPlan(
         meterCurrReading: meterCurrReadingNum,
         meterReadingEstimated,
         consumAddress,
+        lastInvoiceStatus: "SENT",
+        lastInvoiceGrandTotal: grandTotal,
+        lastInvoiceSectorNr: sectorNr,
+        lastInvoiceIssueDate: issueDate,
       });
       clientByNameKey.set(nameKey, { id: clientId, name, meterSeries, portalActivatedAt: null });
       consumedNames.add(nameKey);
@@ -283,11 +299,6 @@ export function buildApaCanalPlan(
     const number = contPersonalRaw ? `AC-${contPersonalRaw}` : `AC-${uid.slice(0, 8)}`;
     if (existingInvoiceNumbers.has(number)) { skippedExistingInvoice++; continue; }
     existingInvoiceNumbers.add(number);
-
-    const issueDate = new Date(str(doc["Дата"]));
-    const subtotal = round2(doc["Начислено"]);
-    const datoriiAvans = round2(doc["ОплаченоДолг"]);
-    const grandTotal = round2(subtotal + datoriiAvans);
 
     const invoiceId = oid();
     invoicesToCreate.push({

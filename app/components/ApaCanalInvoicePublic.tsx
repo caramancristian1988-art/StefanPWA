@@ -92,13 +92,19 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
             style={{ bottom: `${(s / yMax) * 100}%`, borderTop: `0.5px solid ${COLOR_BORDER_LIGHT}` }}
           />
         ))}
-        {/* Bare */}
+        {/* Bare — lățimea maximă se adaptează la număr (puține puncte, ex. o singură lună
+            importată, ar lăsa altfel o bară firavă rătăcită într-un grafic gol). */}
         <div className="relative flex h-full items-end gap-[0.8mm]">
           {points.map((p, i) => (
             <div key={i} className="flex h-full flex-1 flex-col items-center justify-end">
               <div
                 className="w-full"
-                style={{ maxWidth: "7mm", height: `${Math.max(1, (p.value / yMax) * 100)}%`, background: COLOR_BAR, border: `0.6px solid ${COLOR_BAR_BORDER}` }}
+                style={{
+                  maxWidth: `${Math.min(20, 84 / points.length)}mm`,
+                  height: `${Math.max(1, (p.value / yMax) * 100)}%`,
+                  background: COLOR_BAR,
+                  border: `0.6px solid ${COLOR_BAR_BORDER}`,
+                }}
                 title={`${p.label}: ${p.value} m³`}
               />
             </div>

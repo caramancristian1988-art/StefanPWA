@@ -620,6 +620,15 @@ model Client {
   meterReadingEstimated  Boolean @default(false)
   consumAddress          String?
 
+  // Instantaneu al ULTIMEI facturi (după issueDate) — MongoDB/Prisma nu poate sorta/filtra
+  // clienți după un câmp dintr-o relație (Invoice), așa că duplicăm aici ce ne trebuie pentru
+  // filtrele din /platitori (sold, status, sector), reîmprospătat la fiecare creare/modificare
+  // de factură — vezi refreshClientInvoiceSnapshot în lib/services/invoices.ts.
+  lastInvoiceStatus     InvoiceStatus?
+  lastInvoiceGrandTotal Float?
+  lastInvoiceSectorNr   String?
+  lastInvoiceIssueDate  DateTime?
+
   appointments            Appointment[]
   projects                Project[]
   invoices                Invoice[]
@@ -629,6 +638,9 @@ model Client {
   @@index([userId, name])
   @@index([userId, createdAt])
   @@index([userId, phone])
+  @@index([userId, lastInvoiceGrandTotal])
+  @@index([userId, lastInvoiceStatus])
+  @@index([userId, lastInvoiceSectorNr])
 }
 
 // --- Autentificare portal client (oglindă Session/VerificationCode, dar legată de Client) ---

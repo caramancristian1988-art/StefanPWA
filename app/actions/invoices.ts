@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { requireUser, type CurrentUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { DEMO } from "@/lib/demo";
-import { createInvoice, updateInvoice, type ApaCanalInput } from "@/lib/services/invoices";
+import { createInvoice, updateInvoice, refreshClientInvoiceSnapshot, type ApaCanalInput } from "@/lib/services/invoices";
 import { getSettings } from "@/lib/queries/settings";
 import { logAudit } from "@/lib/services/audit";
 import { notifyUsers, observerRecipients } from "@/lib/services/notifications";
@@ -156,6 +156,10 @@ export async function saveInvoice(payload: InvoicePayload): Promise<InvoiceActio
   if (!payload.id) {
     notifyInvoiceEvent("invoice.created", `Factură nouă: ${inv?.number ?? ""}`.trim(), user.id);
   }
+  await refreshClientInvoiceSnapshot(payload.clientId);
+  if (previousClient?.clientId && previousClient.clientId !== payload.clientId) {
+    await refreshClientInvoiceSnapshot(previousClient.clientId);
+  }
   if (status === "SENT") {
     notifyClientEmail(res.id!);
     const clientChanged = !!previousClient?.clientId && previousClient.clientId !== payload.clientId;
@@ -215,8 +219,9 @@ export async function setInvoiceStatus(
   if (!can(user, "invoices.edit")) return { ok: false, error: "Fără permisiune." };
   if (DEMO) return { ok: false, error: "Mod demo." };
   if (!STATUSES.includes(status as InvoiceStatus)) return { ok: false, error: "Status invalid." };
-  const before = await prisma.invoice.findUnique({ where: { id }, select: { number: true, status: true } });
+  const before = await prisma.invoice.findUnique({ where: { id }, select: { number: true, status: true, clientId: true } });
   await prisma.invoice.update({ where: { id }, data: { status: status as InvoiceStatus } });
+  await refreshClientInvoiceSnapshot(before?.clientId);
   await logAudit(actor(user), {
     action: "invoice.status_change",
     module: "Invoices",
@@ -235,9 +240,10 @@ export async function deleteInvoice(id: string): Promise<void> {
   const user = await requireUser();
   if (!can(user, "invoices.delete")) return;
   if (DEMO) return;
-  const inv = await prisma.invoice.findUnique({ where: { id }, select: { number: true } });
+  const inv = await prisma.invoice.findUnique({ where: { id }, select: { number: true, clientId: true } });
   await prisma.invoiceItem.deleteMany({ where: { invoiceId: id } });
   await prisma.invoice.delete({ where: { id } }).catch(() => {});
+  await refreshClientInvoiceSnapshot(inv?.clientId);
   await logAudit(actor(user), { action: "invoice.delete", module: "Invoices", objectId: id, objectName: inv?.number ?? null });
   revalidatePath("/invoices");
 }

@@ -124,6 +124,35 @@ function apaCanalData(input: InvoiceInput, subtotal: number) {
   };
 }
 
+/**
+ * Reîmprospătează instantaneul ultimei facturi de pe Client (lastInvoiceStatus/GrandTotal/
+ * SectorNr/IssueDate) — MongoDB/Prisma nu poate sorta sau filtra clienți după un câmp dintr-o
+ * relație (Invoice), așa că /platitori (sold, status, sector) citește direct de pe Client.
+ * Best-effort: apelată după orice creare/editare/ștergere/schimbare de status a unei facturi
+ * cu client — nu trebuie să blocheze acțiunea principală dacă eșuează.
+ */
+export async function refreshClientInvoiceSnapshot(clientId: string | null | undefined): Promise<void> {
+  if (!clientId) return;
+  try {
+    const latest = await prisma.invoice.findFirst({
+      where: { clientId },
+      orderBy: { issueDate: "desc" },
+      select: { status: true, grandTotal: true, sectorNr: true, issueDate: true },
+    });
+    await prisma.client.update({
+      where: { id: clientId },
+      data: {
+        lastInvoiceStatus: latest?.status ?? null,
+        lastInvoiceGrandTotal: latest?.grandTotal ?? null,
+        lastInvoiceSectorNr: latest?.sectorNr ?? null,
+        lastInvoiceIssueDate: latest?.issueDate ?? null,
+      },
+    });
+  } catch (e) {
+    console.error(`[invoices] eșec reîmprospătare instantaneu client ${clientId}:`, e);
+  }
+}
+
 export async function createInvoice(userId: string, input: InvoiceInput) {
   if (DEMO) return { ok: false as const, error: "Mod demo: conectează o bază de date." };
   const company = await getCompanySettings();

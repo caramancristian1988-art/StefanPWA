@@ -3,8 +3,20 @@ import { prisma } from "@/lib/prisma";
 import { TASK_STATUS_RO } from "@/lib/telegram";
 import { fmtDate } from "@/app/components/invoice-meta";
 import PortalNewTicketForm from "@/app/components/PortalNewTicketForm";
+import { IconTicket } from "@/app/components/icons";
 
 export const dynamic = "force-dynamic";
+
+const TICKET_STATUS_CLS: Record<string, string> = {
+  NEW: "bg-st-new/12 text-st-new",
+  ASSIGNED: "bg-st-new/12 text-st-new",
+  READ: "bg-st-new/12 text-st-new",
+  IN_PROGRESS: "bg-st-progress/12 text-st-progress",
+  ON_HOLD: "bg-st-progress/12 text-st-progress",
+  REVIEW: "bg-st-progress/12 text-st-progress",
+  DONE: "bg-st-done/12 text-st-done",
+  CANCELLED: "bg-st-cancelled/12 text-st-cancelled",
+};
 
 export default async function PortalTicketsPage() {
   const client = await requireClient();
@@ -17,10 +29,16 @@ export default async function PortalTicketsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-bold">Tichetele mele</h1>
+      <div>
+        <h1 className="text-lg font-bold">Tichetele mele</h1>
+        <p className="mt-0.5 text-xs text-ink-soft">{tickets.length} tichete în total</p>
+      </div>
 
       <div className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold">Creează un tichet nou</h2>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
+          <IconTicket className="size-4 text-brand" />
+          Creează un tichet nou
+        </h2>
         <PortalNewTicketForm />
       </div>
 
@@ -30,16 +48,16 @@ export default async function PortalTicketsPage() {
         <div className="flex flex-col gap-2">
           {tickets.map((t) => (
             <div key={t.id} className="card p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <p className="text-sm font-semibold">
-                  {t.seq ? `#${t.seq} · ` : ""}
+                  {t.seq ? <span className="text-ink-soft">#{t.seq} · </span> : ""}
                   {t.title}
                 </p>
-                <span className="rounded-full bg-[var(--color-surface-2)] px-2.5 py-0.5 text-xs font-medium text-ink-soft">
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${TICKET_STATUS_CLS[t.status] ?? "bg-[var(--color-surface-2)] text-ink-soft"}`}>
                   {TASK_STATUS_RO[t.status] ?? t.status}
                 </span>
               </div>
-              {t.description && <p className="mt-1 whitespace-pre-wrap text-sm text-ink-soft">{t.description}</p>}
+              {t.description && <p className="mt-1.5 whitespace-pre-wrap text-sm text-ink-soft">{t.description}</p>}
               <p className="mt-2 text-xs text-ink-soft">{fmtDate(t.createdAt)}</p>
             </div>
           ))}

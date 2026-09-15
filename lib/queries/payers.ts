@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "../prisma";
 import { DEMO } from "../demo";
-import type { InvoiceStatus } from "@prisma/client";
+import type { InvoiceStatus, Prisma } from "@prisma/client";
 
 const PAGE_SIZE = 50;
 
@@ -16,21 +16,52 @@ export type PayerRow = {
   latestInvoice: { number: string; status: InvoiceStatus; grandTotal: number; currency: string } | null;
 };
 
+export type PayerSector = "privat" | "comunal";
+export type PayerDebtFilter = "has" | "none";
+export type PayerSort = "name" | "debtDesc" | "debtAsc";
+
+const SECTOR_VALUE: Record<PayerSector, string> = {
+  privat: "Sector privat",
+  comunal: "Sector comunal",
+};
+
+export type ListPayersOpts = {
+  search?: string;
+  status?: "activated" | "pending";
+  sector?: PayerSector;
+  invoiceStatus?: InvoiceStatus;
+  debt?: PayerDebtFilter;
+  street?: string;
+  sort?: PayerSort;
+  page?: number;
+};
+
 /**
  * Plătitori — clienți portal Apă-Canal (au `meterSeries`), separați de clienții obișnuiți
  * (programări) din /clients. Listă paginată + căutare, cu numărul de facturi și starea celei
- * mai recente, calculate într-o singură interogare suplimentară (nu N+1 per rând).
+ * mai recente.
+ *
+ * Filtrele de sold/status/sector/sortare citesc direct câmpurile Client.lastInvoice* (instantaneu
+ * al ultimei facturi, reîmprospătat la fiecare creare/editare — vezi refreshClientInvoiceSnapshot
+ * în lib/services/invoices.ts) — MongoDB/Prisma nu poate filtra sau sorta clienți după un câmp
+ * dintr-o relație (Invoice) direct, iar la 19k+ plătitori un query per client ar fi mult prea lent.
  */
-export async function listPayers(opts: { search?: string; status?: "activated" | "pending"; page?: number } = {}) {
+export async function listPayers(opts: ListPayersOpts = {}) {
   if (DEMO) return { items: [] as PayerRow[], total: 0, page: 1, hasMore: false };
 
   const page = Math.max(1, opts.page ?? 1);
   const search = opts.search?.trim();
+  const street = opts.street?.trim();
 
-  const where = {
+  const where: Prisma.ClientWhereInput = {
     meterSeries: { not: null },
     ...(opts.status === "activated" ? { portalPasswordHash: { not: null } } : {}),
     ...(opts.status === "pending" ? { portalPasswordHash: null } : {}),
+    ...(opts.sector ? { lastInvoiceSectorNr: SECTOR_VALUE[opts.sector] } : {}),
+    ...(opts.invoiceStatus ? { lastInvoiceStatus: opts.invoiceStatus } : {}),
+    ...(opts.debt === "has" ? { lastInvoiceGrandTotal: { gt: 0 } } : {}),
+    ...(opts.debt === "none" ? { lastInvoiceGrandTotal: { lte: 0 } } : {}),
+    ...(street ? { consumAddress: { contains: street, mode: "insensitive" as const } } : {}),
     ...(search
       ? {
           OR: [
@@ -42,10 +73,17 @@ export async function listPayers(opts: { search?: string; status?: "activated" |
       : {}),
   };
 
+  const orderBy: Prisma.ClientOrderByWithRelationInput =
+    opts.sort === "debtDesc"
+      ? { lastInvoiceGrandTotal: "desc" }
+      : opts.sort === "debtAsc"
+        ? { lastInvoiceGrandTotal: "asc" }
+        : { name: "asc" };
+
   const [items, total] = await Promise.all([
     prisma.client.findMany({
       where,
-      orderBy: { name: "asc" },
+      orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       select: { id: true, name: true, meterSeries: true, email: true, phone: true, portalPasswordHash: true },

@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getCompanySettings } from "@/lib/queries/company";
+import { refreshClientInvoiceSnapshot } from "@/lib/services/invoices";
 
 const TARIF_APA = 23;
 const TARIF_CANAL = 7;
@@ -120,4 +121,6 @@ export async function generateFirstApaCanalInvoice(clientId: string): Promise<vo
       },
     },
   });
+
+  await refreshClientInvoiceSnapshot(client.id);
 }

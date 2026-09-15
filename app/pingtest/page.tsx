@@ -3,15 +3,18 @@
 // pentru /login și /portal/login specific. De șters imediat după diagnosticare.
 export const dynamic = "force-dynamic";
 
+import { prisma } from "@/lib/prisma";
+
 export default async function PingTestPage({
   searchParams,
 }: {
   searchParams: Promise<{ reset?: string }>;
 }) {
+  const hasUser = (await prisma.user.count().catch(() => 1)) > 0;
   const { reset } = await searchParams;
   return (
     <div>
-      pong3 {new Date().toISOString()} reset={String(reset)}
+      pong4 {new Date().toISOString()} reset={String(reset)} hasUser={String(hasUser)}
     </div>
   );
 }

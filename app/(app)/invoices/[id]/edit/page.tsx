@@ -30,7 +30,9 @@ export default async function EditInvoicePage({
   if (!invoice) notFound();
 
   if (invoice.kind === "APA_CANAL") {
-    const apaItem = invoice.items.find((it) => /alimentare cu apa/i.test(it.description));
+    // "ap[aă]" — acceptă și "apă" (cu diacritic), cum apar descrierile facturilor importate din
+    // exportul 1C — vezi explicația din ApaCanalInvoicePublic.tsx.
+    const apaItem = invoice.items.find((it) => /alimentare cu ap[aă]/i.test(it.description));
     const canalItem = invoice.items.find((it) => /canalizare/i.test(it.description));
     const rawConsumption = Array.isArray(invoice.monthlyConsumption)
       ? (invoice.monthlyConsumption as { label: string; value: number }[])

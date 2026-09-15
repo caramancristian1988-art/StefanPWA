@@ -349,7 +349,11 @@ export default function ApaCanalInvoicePublic({
   /** Factorul de scalare CSS aplicat de containerul din editor (vezi ApaCanalLayoutEditor). */
   previewScale?: number;
 }) {
-  const apaItem = invoice.items.find((it) => /alimentare cu apa/i.test(it.description));
+  // "ap[aă]" — acceptă atât "apa" (fără diacritice, cum scriu formularele din aplicație), cât
+  // și "apă" (corect gramatical, cum apare în descrierile importate din exportul 1C) — fără
+  // asta, liniile de consum de apă din facturile importate dispar din tabel (regex nu găsea
+  // niciodată "apă"), iar suma calculată afișată era greșit doar cea de canalizare.
+  const apaItem = invoice.items.find((it) => /alimentare cu ap[aă]/i.test(it.description));
   const canalItem = invoice.items.find((it) => /canalizare/i.test(it.description));
   const sumaCalculata = (apaItem?.lineTotal ?? 0) + (canalItem?.lineTotal ?? 0);
   const points: ConsumPoint[] = Array.isArray(invoice.monthlyConsumption)

@@ -55,6 +55,17 @@ const COLOR_RED = "#E53935";
 
 const num2 = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/**
+ * Volum/tarif pentru o linie de serviciu — "—" în loc de "0,00" exact acolo unde afișarea unui
+ * zero ar face suma arăta ca o eroare de calcul (0 × orice = sumă nenulă, contradictoriu vizual).
+ * Cazul e real în datele importate: unele linii au sumă calculată reală dar volum și/sau tarif
+ * nu s-au înregistrat separat în sursă — nu inventăm o valoare, doar nu mai afișăm un zero fals.
+ * Un consum cu adevărat nul (volum 0, sumă 0) tot arată "0,00" — acolo zero e corect și clar.
+ */
+function factorOrDash(value: number, lineTotal: number): string {
+  return value === 0 && lineTotal !== 0 ? "—" : num2(value);
+}
+
 /** Rotunjește la un "număr frumos" (1/2/5 × 10^n) — ține numărul de linii de grilă mereu rezonabil. */
 function niceStep(raw: number): number {
   if (raw <= 0) return 1;
@@ -564,16 +575,16 @@ export default function ApaCanalInvoicePublic({
                 {apaItem && (
                   <tr style={{ borderBottom: `1px solid ${COLOR_BORDER_LIGHT}` }}>
                     <td className="whitespace-nowrap" style={{ padding: "0.8mm 0" }}>Serviciul de alimentare cu apa</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(apaItem.quantity)}</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(apaItem.unitPrice)}</td>
+                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(apaItem.quantity, apaItem.lineTotal)}</td>
+                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(apaItem.unitPrice, apaItem.lineTotal)}</td>
                     <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(apaItem.lineTotal)}</td>
                   </tr>
                 )}
                 {canalItem && (
                   <tr>
                     <td className="whitespace-nowrap" style={{ padding: "0.8mm 0" }}>Serviciul de canalizare</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(canalItem.quantity)}</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(canalItem.unitPrice)}</td>
+                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(canalItem.quantity, canalItem.lineTotal)}</td>
+                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(canalItem.unitPrice, canalItem.lineTotal)}</td>
                     <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(canalItem.lineTotal)}</td>
                   </tr>
                 )}

@@ -36,10 +36,11 @@ export type ApaCanalInvoiceData = {
   recalculari: number;
   penalitati: number;
   datoriiAvans: number;
+  subtotal: number;
   grandTotal: number;
   monthlyConsumption: unknown;
   client: { name: string } | null;
-  items: { description: string; quantity: number; unitPrice: number; lineTotal: number }[];
+  items: { id: string; description: string; quantity: number; unitPrice: number; lineTotal: number }[];
 };
 
 // Paleta exactă extrasă din modelul de factură Apă-Canal.
@@ -54,6 +55,10 @@ const COLOR_BORDER_LIGHT = "#D9DDDD";
 const COLOR_RED = "#E53935";
 
 const num2 = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// "ap[aă]" — acceptă "apa" (fără diacritic, cum scriu formularele din aplicație) și "apă"
+// (corect gramatical, din exportul 1C importat) — vezi explicația la locul de folosire.
+const isApa = (description: string) => /alimentare cu ap[aă]/i.test(description);
 
 /**
  * Volum/tarif pentru o linie de serviciu — "—" în loc de "0,00" exact acolo unde afișarea unui
@@ -370,9 +375,15 @@ export default function ApaCanalInvoicePublic({
   // și "apă" (corect gramatical, cum apare în descrierile importate din exportul 1C) — fără
   // asta, liniile de consum de apă din facturile importate dispar din tabel (regex nu găsea
   // niciodată "apă"), iar suma calculată afișată era greșit doar cea de canalizare.
-  const apaItem = invoice.items.find((it) => /alimentare cu ap[aă]/i.test(it.description));
-  const canalItem = invoice.items.find((it) => /canalizare/i.test(it.description));
-  const sumaCalculata = (apaItem?.lineTotal ?? 0) + (canalItem?.lineTotal ?? 0);
+  //
+  // TOATE liniile, nu doar prima cu .find() — ~1.873 facturi (din import) au mai mult de o
+  // linie de apă/canal (recalculări/corecții din aceeași perioadă, în sursa 1C); .find() le
+  // arăta pe client doar UNA, ascunzând restul sumelor reale facturate din tabelul afișat.
+  const apaItems = invoice.items.filter((it) => isApa(it.description));
+  const canalItems = invoice.items.filter((it) => !isApa(it.description) && /canalizare/i.test(it.description));
+  // Din invoice.subtotal (verificat mereu egal cu suma liniilor — vezi backfill-ul de audit),
+  // NU resumat din apaItems/canalItems aici — mai robust, nu depinde de regex-ul de mai sus.
+  const sumaCalculata = invoice.subtotal;
   const points: ConsumPoint[] = Array.isArray(invoice.monthlyConsumption)
     ? (invoice.monthlyConsumption as ConsumPoint[])
     : [];
@@ -572,26 +583,24 @@ export default function ApaCanalInvoicePublic({
                 </tr>
               </thead>
               <tbody>
-                {apaItem && (
-                  <tr style={{ borderBottom: `1px solid ${COLOR_BORDER_LIGHT}` }}>
-                    <td className="whitespace-nowrap" style={{ padding: "0.8mm 0" }}>Serviciul de alimentare cu apa</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(apaItem.quantity, apaItem.lineTotal)}</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(apaItem.unitPrice, apaItem.lineTotal)}</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(apaItem.lineTotal)}</td>
+                {/* TOATE liniile care se potrivesc, nu doar prima — unele facturi (recalculări/
+                    corecții acumulate în aceeași perioadă din exportul 1C) au mai mult de o
+                    linie de apă și/sau de canalizare (până la câteva zeci, în cazuri rare).
+                    Afișarea doar a primei linii ar ascunde restul sumelor reale facturate. */}
+                {[...apaItems, ...canalItems].map((item, i, arr) => (
+                  <tr key={item.id} style={i < arr.length - 1 ? { borderBottom: `1px solid ${COLOR_BORDER_LIGHT}` } : undefined}>
+                    <td className="whitespace-nowrap" style={{ padding: "0.8mm 0" }}>
+                      {isApa(item.description) ? "Serviciul de alimentare cu apa" : "Serviciul de canalizare"}
+                    </td>
+                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(item.quantity, item.lineTotal)}</td>
+                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(item.unitPrice, item.lineTotal)}</td>
+                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(item.lineTotal)}</td>
                   </tr>
-                )}
-                {canalItem && (
-                  <tr>
-                    <td className="whitespace-nowrap" style={{ padding: "0.8mm 0" }}>Serviciul de canalizare</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(canalItem.quantity, canalItem.lineTotal)}</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{factorOrDash(canalItem.unitPrice, canalItem.lineTotal)}</td>
-                    <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(canalItem.lineTotal)}</td>
-                  </tr>
-                )}
+                ))}
                 {/* Fără nicio linie de serviciu — indicii contorului nu s-au schimbat față de
                     perioada precedentă (consum 0), deci nu s-a calculat nimic de facturat acum;
                     un tabel complet gol arată ca o eroare de afișare, nu ca "n-ai consumat". */}
-                {!apaItem && !canalItem && (
+                {apaItems.length === 0 && canalItems.length === 0 && (
                   <tr>
                     <td colSpan={4} className="text-center" style={{ padding: "1.5mm 0", color: COLOR_CHART_TEXT }}>
                       Fără consum înregistrat în această perioadă — nimic de facturat.

@@ -25,6 +25,7 @@ const SAMPLE_INVOICE: ApaCanalInvoiceData = {
   recalculari: 0,
   penalitati: 0,
   datoriiAvans: -190,
+  subtotal: 483.6,
   grandTotal: 293.6,
   monthlyConsumption: ["7", "8", "9", "10", "11", "12", "1", "2", "3", "4", "5", "6"].map((label, i) => ({
     label,
@@ -32,8 +33,8 @@ const SAMPLE_INVOICE: ApaCanalInvoiceData = {
   })),
   client: { name: "Gheorghe" },
   items: [
-    { description: "Serviciul de alimentare cu apa", quantity: 13, unitPrice: 23.45, lineTotal: 304.85 },
-    { description: "Serviciul de canalizare", quantity: 13, unitPrice: 13.75, lineTotal: 178.75 },
+    { id: "sample-apa", description: "Serviciul de alimentare cu apa", quantity: 13, unitPrice: 23.45, lineTotal: 304.85 },
+    { id: "sample-canal", description: "Serviciul de canalizare", quantity: 13, unitPrice: 13.75, lineTotal: 178.75 },
   ],
 };
 

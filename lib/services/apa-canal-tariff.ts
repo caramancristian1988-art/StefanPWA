@@ -41,6 +41,11 @@ export async function buildTariffUpdatePlan(
   tarifApa: number,
   tarifCanal: number,
 ): Promise<TariffUpdatePlan> {
+  // Două interogări fără relație imbricată, NU una cu `items: { select: ... }` — Prisma/MongoDB
+  // generează pentru asta un filtru `invoiceId IN (<18k+ id-uri>)`, care s-a dovedit catastrofal
+  // de lent (~70s, peste limita de timp a funcției serverless — de-aici erau eșecurile "Failed
+  // to fetch" din UI). Preluăm TOATE InvoiceItem fără filtru (rapid, ~1.5s pentru tot tabelul)
+  // și le grupăm în memorie — la fel ca în scripts/backfill-client-invoice-snapshot.mjs.
   const invoices = await prisma.invoice.findMany({
     where: { kind: "APA_CANAL", status: { notIn: ["PAID", "CANCELLED"] } },
     select: {
@@ -51,9 +56,17 @@ export async function buildTariffUpdatePlan(
       penalitati: true,
       datoriiAvans: true,
       grandTotal: true,
-      items: { select: { id: true, description: true, quantity: true, unitPrice: true, lineTotal: true } },
     },
   });
+  const allItems = await prisma.invoiceItem.findMany({
+    select: { id: true, invoiceId: true, description: true, quantity: true, unitPrice: true, lineTotal: true },
+  });
+  const itemsByInvoice = new Map<string, typeof allItems>();
+  for (const it of allItems) {
+    const arr = itemsByInvoice.get(it.invoiceId) ?? [];
+    arr.push(it);
+    itemsByInvoice.set(it.invoiceId, arr);
+  }
 
   const invoiceUpdates: TariffUpdatePlan["invoiceUpdates"] = [];
   let invoicesChanged = 0;
@@ -68,8 +81,9 @@ export async function buildTariffUpdatePlan(
     let touchedAny = false;
     const itemUpdates: TariffUpdatePlan["invoiceUpdates"][number]["itemUpdates"] = [];
     let newSubtotal = 0;
+    const invItems = itemsByInvoice.get(inv.id) ?? [];
 
-    for (const it of inv.items) {
+    for (const it of invItems) {
       const isWater = isApa(it.description);
       const isSewage = !isWater && isCanal(it.description);
       if ((isWater || isSewage) && it.quantity > 0) {

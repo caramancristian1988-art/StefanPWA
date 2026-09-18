@@ -38,6 +38,12 @@ export async function updatePayer(
     where: { id },
     data: { name: d.name, phone: d.phone || null, email: d.email || null, notes: d.notes || null },
   });
+  // consumerName e o copie denormalizată, înghețată pe fiecare factură la creare — corectarea
+  // numelui aici NU se vedea pe facturile deja emise ale clientului (inclusiv pe cea publică,
+  // pe care o vede clientul) dacă nu o propagăm și acolo.
+  if (d.name !== existing.name) {
+    await prisma.invoice.updateMany({ where: { clientId: id }, data: { consumerName: d.name } });
+  }
   await logAudit(actor(user), { action: "client.update", module: "Payers", objectId: id, objectName: d.name });
   revalidatePath(`/platitori/${id}`);
   revalidatePath("/platitori");

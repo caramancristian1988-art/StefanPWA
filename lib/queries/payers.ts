@@ -33,8 +33,30 @@ export type ListPayersOpts = {
   debt?: PayerDebtFilter;
   street?: string;
   sort?: PayerSort;
+  /** Nume cu "?" literal — caracter pe care Windows-1251 (codificarea exportului 1C importat)
+   * nu îl poate reprezenta deloc (cazul real: Ș/Ț românesc, absente din acea pagină de coduri —
+   * pierdere ireversibilă, produsă în sistemul sursă înainte să ajungă fișierul la noi). */
+  needsNameFix?: boolean;
   page?: number;
 };
+
+/**
+ * Id-urile clienților al căror nume conține "?" literal — nu putem folosi `contains: "?"` direct
+ * (Prisma/MongoDB tratează "?" ca metacaracter de regex acolo, ceea ce ajunge să se potrivească
+ * practic cu ORICE nume) — scanăm în memorie (proiecție ușoară, id+nume, ~19k rânduri, rapid).
+ */
+export async function countPayersNeedingNameFix(): Promise<number> {
+  if (DEMO) return 0;
+  return (await findClientIdsNeedingNameFix()).length;
+}
+
+async function findClientIdsNeedingNameFix(): Promise<string[]> {
+  const all = await prisma.client.findMany({
+    where: { meterSeries: { not: null } },
+    select: { id: true, name: true },
+  });
+  return all.filter((c) => c.name.includes("?")).map((c) => c.id);
+}
 
 /**
  * Plătitori — clienți portal Apă-Canal (au `meterSeries`), separați de clienții obișnuiți
@@ -52,9 +74,11 @@ export async function listPayers(opts: ListPayersOpts = {}) {
   const page = Math.max(1, opts.page ?? 1);
   const search = opts.search?.trim();
   const street = opts.street?.trim();
+  const nameFixIds = opts.needsNameFix ? await findClientIdsNeedingNameFix() : null;
 
   const where: Prisma.ClientWhereInput = {
     meterSeries: { not: null },
+    ...(nameFixIds ? { id: { in: nameFixIds } } : {}),
     ...(opts.status === "activated" ? { portalPasswordHash: { not: null } } : {}),
     ...(opts.status === "pending" ? { portalPasswordHash: null } : {}),
     ...(opts.sector ? { lastInvoiceSectorNr: SECTOR_VALUE[opts.sector] } : {}),

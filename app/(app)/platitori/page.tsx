@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
-import { listPayers, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
+import { listPayers, countPayersNeedingNameFix, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
 import { money } from "@/app/components/invoice-meta";
 import { INVOICE_STATUS, INVOICE_STATUS_LIST, type InvoiceStatusKey } from "@/app/components/invoice-meta";
 import { IconChevronLeft, IconChevronRight } from "@/app/components/icons";
@@ -29,7 +29,7 @@ export default async function PayersPage({
 }: {
   searchParams: Promise<{
     q?: string; status?: string; sector?: string; invoiceStatus?: string;
-    debt?: string; street?: string; sort?: string; page?: string;
+    debt?: string; street?: string; sort?: string; page?: string; nameFix?: string;
   }>;
 }) {
   await requirePermission("clients.view");
@@ -41,22 +41,27 @@ export default async function PayersPage({
   const debt = sp.debt === "has" || sp.debt === "none" ? sp.debt : "";
   const street = sp.street ?? "";
   const sort = sp.sort === "debtDesc" || sp.sort === "debtAsc" ? sp.sort : "name";
+  const nameFix = sp.nameFix === "1";
   const page = Math.max(1, Number(sp.page) || 1);
   const statusFilter = status === "activated" || status === "pending" ? status : undefined;
 
-  const { items, total, hasMore } = await listPayers({
-    search: q,
-    status: statusFilter,
-    sector: (sector || undefined) as PayerSector | undefined,
-    invoiceStatus: (invoiceStatus || undefined) as InvoiceStatus | undefined,
-    debt: (debt || undefined) as PayerDebtFilter | undefined,
-    street: street || undefined,
-    sort: sort as PayerSort,
-    page,
-  });
+  const [{ items, total, hasMore }, nameFixCount] = await Promise.all([
+    listPayers({
+      search: q,
+      status: statusFilter,
+      sector: (sector || undefined) as PayerSector | undefined,
+      invoiceStatus: (invoiceStatus || undefined) as InvoiceStatus | undefined,
+      debt: (debt || undefined) as PayerDebtFilter | undefined,
+      street: street || undefined,
+      sort: sort as PayerSort,
+      needsNameFix: nameFix || undefined,
+      page,
+    }),
+    countPayersNeedingNameFix(),
+  ]);
 
   const qp = (overrides: Record<string, string>) => {
-    const p = new URLSearchParams({ q, status, sector, invoiceStatus, debt, street, sort, ...overrides });
+    const p = new URLSearchParams({ q, status, sector, invoiceStatus, debt, street, sort, nameFix: nameFix ? "1" : "", ...overrides });
     for (const [k, v] of [...p.entries()]) if (!v || v === "name") p.delete(k);
     return `?${p.toString()}`;
   };
@@ -69,7 +74,22 @@ export default async function PayersPage({
         <p className="mt-1 text-sm text-ink-soft">{total} plătitori Apă-Canal — facturi, tichete, cont portal.</p>
       </div>
 
+      {nameFixCount > 0 && (
+        <Link
+          href={qp({ nameFix: nameFix ? "" : "1", page: "1" })}
+          className={`tap mb-4 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${
+            nameFix ? "border-brand bg-brand-soft text-brand-strong" : "border-st-progress/30 bg-st-progress/10 text-st-progress"
+          }`}
+        >
+          <span>
+            <b>{nameFixCount} nume</b> conțin un caracter „?” — litere românești (Ș/Ț) pe care exportul original nu le putea reprezenta.
+          </span>
+          <span className="shrink-0 font-medium underline">{nameFix ? "Arată pe toți" : "Arată-le"}</span>
+        </Link>
+      )}
+
       <form className="mb-4 flex flex-col gap-2" method="GET">
+        {nameFix && <input type="hidden" name="nameFix" value="1" />}
         <div className="flex flex-wrap items-center gap-2">
           <input
             name="q"

@@ -577,6 +577,16 @@ export default function ApaCanalInvoicePublic({
                     <td className="text-right tabular-nums" style={{ padding: "0.8mm 0" }}>{num2(canalItem.lineTotal)}</td>
                   </tr>
                 )}
+                {/* Fără nicio linie de serviciu — indicii contorului nu s-au schimbat față de
+                    perioada precedentă (consum 0), deci nu s-a calculat nimic de facturat acum;
+                    un tabel complet gol arată ca o eroare de afișare, nu ca "n-ai consumat". */}
+                {!apaItem && !canalItem && (
+                  <tr>
+                    <td colSpan={4} className="text-center" style={{ padding: "1.5mm 0", color: COLOR_CHART_TEXT }}>
+                      Fără consum înregistrat în această perioadă — nimic de facturat.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           ))}

@@ -117,11 +117,15 @@ function ConsumptionChart({ points }: { points: ConsumPoint[] }) {
                 className="w-full"
                 style={{
                   maxWidth: `${Math.min(20, 84 / points.length)}mm`,
-                  height: `${Math.max(1, (p.value / yMax) * 100)}%`,
+                  // Valori negative apar real (corecții/recalculări din 1C care reduc un consum
+                  // raportat greșit anterior) — fără acest caz separat, Math.max(1, ...) le arăta
+                  // ca un firicel abia vizibil, identic vizual cu un consum mic dar POZITIV,
+                  // ceea ce induce în eroare (bara nu trebuie desenată deloc pentru o corecție).
+                  height: p.value < 0 ? 0 : `${Math.max(1, (p.value / yMax) * 100)}%`,
                   background: COLOR_BAR,
-                  border: `0.6px solid ${COLOR_BAR_BORDER}`,
+                  border: p.value < 0 ? "none" : `0.6px solid ${COLOR_BAR_BORDER}`,
                 }}
-                title={`${p.label}: ${p.value} m³`}
+                title={p.value < 0 ? `${p.label}: corecție ${p.value} m³` : `${p.label}: ${p.value} m³`}
               />
             </div>
           ))}
@@ -384,6 +388,17 @@ export default function ApaCanalInvoicePublic({
   // Din invoice.subtotal (verificat mereu egal cu suma liniilor — vezi backfill-ul de audit),
   // NU resumat din apaItems/canalItems aici — mai robust, nu depinde de regex-ul de mai sus.
   const sumaCalculata = invoice.subtotal;
+
+  // Un șablon salvat (editor) fixează poziția elementelor de sub tabelul de servicii presupunând
+  // mereu 2 rânduri (câte o linie de apă + una de canal) — dar ~11% din facturile din import au
+  // MAI MULTE linii (recalculări/corecții din aceeași perioadă, în sursa 1C, până la câteva zeci),
+  // caz în care tabelul se întinde vizual peste "Recalculări/Penalitate", caseta de total și
+  // caseta "Atenție", poziționate absolut la o înălțime fixă (măsurat direct pe o factură reală
+  // cu 4 rânduri: tabelul ajungea la ~129mm, cu 9mm peste "recalculariText", fixat la 120mm).
+  // Compensăm împingând acele elemente în jos cu exact cât depășește tabelul înălțimea bugetată
+  // — 6.2mm/rând, măsurat direct din randare la acest font/padding.
+  const TABLE_BASELINE_ROWS = 2;
+  const TABLE_ROW_HEIGHT_MM = 6.2;
   const points: ConsumPoint[] = Array.isArray(invoice.monthlyConsumption)
     ? (invoice.monthlyConsumption as ConsumPoint[])
     : [];
@@ -393,6 +408,34 @@ export default function ApaCanalInvoicePublic({
   const [pageEl, setPageEl] = useState<HTMLDivElement | null>(null);
 
   const hasCustomLayout = !!layout && Object.keys(layout).length > 0;
+
+  // Doar când există un șablon salvat (altfel tabelul e în flux normal — vezi LayoutField — și
+  // își împinge singur vecinii mai jos, fără nicio suprapunere posibilă).
+  const itemRowCount = apaItems.length + canalItems.length;
+  const tableOverflowMm = hasCustomLayout ? Math.max(0, itemRowCount - TABLE_BASELINE_ROWS) * TABLE_ROW_HEIGHT_MM : 0;
+  // `.invoice-page` are `overflow: hidden` la 210mm (o singură pagină A4, tăiată strict) — pentru
+  // cazurile extreme (rare: până la 38 de linii pe o factură), împingerea nelimitată ar scoate
+  // caseta de total complet în afara paginii (invizibilă), ceea ce e mai rău decât suprapunerea
+  // originală (măcar parțial vizibilă). Plafonăm împingerea per element, la propria poziție +
+  // înălțime, ca niciunul să nu treacă de marginea inferioară sigură a paginii tipărite.
+  const SAFE_PAGE_BOTTOM_MM = 200;
+  const shiftedYMm = (key: ApaCanalElementKey): ApaCanalElementOverride => {
+    const existing = layout?.[key];
+    const baseYMm = existing?.yMm ?? APA_CANAL_LAYOUT_DEFAULTS[key].yMm;
+    const heightMm = existing?.heightMm ?? APA_CANAL_LAYOUT_DEFAULTS[key].heightMm;
+    const maxShiftMm = Math.max(0, SAFE_PAGE_BOTTOM_MM - heightMm - baseYMm);
+    return { ...existing, yMm: baseYMm + Math.min(tableOverflowMm, maxShiftMm) };
+  };
+  const effectiveLayout: ApaCanalLayout | null | undefined =
+    tableOverflowMm > 0
+      ? {
+          ...layout,
+          recalculariText: shiftedYMm("recalculariText"),
+          totalsConnectorLine: shiftedYMm("totalsConnectorLine"),
+          totalsBox: shiftedYMm("totalsBox"),
+          atentieBox: shiftedYMm("atentieBox"),
+        }
+      : layout;
 
   // Factura publică (nu editor) e A4 landscape la mărime reală (~1122px lățime) — pe telefon
   // depășește mereu ecranul, deci fără scalare utilizatorul vedea doar o bucată "zoomată",
@@ -421,7 +464,7 @@ export default function ApaCanalInvoicePublic({
     defaultStyle: React.CSSProperties,
     children: (state: FieldState) => React.ReactNode,
   ) => (
-    <LayoutField elementKey={elementKey} layout={layout} hasCustomLayout={hasCustomLayout} editable={editable} onChange={onLayoutChange} defaultStyle={defaultStyle} scale={previewScale} portalTarget={pageEl}>
+    <LayoutField elementKey={elementKey} layout={effectiveLayout} hasCustomLayout={hasCustomLayout} editable={editable} onChange={onLayoutChange} defaultStyle={defaultStyle} scale={previewScale} portalTarget={pageEl}>
       {children}
     </LayoutField>
   );
@@ -475,10 +518,14 @@ export default function ApaCanalInvoicePublic({
                   Cont personal: {invoice.contPersonal || "—"}
                   {invoice.sectorNr && (
                     <span className="ml-2 font-normal">
-                      {/* Coduri scurte de sector (ex. "5sp", introduse manual de staff) au eticheta
-                          "sector nr."; categoriile descriptive din exportul importat (ex. "Sector
-                          comunal") se afișează simplu — eticheta "nr." nu are sens pentru un cuvânt. */}
-                      {/sector\s/i.test(invoice.sectorNr) ? (
+                      {/* Coduri scurte de sector (ex. "5sp", introduse manual de staff, fără spațiu)
+                          au eticheta "sector nr."; categoriile descriptive din exportul importat —
+                          "Sector privat"/"Sector comunal", dar și "Agenti economici 1"/"2" pentru
+                          clienți persoane juridice — se afișează simplu, fără etichetă (verificat
+                          direct în date: toate cele 4 categorii descriptive au un spațiu, cele 2
+                          coduri scurte n-au — mai robust decât un test explicit după cuvântul
+                          "sector", care rata categoriile fără acel cuvânt, ex. "Agenti economici"). */}
+                      {/\s/.test(invoice.sectorNr.trim()) ? (
                         invoice.sectorNr
                       ) : (
                         <>

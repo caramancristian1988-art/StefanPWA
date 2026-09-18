@@ -56,6 +56,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "invoice.delete": "Ștergere factură",
   "invoice.status_change": "Schimbare status factură",
   "invoice.bulk_import": "Import în masă (Apă-Canal)",
+  "invoice.bulk_tariff_update": "Aplicare tarif nou la facturi existente",
 
   "user.create": "Creare utilizator",
   "user.update": "Editare utilizator",
@@ -96,6 +97,7 @@ const SHORT_LABELS: Record<string, string> = {
   "invoice.delete": "Factură ștearsă",
   "invoice.status_change": "Status factură",
   "invoice.bulk_import": "Import în masă",
+  "invoice.bulk_tariff_update": "Tarif nou aplicat retroactiv",
   "user.create": "Utilizator creat",
   "user.update": "Utilizator editat",
   "user.delete": "Utilizator șters",

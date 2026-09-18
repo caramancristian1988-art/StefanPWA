@@ -6,6 +6,7 @@ import { updateCompanySettings, type CompanyState } from "@/app/actions/company"
 import type { Company } from "@/lib/queries/company";
 import { IconX } from "./icons";
 import { useMessages } from "@/lib/i18n/context";
+import ApplyTariffButton from "./ApplyTariffButton";
 
 const input =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
@@ -235,7 +236,9 @@ export default function CompanyDetailsForm({
           </div>
           <p className="-mt-1 text-xs text-ink-soft">
             Aceste tarife se pre-completează automat la crearea unei facturi noi Apă-Canal — pot fi modificate oricând direct pe factură.
+            Salvarea de mai jos afectează <b>doar facturile viitoare</b>. Pentru a recalcula și facturile deja emise dar neachitate, salvează întâi, apoi:
           </p>
+          <ApplyTariffButton hasSavedTariff={(company.apaCanalTarifApa || 0) > 0 || (company.apaCanalTarifCanal || 0) > 0} />
         </div>
       </details>
 

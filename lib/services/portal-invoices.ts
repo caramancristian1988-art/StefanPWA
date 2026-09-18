@@ -4,8 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { getCompanySettings } from "@/lib/queries/company";
 import { refreshClientInvoiceSnapshot } from "@/lib/services/invoices";
 
-const TARIF_APA = 23;
-const TARIF_CANAL = 7;
+// Fallback DOAR dacă firma n-a completat niciodată tariful în Setări (apaCanalTarifApa/Canal
+// rămân 0) — altfel, prima factură auto-generată respectă tariful curent salvat, la fel ca
+// orice factură APA_CANAL nouă creată manual (vezi app/(app)/invoices/new/page.tsx).
+const FALLBACK_TARIF_APA = 23;
+const FALLBACK_TARIF_CANAL = 7;
 const LUNI_RO = [
   "IANUARIE", "FEBRUARIE", "MARTIE", "APRILIE", "MAI", "IUNIE",
   "IULIE", "AUGUST", "SEPTEMBRIE", "OCTOMBRIE", "NOIEMBRIE", "DECEMBRIE",
@@ -65,10 +68,13 @@ export async function generateFirstApaCanalInvoice(clientId: string): Promise<vo
   const prefix = company.invoicePrefix || "INV";
   const currency = company.currency || "MDL";
 
+  const tarifApa = company.apaCanalTarifApa || FALLBACK_TARIF_APA;
+  const tarifCanal = company.apaCanalTarifCanal || FALLBACK_TARIF_CANAL;
+
   const now = new Date();
   const consum = round2(client.meterCurrReading);
-  const apaSubtotal = round2(consum * TARIF_APA);
-  const canalSubtotal = round2(consum * TARIF_CANAL);
+  const apaSubtotal = round2(consum * tarifApa);
+  const canalSubtotal = round2(consum * tarifCanal);
   const subtotal = round2(apaSubtotal + canalSubtotal);
   const number = await genNumber(prefix);
 
@@ -102,7 +108,7 @@ export async function generateFirstApaCanalInvoice(clientId: string): Promise<vo
           {
             description: "Serviciul de alimentare cu apa",
             quantity: consum,
-            unitPrice: TARIF_APA,
+            unitPrice: tarifApa,
             taxRate: 0,
             lineSubtotal: apaSubtotal,
             lineTotal: apaSubtotal,
@@ -111,7 +117,7 @@ export async function generateFirstApaCanalInvoice(clientId: string): Promise<vo
           {
             description: "Serviciul de canalizare",
             quantity: consum,
-            unitPrice: TARIF_CANAL,
+            unitPrice: tarifCanal,
             taxRate: 0,
             lineSubtotal: canalSubtotal,
             lineTotal: canalSubtotal,

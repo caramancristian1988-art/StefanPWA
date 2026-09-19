@@ -34,7 +34,10 @@ export default async function PayerDetailPage({
           <div>
             <h1 className="text-xl font-bold">{payer.name}</h1>
             <p className="mt-1 text-sm text-ink-soft">
-              Serie contor: <b>{payer.meterSeries}</b>
+              {/* meterSeries e identificatorul cu care clientul se loghează în portal — afișat
+                  ca "Cont personal" (nu "Serie contor"), la fel ca pe factură/pagina de login,
+                  ca staff-ul să știe exact ce număr să-i dea clientului. */}
+              Cont personal: <b>{payer.meterSeries}</b>
               {payer.meterNumber && <> · Contor: {payer.meterNumber}</>}
             </p>
             {payer.consumAddress && <p className="text-sm text-ink-soft">{payer.consumAddress}</p>}

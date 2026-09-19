@@ -94,7 +94,7 @@ export default async function PayersPage({
           <input
             name="q"
             defaultValue={q}
-            placeholder="Caută nume, serie, email…"
+            placeholder="Caută nume, cont personal, email…"
             className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
           />
           <input
@@ -156,7 +156,9 @@ export default async function PayersPage({
               <div className="min-w-0">
                 <p className="truncate font-semibold">{p.name}</p>
                 <p className="text-xs text-ink-soft">
-                  Serie {p.meterSeries} · {p.email || "fără email"} ·{" "}
+                  {/* meterSeries = numărul contractului cu care clientul se loghează în portal
+                      (vezi pagina de detaliu) — "Cont personal", nu "Serie contor". */}
+                  Cont personal: {p.meterSeries} · {p.email || "fără email"} ·{" "}
                   {p.activated ? (
                     <span className="text-brand-strong">activat</span>
                   ) : (

@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
+import { can } from "@/lib/permissions";
+import ExportButton from "@/app/components/ExportButton";
+import ImportButton from "@/app/components/ImportButton";
 import { listPayers, countPayersNeedingNameFix, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
 import { money } from "@/app/components/invoice-meta";
 import { INVOICE_STATUS, INVOICE_STATUS_LIST, type InvoiceStatusKey } from "@/app/components/invoice-meta";
@@ -32,7 +35,8 @@ export default async function PayersPage({
     debt?: string; street?: string; sort?: string; page?: string; nameFix?: string;
   }>;
 }) {
-  await requirePermission("clients.view");
+  const user = await requirePermission("clients.view");
+  const canImport = can(user, "clients.create") && can(user, "clients.edit");
   const sp = await searchParams;
   const q = sp.q ?? "";
   const status = sp.status ?? "";
@@ -69,9 +73,15 @@ export default async function PayersPage({
 
   return (
     <div className="w-full">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold">Plătitori</h1>
-        <p className="mt-1 text-sm text-ink-soft">{total} plătitori Apă-Canal — facturi, tichete, cont portal.</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Plătitori</h1>
+          <p className="mt-1 text-sm text-ink-soft">{total} plătitori Apă-Canal — facturi, tichete, cont portal.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <ExportButton entity="payers" params={{ q: q || undefined, status: statusFilter }} />
+          {canImport && <ImportButton entity="payers" hideAi />}
+        </div>
       </div>
 
       {nameFixCount > 0 && (

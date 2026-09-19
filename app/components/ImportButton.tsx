@@ -1,12 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMessages } from "@/lib/i18n/context";
 
 type FailedRow = { row: number; error: string };
 type ImportResult = { imported: number; total: number; failed: FailedRow[]; entity?: string };
 
-type Props = { entity: string; className?: string };
+type Props = { entity: string; className?: string; hideAi?: boolean };
 
 const TEMPLATE_BY_ENTITY: Record<string, string> = {
   clients: "/templates/model-clienti.csv",
@@ -16,8 +17,9 @@ const TEMPLATE_BY_ENTITY: Record<string, string> = {
   appointments: "/templates/model-programari.csv",
 };
 
-export default function ImportButton({ entity, className }: Props) {
+export default function ImportButton({ entity, className, hideAi }: Props) {
   const m = useMessages();
+  const router = useRouter();
   const excelRef = useRef<HTMLInputElement>(null);
   const aiRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState<"excel" | "ai" | null>(null);
@@ -46,6 +48,7 @@ export default function ImportButton({ entity, className }: Props) {
         setFatalError(data.error ?? m.common.error);
       } else {
         setResult(data as ImportResult);
+        if ((data as ImportResult).imported > 0) router.refresh();
       }
     } catch {
       setFatalError(m.import.networkError);
@@ -61,7 +64,7 @@ export default function ImportButton({ entity, className }: Props) {
   return (
     <>
       {/* Hidden file inputs */}
-      <input ref={excelRef} type="file" accept=".xlsx,.xls,.csv" className="sr-only"
+      <input ref={excelRef} type="file" accept=".xlsx,.xls,.csv,.json" className="sr-only"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f, "excel"); }} />
       <input ref={aiRef} type="file" accept=".xlsx,.xls,.csv" className="sr-only"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f, "ai"); }} />
@@ -103,19 +106,19 @@ export default function ImportButton({ entity, className }: Props) {
             <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] shadow-lg">
               <button
                 type="button"
-                className="tap flex w-full items-start gap-3 rounded-t-xl px-3 py-2.5 text-left hover:bg-[var(--color-surface-2)]"
+                className={`tap flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-[var(--color-surface-2)] ${hideAi ? "rounded-xl" : "rounded-t-xl"}`}
                 onClick={() => { setOpen(false); excelRef.current?.click(); }}
               >
                 <svg className="mt-0.5 size-4 shrink-0 text-ink-soft" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M3 4a1 1 0 0 1 1-1h5.586a1 1 0 0 1 .707.293l4.414 4.414A1 1 0 0 1 15 8.414V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4Z" />
                 </svg>
                 <div>
-                  <p className="text-sm font-medium">Import Excel</p>
+                  <p className="text-sm font-medium">Import Excel / CSV / JSON</p>
                   <p className="text-xs text-ink-soft">{m.import.excelDesc}</p>
                 </div>
               </button>
-              <div className="border-t border-[var(--color-line)]" />
-              <button
+              {!hideAi && <div className="border-t border-[var(--color-line)]" />}
+              {!hideAi && <button
                 type="button"
                 className={`tap flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-[var(--color-surface-2)] ${TEMPLATE_BY_ENTITY[entity] ? "" : "rounded-b-xl"}`}
                 onClick={() => { setOpen(false); aiRef.current?.click(); }}
@@ -127,7 +130,7 @@ export default function ImportButton({ entity, className }: Props) {
                   <p className="text-sm font-medium">{m.import.aiImport}</p>
                   <p className="text-xs text-ink-soft">{m.import.aiDesc}</p>
                 </div>
-              </button>
+              </button>}
               {TEMPLATE_BY_ENTITY[entity] && (
                 <>
                   <div className="border-t border-[var(--color-line)]" />

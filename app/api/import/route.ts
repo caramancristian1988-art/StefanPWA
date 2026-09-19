@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { parseWorkbook, parseRoDateKey, parseTime, ImportResult } from "@/lib/import-utils";
+import { parseWorkbook, parseJsonRows, parseRoDateKey, parseTime, ImportResult } from "@/lib/import-utils";
+import { can } from "@/lib/permissions";
 import {
   RO_TO_TASK_STATUS,
   RO_TO_TASK_PRIORITY,
@@ -31,9 +32,12 @@ export async function POST(req: Request) {
 
   let rows: ReturnType<typeof parseWorkbook>;
   try {
-    rows = parseWorkbook(buffer);
-  } catch {
-    return Response.json({ error: "Fișier invalid sau corupt." }, { status: 400 });
+    rows = parseJsonRows(buffer) ?? parseWorkbook(buffer);
+  } catch (e) {
+    return Response.json(
+      { error: e instanceof SyntaxError ? "JSON invalid." : e instanceof Error && e.message.startsWith("JSON") ? e.message : "Fișier invalid sau corupt." },
+      { status: 400 },
+    );
   }
 
   if (rows.length === 0) {
@@ -500,6 +504,98 @@ export async function POST(req: Request) {
           });
         }
         result.imported++;
+      }
+    }
+
+    return Response.json(result);
+  }
+
+  // ─── PAYERS (plătitori Apă-Canal) ─────────────────────────────────────────
+  // Cheia e "Serie contor" (unică, e și identificatorul de activare a contului din portal):
+  // serie existentă -> se actualizează doar câmpurile completate în fișier (parola/starea portalului
+  // rămân neatinse); serie nouă -> plătitor nou. Aceleași coloane ca la export, deci un export
+  // poate fi modificat și reimportat direct.
+  if (entity === "payers") {
+    if (!can(user, "clients.create") || !can(user, "clients.edit")) {
+      return Response.json({ error: "Fără permisiune pentru import plătitori." }, { status: 403 });
+    }
+
+    const col = (r: Record<string, string>, ...keys: string[]): string => {
+      for (const k of keys) if (r[k]?.trim()) return r[k].trim();
+      return "";
+    };
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const existing = await prisma.client.findMany({
+      where: { meterSeries: { not: null } },
+      select: { id: true, meterSeries: true },
+    });
+    const idBySeries = new Map(existing.map((c) => [c.meterSeries as string, c.id]));
+
+    const result: ImportResult = { imported: 0, total: rows.length, failed: [] };
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const rowNum = i + 2;
+
+      const series = col(r, "Serie contor", "meterSeries", "Serie");
+      if (!series) {
+        result.failed.push({ row: rowNum, error: "Câmpul 'Serie contor' este obligatoriu." });
+        continue;
+      }
+      const name = col(r, "Nume", "name");
+      const phone = col(r, "Telefon", "phone");
+      const email = col(r, "Email", "email").toLowerCase();
+      const notes = col(r, "Note", "notes");
+      const meterNumber = col(r, "Nr. contor", "meterNumber");
+      const consumAddress = col(r, "Adresa consum", "Adresă consum", "consumAddress");
+      const readingRaw = col(r, "Indice curent", "meterCurrReading");
+
+      if (email && !EMAIL_RE.test(email)) {
+        result.failed.push({ row: rowNum, error: `Emailul '${email}' nu este valid.` });
+        continue;
+      }
+      let reading: number | undefined;
+      if (readingRaw) {
+        reading = Number(readingRaw.replace(",", "."));
+        if (!Number.isFinite(reading) || reading < 0) {
+          result.failed.push({ row: rowNum, error: `Indicele curent '${readingRaw}' nu este valid.` });
+          continue;
+        }
+      }
+
+      const existingId = idBySeries.get(series);
+      if (!existingId && !name) {
+        result.failed.push({ row: rowNum, error: "Pentru un plătitor nou, câmpul 'Nume' este obligatoriu." });
+        continue;
+      }
+
+      const fields = {
+        ...(name ? { name } : {}),
+        ...(phone ? { phone } : {}),
+        ...(email ? { email } : {}),
+        ...(notes ? { notes } : {}),
+        ...(meterNumber ? { meterNumber } : {}),
+        ...(consumAddress ? { consumAddress } : {}),
+        ...(reading !== undefined ? { meterCurrReading: reading, meterReadingEstimated: false } : {}),
+      };
+
+      try {
+        if (existingId) {
+          await prisma.client.update({ where: { id: existingId }, data: fields });
+        } else {
+          const created = await prisma.client.create({
+            data: { userId: user.id, name, meterSeries: series, ...fields },
+            select: { id: true },
+          });
+          idBySeries.set(series, created.id);
+        }
+        result.imported++;
+      } catch (e) {
+        result.failed.push({
+          row: rowNum,
+          error: `Eroare la salvare: ${e instanceof Error ? e.message : "necunoscută"}.`,
+        });
       }
     }
 

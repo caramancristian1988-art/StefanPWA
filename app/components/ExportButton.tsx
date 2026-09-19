@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Format = "csv" | "xlsx";
+type Format = "csv" | "xlsx" | "json";
 
 export default function ExportButton({
   entity,
@@ -61,6 +61,15 @@ export default function ExportButton({
             >
               <span className="text-base">📄</span>
               CSV (.csv)
+            </a>
+            <a
+              href={buildUrl("json")}
+              download
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-[var(--color-surface-2)]"
+            >
+              <span className="text-base">🧩</span>
+              JSON (.json)
             </a>
           </div>
         </>

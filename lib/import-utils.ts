@@ -27,6 +27,28 @@ export function parseWorkbook(buffer: ArrayBuffer): ParsedRow[] {
   });
 }
 
+/**
+ * Dacă fișierul e JSON (listă de obiecte, sau { items | data: [...] }), îl întoarce ca rânduri
+ * de string-uri — aceeași formă ca parseWorkbook, deci restul importului nu vede diferența.
+ * Întoarce null dacă nu arată a JSON (atunci se încearcă Excel/CSV). Aruncă dacă e JSON invalid.
+ */
+export function parseJsonRows(buffer: ArrayBuffer): ParsedRow[] | null {
+  const text = new TextDecoder("utf-8").decode(buffer).replace(/^﻿/, "").trim();
+  if (!text.startsWith("[") && !text.startsWith("{")) return null;
+
+  const data = JSON.parse(text);
+  const list = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : Array.isArray(data?.data) ? data.data : null;
+  if (!list) throw new Error("JSON-ul trebuie să fie o listă de obiecte.");
+
+  return list
+    .filter((o: unknown): o is Record<string, unknown> => !!o && typeof o === "object" && !Array.isArray(o))
+    .map((o: Record<string, unknown>) => {
+      const row: ParsedRow = {};
+      for (const [k, v] of Object.entries(o)) row[k.trim()] = v == null ? "" : String(v).trim();
+      return row;
+    });
+}
+
 // ─── Reverse-maps: Romanian label → DB enum ────────────────────────────────
 
 export const RO_TO_TASK_STATUS: Record<string, string> = {

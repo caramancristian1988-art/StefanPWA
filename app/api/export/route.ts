@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/dal";
 import { listTasks } from "@/lib/queries/tasks";
 import { listClients } from "@/lib/queries/clients";
 import { prisma } from "@/lib/prisma";
+import { can } from "@/lib/permissions";
 import { toCSV, toXLSX, csvResponse, xlsxResponse } from "@/lib/export-utils";
 import { formatDate, formatTime, DEFAULT_TZ } from "@/lib/date";
 import type { TaskStatus, TaskType, TaskPriority, ProjectStatus, AppointmentStatus } from "@prisma/client";
@@ -37,12 +38,22 @@ export async function GET(req: Request) {
 
   const sp = new URL(req.url).searchParams;
   const entity = sp.get("entity") ?? "";
-  const format = (sp.get("format") ?? "csv") as "csv" | "xlsx";
+  const format = (sp.get("format") ?? "csv") as "csv" | "xlsx" | "json";
   const isXLSX = format === "xlsx";
 
   const BOM = "﻿";
 
   function makeResponse(headers: string[], rows: Record<string, string | number | boolean | null | undefined>[], filename: string) {
+    if (format === "json") {
+      // Cheile sunt aceleași ca antetele din Excel/CSV, deci fișierul se poate reimporta.
+      const data = rows.map((r) => Object.fromEntries(headers.map((h) => [h, r[h] ?? ""])));
+      return new Response(JSON.stringify(data, null, 2), {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${filename}-${today()}.json"`,
+        },
+      });
+    }
     if (isXLSX) {
       return xlsxResponse(toXLSX(headers, rows), `${filename}-${today()}.xlsx`);
     }
@@ -170,6 +181,61 @@ export async function GET(req: Request) {
     }));
 
     return makeResponse(HEADERS, rows, "clienti");
+  }
+
+  // ─── PAYERS (plătitori Apă-Canal) ─────────────────────────────────
+  if (entity === "payers") {
+    if (!can(user, "clients.view")) return new Response("Fără permisiune.", { status: 403 });
+
+    const q = sp.get("q")?.trim();
+    const statusParam = sp.get("status");
+    const payers = await prisma.client.findMany({
+      where: {
+        meterSeries: { not: null },
+        ...(statusParam === "activated" ? { portalPasswordHash: { not: null } } : {}),
+        ...(statusParam === "pending" ? { portalPasswordHash: null } : {}),
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" as const } },
+                { meterSeries: { contains: q, mode: "insensitive" as const } },
+                { email: { contains: q, mode: "insensitive" as const } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { name: "asc" },
+      take: 20000,
+      select: {
+        name: true,
+        meterSeries: true,
+        phone: true,
+        email: true,
+        notes: true,
+        meterNumber: true,
+        meterCurrReading: true,
+        consumAddress: true,
+        portalPasswordHash: true,
+        _count: { select: { invoices: true } },
+      },
+    });
+
+    // Primele 8 coloane sunt cele acceptate la import; ultimele 2 sunt informative (ignorate la import).
+    const HEADERS = ["Serie contor", "Nume", "Telefon", "Email", "Note", "Nr. contor", "Adresa consum", "Indice curent", "Cont portal", "Nr. facturi"];
+    const rows = payers.map((p) => ({
+      "Serie contor": p.meterSeries ?? "",
+      "Nume": p.name,
+      "Telefon": p.phone ?? "",
+      "Email": p.email ?? "",
+      "Note": p.notes ?? "",
+      "Nr. contor": p.meterNumber ?? "",
+      "Adresa consum": p.consumAddress ?? "",
+      "Indice curent": p.meterCurrReading ?? "",
+      "Cont portal": p.portalPasswordHash ? "Activat" : "Neactivat",
+      "Nr. facturi": p._count.invoices,
+    }));
+
+    return makeResponse(HEADERS, rows, "platitori");
   }
 
   // ─── APPOINTMENTS ─────────────────────────────────────────────────

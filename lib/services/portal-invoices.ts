@@ -60,6 +60,11 @@ export async function generateFirstApaCanalInvoice(clientId: string): Promise<vo
     },
   });
   if (!client?.meterNumber || client.meterCurrReading == null) return;
+  // meterCurrReading == 0 aici nu e o citire reală, ci placeholder-ul pus la import pentru
+  // clienții fără citire în exportul Axioma (vezi scripts/import-axioma-water-meters.mjs) — nu
+  // generăm o factură fictivă ("0 0 0") din el. Staff-ul creează prima factură manual, din
+  // /invoices/new, odată ce are citirea reală.
+  if (client.meterReadingEstimated) return;
 
   const existing = await prisma.invoice.count({ where: { clientId } });
   if (existing > 0) return;

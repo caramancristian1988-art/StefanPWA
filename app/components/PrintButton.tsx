@@ -39,7 +39,7 @@ export default function PrintButton({ token, origin }: { token: string; origin: 
   }
 
   return (
-    <div className="flex gap-2 print:hidden">
+    <div className="flex flex-wrap justify-end gap-2 print:hidden">
       <button
         onClick={download}
         disabled={downloading}

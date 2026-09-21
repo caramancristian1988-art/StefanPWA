@@ -86,7 +86,7 @@ export default function CategoriesManager({
                   defaultValue={c.name}
                   required
                   autoFocus
-                  className={`${inp} flex-1`}
+                  className={`${inp} min-w-0 flex-1`}
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -97,7 +97,7 @@ export default function CategoriesManager({
                   min={1}
                   step="any"
                   title={m.categories.durationTitle}
-                  className={`${inp} flex-1`}
+                  className={`${inp} min-w-0 flex-1`}
                 />
                 <input
                   type="color"
@@ -165,7 +165,7 @@ export default function CategoriesManager({
             name="name"
             placeholder={m.categories.newPlaceholder}
             required
-            className={`${inp} flex-1`}
+            className={`${inp} min-w-0 flex-1`}
           />
         </div>
         <div className="flex items-center gap-2">
@@ -176,7 +176,7 @@ export default function CategoriesManager({
             min={1}
             step="any"
             title={m.categories.durationTitle}
-            className={`${inp} flex-1`}
+            className={`${inp} min-w-0 flex-1`}
           />
           <input
             type="color"

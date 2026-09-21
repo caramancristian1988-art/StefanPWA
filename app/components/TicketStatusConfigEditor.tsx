@@ -278,7 +278,8 @@ export default function TicketStatusConfigEditor({
       </div>
 
       <p className="pt-1 text-xs text-ink-soft">
-        <strong>{m.tickets.notifEntry}</strong> — {m.tickets.notifEntryDesc} &nbsp;|&nbsp;
+        <strong>{m.tickets.notifEntry}</strong> — {m.tickets.notifEntryDesc}
+        <span className="mx-2">|</span>
         <strong>{m.tickets.stopNotif}</strong> — {m.tickets.stopNotifDesc}
       </p>
     </div>

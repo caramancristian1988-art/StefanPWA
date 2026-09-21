@@ -751,13 +751,16 @@ export async function checkOverdueTasks(): Promise<{ checked: number; notified: 
       status: { notIn: ["DONE", "CANCELLED"] },
     },
     select: {
-      id: true, seq: true, title: true, status: true,
+      id: true, seq: true, title: true, status: true, dueAt: true,
       creatorId: true, assigneeId: true, teamId: true,
       overdueNotifiedAt: true,
       assignee: { select: { teamIds: true } },
     },
   });
   const tasks = candidates.filter((t) => {
+    // `dueAt: { lt: now }` potrivește și task-urile FĂRĂ termen (null) pe MongoDB — le excludem explicit,
+    // altfel orice task creat fără deadline e raportat „în întârziere" la prima rulare a cron-ului.
+    if (!t.dueAt || t.dueAt >= now) return false;
     if (t.overdueNotifiedAt) return false;
     // Nu trimite dacă statusul curent are suppressAll activ
     const cfg = getStatusConfig(statusCfgs, t.status);

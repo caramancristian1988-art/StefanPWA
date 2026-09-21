@@ -159,7 +159,8 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
     const tKey = getTodayKey(TZ);
     switch (filter.dueRange) {
       case "overdue": {
-        where.dueAt = { lt: now };
+        // `not: null` — pe MongoDB `lt` singur potrivește și task-urile fără termen.
+        where.dueAt = { lt: now, not: null };
         if (!filter.status) where.status = { notIn: ["DONE", "CANCELLED"] };
         break;
       }

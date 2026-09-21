@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useMessages } from "@/lib/i18n/context";
@@ -195,7 +195,11 @@ export default function TasksManager({
   const router = useRouter();
   const toast = useToast();
   const m = useMessages();
-  const [navPending, startNav] = useTransition();
+  // Fără useTransition: un server action rulat într-o tranziție React "leagă" (entangle) orice altă
+  // navigare de finalizarea lui — dacă listarea rămânea agățată după crearea unui task, toată
+  // aplicația nu mai putea naviga până la repornire. Flag simplu + try/finally = nu poate rămâne blocat.
+  const [navPending, setNavPending] = useState(false);
+  const listReq = useRef(0);
 
   // Fără "tasks.edit" global, tot poți edita task-urile pe care le-ai creat sau la care ești
   // asignat — vezi lib/permissions.ts canEditTask (aceeași regulă, verificată și pe server).
@@ -236,13 +240,24 @@ export default function TasksManager({
       if (qs) localStorage.setItem(`filters:${basePath}`, qs);
       else localStorage.removeItem(`filters:${basePath}`);
     } catch {}
-    startNav(async () => {
+    void runList(f, s, p);
+  }
+
+  async function runList(f: TaskFilters, s: string, p: number) {
+    const req = ++listReq.current;
+    setNavPending(true);
+    try {
       const result = await listTasksAction({ ...f, scope: s, page: p, types: fixedTypes });
+      if (req !== listReq.current) return; // a apărut o cerere mai nouă — ignorăm răspunsul vechi
       setTasks(result.items);
       setTotalPagesState(result.totalPages);
       setHasMoreState(result.hasMore);
       setCurrentPage(result.page);
-    });
+    } catch {
+      if (req === listReq.current) toast.error(m.common.error);
+    } finally {
+      if (req === listReq.current) setNavPending(false);
+    }
   }
 
   // ── Persistenţă filtre în localStorage ──────────────────
@@ -266,12 +281,7 @@ export default function TasksManager({
       setLocalFilters(f);
       setLocalScope(s);
       window.history.replaceState(null, "", `${basePath}?${saved}`);
-      startNav(async () => {
-        const result = await listTasksAction({ ...f, scope: s, page: 1, types: fixedTypes });
-        setTasks(result.items);
-        setTotalPagesState(result.totalPages);
-        setHasMoreState(result.hasMore);
-      });
+      void runList(f, s, 1);
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -280,7 +290,16 @@ export default function TasksManager({
     initialCreate ?? null,
   );
   const [tasks, setTasks] = useState(items);
-  useEffect(() => setTasks(items), [items]);
+  // `items` se schimbă la orice revalidare a paginii (ex. după crearea unui task) și vine mereu cu
+  // scope-ul/filtrele din URL-ul server-ului. Dacă utilizatorul are altele active local (ex. "Create
+  // de mine"), suprascrierea directă ar face task-ul proaspăt creat să dispară — reîncărcăm cu filtrele locale.
+  useEffect(() => {
+    const sameView =
+      localScope === scope && currentPage === page && JSON.stringify(localFilters) === JSON.stringify(filters);
+    if (sameView) setTasks(items);
+    else void runList(localFilters, localScope, currentPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
   const [editTask, setEditTask] = useState<Task | null>(null);
 
@@ -308,6 +327,11 @@ export default function TasksManager({
 
   function toggleHistory(id: string) {
     if (openId === id) { setOpenId(null); return; }
+    openWithDetails(id);
+  }
+
+  // Deschide rândul ȘI încarcă istoricul + comentariile (altfel rămâne "Se încarcă…" la nesfârșit).
+  function openWithDetails(id: string) {
     setOpenId(id);
     if (!history[id]) {
       setLoadingHist(id);
@@ -778,7 +802,7 @@ export default function TasksManager({
             // fost auto-asignat altcuiva (proiect cu asignat implicit), dispare din "Ale mele"
             // fără nicio explicație vizibilă.
             applyFilter({}, "created", 1);
-            setOpenId(id);
+            openWithDetails(id);
           }}
         />
       )}

@@ -8,7 +8,7 @@ import { useMessages } from "@/lib/i18n/context";
 type Opt = { id: string; name: string };
 
 const fldCls = (val: string) =>
-  `h-9 appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
+  `h-9 min-w-0 max-w-full appearance-none sel-arrow rounded-lg border pl-2 pr-7 text-xs outline-none focus:border-brand ${
     val
       ? "border-brand bg-brand/10 font-semibold text-brand"
       : "border-[var(--color-line)] bg-[var(--color-surface)] text-ink"

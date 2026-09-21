@@ -131,6 +131,20 @@ type TaskFilters = {
   due: string; sort: string; category: string; ps: string;
 };
 
+// Un server action poate fi anulat de router (net::ERR_ABORTED) când o revalidare/navigare pornește în
+// paralel — ex. imediat după crearea unui task. Fără reîncercare, o cerere anulată lăsa "Se încarcă…"
+// blocat până la următoarea navigare.
+async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i >= tries - 1) throw e;
+      await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+}
+
 const fldCls = (val: string) =>
   // max-w-full: un <select> are lățimea celei mai lungi opțiuni (ex. un nume lung de client) și
   // altfel depășește ecranul pe telefon, împingând pagina în lateral.
@@ -249,7 +263,7 @@ export default function TasksManager({
     const req = ++listReq.current;
     setNavPending(true);
     try {
-      const result = await listTasksAction({ ...f, scope: s, page: p, types: fixedTypes });
+      const result = await withRetry(() => listTasksAction({ ...f, scope: s, page: p, types: fixedTypes }));
       if (req !== listReq.current) return; // a apărut o cerere mai nouă — ignorăm răspunsul vechi
       setTasks(result.items);
       setTotalPagesState(result.totalPages);
@@ -337,15 +351,19 @@ export default function TasksManager({
     setOpenId(id);
     if (!history[id]) {
       setLoadingHist(id);
-      getTaskHistory(id)
+      withRetry(() => getTaskHistory(id))
         .then((rows) => setHistory((h) => ({ ...h, [id]: rows as HistoryRow[] })))
         .catch(() => toast.error(m.tasks.historyLoadError))
         .finally(() => setLoadingHist((cur) => (cur === id ? null : cur)));
     }
     if (!comments[id]) {
-      getTaskComments(id)
+      withRetry(() => getTaskComments(id))
         .then((rows) => setComments((c) => ({ ...c, [id]: rows as CommentRow[] })))
-        .catch(() => {});
+        .catch(() => {
+          // Ultima încercare a eșuat: ieșim din starea "Se încarcă…" în loc să o lăsăm blocată.
+          setComments((c) => ({ ...c, [id]: [] }));
+          toast.error(m.common.error);
+        });
     }
   }
 

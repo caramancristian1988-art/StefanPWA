@@ -1,11 +1,13 @@
 import { getCurrentUser } from "@/lib/dal";
 import { listTasks } from "@/lib/queries/tasks";
 import { listClients } from "@/lib/queries/clients";
+import { buildPayerWhere } from "@/lib/queries/payers";
+import { INVOICE_STATUS_LIST } from "@/app/components/invoice-meta";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { toCSV, toXLSX, csvResponse, xlsxResponse } from "@/lib/export-utils";
 import { formatDate, formatTime, DEFAULT_TZ } from "@/lib/date";
-import type { TaskStatus, TaskType, TaskPriority, ProjectStatus, AppointmentStatus } from "@prisma/client";
+import type { TaskStatus, TaskType, TaskPriority, ProjectStatus, AppointmentStatus, InvoiceStatus } from "@prisma/client";
 
 const TZ = DEFAULT_TZ;
 
@@ -187,23 +189,25 @@ export async function GET(req: Request) {
   if (entity === "payers") {
     if (!can(user, "clients.view")) return new Response("Fără permisiune.", { status: 403 });
 
-    const q = sp.get("q")?.trim();
-    const statusParam = sp.get("status");
+    // Aceleași filtre ca pagina /platitori (vezi buildPayerWhere) — altfel un export lansat
+    // cu un filtru activ pe ecran (sector, sold, stradă...) ar întoarce toți plătitorii, nu
+    // doar cei filtrați, fără nicio indicație vizibilă că sunt mai mulți decât cei afișați.
+    const sectorParam = sp.get("sector");
+    const debtParam = sp.get("debt");
+    const invoiceStatusParam = sp.get("invoiceStatus");
+    const where = await buildPayerWhere({
+      search: sp.get("q") || undefined,
+      status: sp.get("status") === "activated" || sp.get("status") === "pending" ? (sp.get("status") as "activated" | "pending") : undefined,
+      sector: sectorParam === "privat" || sectorParam === "comunal" ? sectorParam : undefined,
+      invoiceStatus: invoiceStatusParam && INVOICE_STATUS_LIST.includes(invoiceStatusParam as InvoiceStatus)
+        ? (invoiceStatusParam as InvoiceStatus)
+        : undefined,
+      debt: debtParam === "has" || debtParam === "none" ? debtParam : undefined,
+      street: sp.get("street") || undefined,
+      needsNameFix: sp.get("nameFix") === "1",
+    });
     const payers = await prisma.client.findMany({
-      where: {
-        meterSeries: { not: null },
-        ...(statusParam === "activated" ? { portalPasswordHash: { not: null } } : {}),
-        ...(statusParam === "pending" ? { portalPasswordHash: null } : {}),
-        ...(q
-          ? {
-              OR: [
-                { name: { contains: q, mode: "insensitive" as const } },
-                { meterSeries: { contains: q, mode: "insensitive" as const } },
-                { email: { contains: q, mode: "insensitive" as const } },
-              ],
-            }
-          : {}),
-      },
+      where,
       orderBy: { name: "asc" },
       take: 20000,
       select: {

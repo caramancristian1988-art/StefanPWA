@@ -79,7 +79,18 @@ export default async function PayersPage({
           <p className="mt-1 text-sm text-ink-soft">{total} plătitori Apă-Canal — facturi, tichete, cont portal.</p>
         </div>
         <div className="flex items-center gap-2">
-          <ExportButton entity="payers" params={{ q: q || undefined, status: statusFilter }} />
+          <ExportButton
+            entity="payers"
+            params={{
+              q: q || undefined,
+              status: statusFilter,
+              sector: sector || undefined,
+              invoiceStatus: invoiceStatus || undefined,
+              debt: debt || undefined,
+              street: street || undefined,
+              nameFix: nameFix ? "1" : undefined,
+            }}
+          />
           {canImport && <ImportButton entity="payers" hideAi />}
         </div>
       </div>

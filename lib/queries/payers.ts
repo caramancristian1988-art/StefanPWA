@@ -68,15 +68,16 @@ async function findClientIdsNeedingNameFix(): Promise<string[]> {
  * în lib/services/invoices.ts) — MongoDB/Prisma nu poate filtra sau sorta clienți după un câmp
  * dintr-o relație (Invoice) direct, iar la 19k+ plătitori un query per client ar fi mult prea lent.
  */
-export async function listPayers(opts: ListPayersOpts = {}) {
-  if (DEMO) return { items: [] as PayerRow[], total: 0, page: 1, hasMore: false };
-
-  const page = Math.max(1, opts.page ?? 1);
+/**
+ * Aceleași filtre ca listPayers — extras separat ca export/route.ts să poată exporta exact
+ * ce vede staff-ul pe ecran (aceleași filtre active), nu întreaga listă de plătitori.
+ */
+export async function buildPayerWhere(opts: ListPayersOpts = {}): Promise<Prisma.ClientWhereInput> {
   const search = opts.search?.trim();
   const street = opts.street?.trim();
   const nameFixIds = opts.needsNameFix ? await findClientIdsNeedingNameFix() : null;
 
-  const where: Prisma.ClientWhereInput = {
+  return {
     meterSeries: { not: null },
     ...(nameFixIds ? { id: { in: nameFixIds } } : {}),
     ...(opts.status === "activated" ? { portalPasswordHash: { not: null } } : {}),
@@ -96,6 +97,13 @@ export async function listPayers(opts: ListPayersOpts = {}) {
         }
       : {}),
   };
+}
+
+export async function listPayers(opts: ListPayersOpts = {}) {
+  if (DEMO) return { items: [] as PayerRow[], total: 0, page: 1, hasMore: false };
+
+  const page = Math.max(1, opts.page ?? 1);
+  const where = await buildPayerWhere(opts);
 
   const orderBy: Prisma.ClientOrderByWithRelationInput =
     opts.sort === "debtDesc"

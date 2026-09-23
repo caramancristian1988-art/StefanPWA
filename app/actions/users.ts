@@ -8,6 +8,7 @@ import { can, ALL_PERMISSION_KEYS } from "@/lib/permissions";
 import { hashPassword } from "@/lib/password";
 import { DEMO } from "@/lib/demo";
 import { logAudit } from "@/lib/services/audit";
+import { invalidateSuperAdminCheck, otherActiveSuperAdmins } from "@/lib/services/super-admin";
 import { NOTIFY_EVENT_KEYS } from "@/lib/notify-meta";
 
 export type UserState = { ok?: boolean; error?: string; id?: string } | undefined;
@@ -103,7 +104,7 @@ export async function updateUser(
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const role = formData.get("role") === "ADMIN" ? "ADMIN" : "STAFF";
+  let role: "ADMIN" | "STAFF" = formData.get("role") === "ADMIN" ? "ADMIN" : "STAFF";
   const isActive = formData.get("isActive") !== "off";
   const newPassword = String(formData.get("password") ?? "");
   if (name.length < 2) return { error: "Nume prea scurt." };
@@ -113,10 +114,18 @@ export async function updateUser(
     prisma.user.findUnique({ where: { email }, select: { id: true } }),
     prisma.user.findUnique({
       where: { id },
-      select: { name: true, role: true, isActive: true, permissions: true, notifyEvents: true },
+      select: { name: true, role: true, isActive: true, isSuperAdmin: true, permissions: true, notifyEvents: true },
     }),
   ]);
   if (emailOwner && emailOwner.id !== id) return { error: "Există deja un cont cu acest email." };
+  if (!before) return { error: "Utilizator inexistent." };
+
+  // Un super-admin rămâne mereu administrator, iar un non-super nu poate umbla la un super-admin.
+  if (before.isSuperAdmin && !isSuper(admin)) return { error: "Doar un super-admin poate modifica un alt super-admin." };
+  if (before.isSuperAdmin) {
+    if (!isActive) return { error: "Un super-admin nu poate fi dezactivat. Retrage-i mai întâi statutul de super-admin." };
+    role = "ADMIN";
+  }
 
   // Nu îți poți retrage propriul rol de admin
   if (id === admin.id && admin.role === "ADMIN" && role === "STAFF") {
@@ -195,9 +204,12 @@ export async function toggleUserActive(id: string, active: boolean): Promise<voi
   const admin = await requireUser();
   if (!can(admin, "users.manage")) return;
   if (DEMO) return;
-  const target = await prisma.user.findUnique({ where: { id }, select: { name: true, role: true } });
-  if (!isSuper(admin) && target?.role === "ADMIN") return;
+  const target = await prisma.user.findUnique({ where: { id }, select: { name: true, role: true, isSuperAdmin: true } });
+  if (!isSuper(admin) && (target?.role === "ADMIN" || target?.isSuperAdmin)) return;
+  // Nu dezactiva ultimul super-admin activ (sistemul ar rămâne fără super-admin).
+  if (!active && target?.isSuperAdmin && (await otherActiveSuperAdmins(id)) === 0) return;
   await prisma.user.update({ where: { id }, data: { isActive: active } });
+  invalidateSuperAdminCheck();
   // La dezactivare, invalidează sesiunile
   if (!active) await prisma.session.deleteMany({ where: { userId: id } });
   await logAudit(actor(admin), {
@@ -216,9 +228,12 @@ export async function deleteUser(id: string): Promise<UserState> {
   if (DEMO) return { error: "Mod demo." };
   if (id === admin.id) return { error: "Nu te poți șterge pe tine." };
 
-  const target = await prisma.user.findUnique({ where: { id }, select: { name: true, role: true } });
-  if (!isSuper(admin) && target?.role === "ADMIN") {
+  const target = await prisma.user.findUnique({ where: { id }, select: { name: true, role: true, isSuperAdmin: true } });
+  if (!isSuper(admin) && (target?.role === "ADMIN" || target?.isSuperAdmin)) {
     return { error: "Nu poți șterge un alt administrator." };
+  }
+  if (target?.isSuperAdmin && (await otherActiveSuperAdmins(id)) === 0) {
+    return { error: "Nu poți șterge ultimul super-admin." };
   }
   // Reasignează datele importante adminului (evităm pierderea task-urilor/proiectelor create)
   await prisma.task.updateMany({ where: { creatorId: id }, data: { creatorId: admin.id } });
@@ -261,11 +276,12 @@ export async function setSuperAdmin(id: string, value: boolean): Promise<UserSta
   if (target.isSuperAdmin === value) return { ok: true, id };
 
   if (!value) {
-    const supers = await prisma.user.count({ where: { isSuperAdmin: true } });
-    if (supers <= 1) return { error: "Nu poți retrage ultimul super-admin." };
+    if ((await otherActiveSuperAdmins(id)) === 0) return { error: "Nu poți retrage ultimul super-admin." };
   }
 
-  await prisma.user.update({ where: { id }, data: { isSuperAdmin: value } });
+  // Super-admin implică administrator: un STAFF cu isSuperAdmin ar avea Audit Logs, dar nu și restul.
+  await prisma.user.update({ where: { id }, data: value ? { isSuperAdmin: true, role: "ADMIN", permissions: [] } : { isSuperAdmin: false } });
+  invalidateSuperAdminCheck();
   await logAudit(actor(admin), {
     action: "user.superadmin_change",
     module: "Users",

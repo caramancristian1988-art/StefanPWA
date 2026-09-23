@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { getSessionToken, hashToken } from "./session";
 import { can, type PermissionKey } from "./permissions";
+import { ensureSuperAdminExists } from "./services/super-admin";
 
 export type CurrentUser = {
   id: string;
@@ -87,7 +88,14 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       .catch(() => {});
   }
 
-  return session.user as CurrentUser;
+  // Plasă de siguranță: dacă sistemul a rămas fără super-admin activ, cel mai vechi administrator
+  // devine super-admin. Pentru cine e deja super e un simplu skip (verificarea e memorată 60 s).
+  const current = session.user as CurrentUser;
+  if (!current.isSuperAdmin) {
+    const healed = await ensureSuperAdminExists().catch(() => null);
+    if (healed?.promotedId === current.id) return { ...current, isSuperAdmin: true, role: "ADMIN" };
+  }
+  return current;
 });
 
 /** Pentru pagini/acțiuni: întoarce userul sau redirect la /login. */

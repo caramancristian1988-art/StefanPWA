@@ -3,7 +3,7 @@ import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import ExportButton from "@/app/components/ExportButton";
 import ImportButton from "@/app/components/ImportButton";
-import { listPayers, countPayersNeedingNameFix, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
+import { listPayers, countPayersNeedingNameFix, normalizePerPage, PER_PAGE_OPTIONS, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
 import { money } from "@/app/components/invoice-meta";
 import { INVOICE_STATUS, INVOICE_STATUS_LIST, type InvoiceStatusKey } from "@/app/components/invoice-meta";
 import { IconChevronLeft, IconChevronRight } from "@/app/components/icons";
@@ -32,7 +32,7 @@ export default async function PayersPage({
 }: {
   searchParams: Promise<{
     q?: string; status?: string; sector?: string; invoiceStatus?: string;
-    debt?: string; street?: string; sort?: string; page?: string; nameFix?: string;
+    debt?: string; street?: string; sort?: string; page?: string; perPage?: string; nameFix?: string;
   }>;
 }) {
   const user = await requirePermission("clients.view");
@@ -47,6 +47,7 @@ export default async function PayersPage({
   const sort = sp.sort === "debtDesc" || sp.sort === "debtAsc" ? sp.sort : "name";
   const nameFix = sp.nameFix === "1";
   const page = Math.max(1, Number(sp.page) || 1);
+  const perPage = normalizePerPage(sp.perPage);
   const statusFilter = status === "activated" || status === "pending" ? status : undefined;
 
   const [{ items, total, hasMore }, nameFixCount] = await Promise.all([
@@ -60,12 +61,13 @@ export default async function PayersPage({
       sort: sort as PayerSort,
       needsNameFix: nameFix || undefined,
       page,
+      perPage,
     }),
     countPayersNeedingNameFix(),
   ]);
 
   const qp = (overrides: Record<string, string>) => {
-    const p = new URLSearchParams({ q, status, sector, invoiceStatus, debt, street, sort, nameFix: nameFix ? "1" : "", ...overrides });
+    const p = new URLSearchParams({ q, status, sector, invoiceStatus, debt, street, sort, nameFix: nameFix ? "1" : "", perPage: perPage === 50 ? "" : String(perPage), ...overrides });
     for (const [k, v] of [...p.entries()]) if (!v || v === "name") p.delete(k);
     return `?${p.toString()}`;
   };
@@ -154,6 +156,11 @@ export default async function PayersPage({
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
+          <select name="perPage" defaultValue={String(perPage)} className={selectCls} aria-label="Câți pe pagină">
+            {[...new Set<number>([...PER_PAGE_OPTIONS, perPage])].sort((a, b) => a - b).map((n) => (
+              <option key={n} value={n}>{n} / pagină</option>
+            ))}
+          </select>
           <button type="submit" className="tap h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-strong">
             Filtrează
           </button>
@@ -210,7 +217,11 @@ export default async function PayersPage({
           <PageLink disabled={page <= 1} href={qp({ page: String(page - 1) })}>
             <IconChevronLeft className="size-4" /> Anterior
           </PageLink>
-          <span className="text-sm text-ink-soft">Pagina {page}</span>
+          <span className="text-center text-sm text-ink-soft">
+            Pagina {page} din {Math.max(1, Math.ceil(total / perPage))}
+            <br />
+            <span className="text-xs">{(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} din {total}</span>
+          </span>
           <PageLink disabled={!hasMore} href={qp({ page: String(page + 1) })}>
             Următor <IconChevronRight className="size-4" />
           </PageLink>

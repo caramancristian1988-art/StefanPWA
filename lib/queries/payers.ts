@@ -4,6 +4,13 @@ import { DEMO } from "../demo";
 import type { InvoiceStatus, Prisma } from "@prisma/client";
 
 const PAGE_SIZE = 50;
+/** Câți plătitori pe pagină alege utilizatorul (?perPage=) — plafonat ca să nu încărcăm mii de rânduri odată. */
+export const PER_PAGE_OPTIONS = [20, 50, 100, 200, 500] as const;
+export function normalizePerPage(v: unknown): number {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n) || n < 1) return PAGE_SIZE;
+  return Math.min(n, 500);
+}
 
 export type PayerRow = {
   id: string;
@@ -38,6 +45,7 @@ export type ListPayersOpts = {
    * pierdere ireversibilă, produsă în sistemul sursă înainte să ajungă fișierul la noi). */
   needsNameFix?: boolean;
   page?: number;
+  perPage?: number;
 };
 
 /**
@@ -103,6 +111,7 @@ export async function listPayers(opts: ListPayersOpts = {}) {
   if (DEMO) return { items: [] as PayerRow[], total: 0, page: 1, hasMore: false };
 
   const page = Math.max(1, opts.page ?? 1);
+  const perPage = normalizePerPage(opts.perPage);
   const where = await buildPayerWhere(opts);
 
   const orderBy: Prisma.ClientOrderByWithRelationInput =
@@ -116,8 +125,8 @@ export async function listPayers(opts: ListPayersOpts = {}) {
     prisma.client.findMany({
       where,
       orderBy,
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      skip: (page - 1) * perPage,
+      take: perPage,
       select: { id: true, name: true, meterSeries: true, email: true, phone: true, portalPasswordHash: true },
     }),
     prisma.client.count({ where }),
@@ -160,7 +169,7 @@ export async function listPayers(opts: ListPayersOpts = {}) {
     };
   });
 
-  return { items: rows, total, page, hasMore: page * PAGE_SIZE < total };
+  return { items: rows, total, page, perPage, hasMore: page * perPage < total };
 }
 
 export type PayerDetail = {

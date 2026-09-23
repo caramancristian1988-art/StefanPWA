@@ -222,7 +222,7 @@ function AppShellInner({
               {m.demo}
             </div>
           )}
-          <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 lg:px-8 lg:pb-10">{children}</main>
+          <main className="flex-1 px-4 pb-[calc(9.5rem+env(safe-area-inset-bottom))] pt-5 lg:px-8 lg:pb-10">{children}</main>
         </div>
       </div>
 

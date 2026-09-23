@@ -291,6 +291,7 @@ export function buildApaCanalPlan(
         lastInvoiceGrandTotal: grandTotal,
         lastInvoiceSectorNr: sectorNr,
         lastInvoiceIssueDate: issueDate,
+        apaCanalImport: !meterSeries,
       });
       clientByNameKey.set(nameKey, { id: clientId, name, meterSeries, portalActivatedAt: null });
       consumedNames.add(nameKey);

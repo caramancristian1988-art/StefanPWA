@@ -48,8 +48,13 @@ export async function listClients(
 
   // Plătitorii (clienți portal Apă-Canal, cu serie de contor) au propria secțiune ("Plătitori")
   // — nu aglomerează lista obișnuită de clienți (programări).
+  // `meterSeries: null` singur NU prinde clienții la care câmpul lipsește complet (creați înainte de
+  // a exista) — de-aia clienții vechi din CRM nu apăreau deloc; isSet:false îi acoperă.
   const where = {
-    meterSeries: null,
+    AND: [
+      { OR: [{ meterSeries: null }, { meterSeries: { isSet: false } }] },
+      { apaCanalImport: { not: true } },
+    ],
     ...(search
       ? {
           OR: [

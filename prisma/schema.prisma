@@ -627,6 +627,9 @@ model Client {
   lastInvoiceStatus     InvoiceStatus?
   lastInvoiceGrandTotal Float?
   lastInvoiceSectorNr   String?
+  // Abonat Apă-Canal creat de importul 1C FĂRĂ cont personal (în general firme/agenți economici) — nu e
+  // client "de CRM", deci nu apare în lista /clients; facturile lui rămân în /invoices.
+  apaCanalImport        Boolean @default(false)
   lastInvoiceIssueDate  DateTime?
 
   appointments            Appointment[]

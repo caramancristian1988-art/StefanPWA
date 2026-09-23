@@ -2,12 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
-import {
-  getInvoice,
-  invoiceClientOptions,
-  invoiceProjectOptions,
-} from "@/lib/queries/invoices";
+import { getInvoice, invoiceProjectOptions } from "@/lib/queries/invoices";
 import { getCompanySettings } from "@/lib/queries/company";
+import { crmClientOptionsPlus } from "@/lib/queries/clients";
 import InvoiceForm, { type InvoiceInitial } from "@/app/components/InvoiceForm";
 import ApaCanalInvoiceForm, { type ApaCanalInitial } from "@/app/components/ApaCanalInvoiceForm";
 import { IconChevronLeft } from "@/app/components/icons";
@@ -21,13 +18,14 @@ export default async function EditInvoicePage({
 }) {
   const user = await requirePermission("invoices.edit");
   const { id } = await params;
-  const [invoice, clients, projects, company] = await Promise.all([
+  const [invoice, projects, company] = await Promise.all([
     getInvoice(id),
-    invoiceClientOptions(),
     invoiceProjectOptions(),
     getCompanySettings(),
   ]);
   if (!invoice) notFound();
+  // Clienții de CRM + al facturii (plătitorul rămâne selectat); lista completă avea ~19.000 de opțiuni.
+  const clients = await crmClientOptionsPlus(invoice.clientId);
 
   if (invoice.kind === "APA_CANAL") {
     // "ap[aă]" — acceptă și "apă" (cu diacritic), cum apar descrierile facturilor importate din

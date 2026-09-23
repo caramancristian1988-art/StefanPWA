@@ -6,7 +6,7 @@ import { getProject } from "@/lib/queries/projects";
 import { listTasks } from "@/lib/queries/tasks";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
-import { invoiceClientOptions } from "@/lib/queries/invoices";
+import { crmClientOptions } from "@/lib/queries/clients";
 import ProjectMap from "@/app/components/ProjectMapDynamic";
 import ProjectDetailHeader from "@/app/components/ProjectDetailHeader";
 import { getLocaleFromCookie } from "@/lib/i18n/locale-cookie";
@@ -44,7 +44,7 @@ export default async function ProjectDetailPage({
     getProject(id),
     userOptions(),
     teamOptions(),
-    invoiceClientOptions(),
+    crmClientOptions(),
     listTasks({
       scope: "all",
       userId: user.id,

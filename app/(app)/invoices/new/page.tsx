@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
-import {
-  invoiceClientOptions,
-  invoiceProjectOptions,
-} from "@/lib/queries/invoices";
+import { invoiceProjectOptions } from "@/lib/queries/invoices";
 import { getCompanySettings } from "@/lib/queries/company";
+import { crmClientOptionsPlus } from "@/lib/queries/clients";
 import { prisma } from "@/lib/prisma";
 import InvoiceForm from "@/app/components/InvoiceForm";
 import ApaCanalInvoiceForm, { type ApaCanalInitial } from "@/app/components/ApaCanalInvoiceForm";
@@ -100,8 +98,10 @@ export default async function NewInvoicePage({
     );
   }
 
+  // Doar clienții de CRM + cel din link (plătitorul, când vii din Plătitori → "Factură nouă"):
+  // lista completă avea ~19.000 de opțiuni (~2,7 MB de HTML) și bloca telefonul.
   const [clients, projects, company] = await Promise.all([
-    invoiceClientOptions(),
+    crmClientOptionsPlus(clientId),
     invoiceProjectOptions(),
     getCompanySettings(),
   ]);

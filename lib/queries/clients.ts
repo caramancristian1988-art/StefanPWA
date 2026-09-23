@@ -1,4 +1,6 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
 import { DEMO, demoClients } from "../demo";
 
@@ -26,6 +28,18 @@ const LIST_SELECT = {
 
 const PAGE_SIZE = 20;
 
+/**
+ * Clienții "de CRM": fără serie de contor (nu sunt plătitori Apă-Canal — aceia au secțiunea lor,
+ * Plătitori) și neimportați din 1C. `meterSeries: null` singur nu prinde clienții la care câmpul
+ * lipsește complet; isSet:false îi acoperă.
+ */
+const CRM_CLIENT_WHERE: Prisma.ClientWhereInput = {
+  AND: [
+    { OR: [{ meterSeries: null }, { meterSeries: { isSet: false } }] },
+    { apaCanalImport: { not: true } },
+  ],
+};
+
 /** Listare paginată + search (nume/telefon), select minimal. */
 export async function listClients(
   _userId: string,
@@ -48,13 +62,8 @@ export async function listClients(
 
   // Plătitorii (clienți portal Apă-Canal, cu serie de contor) au propria secțiune ("Plătitori")
   // — nu aglomerează lista obișnuită de clienți (programări).
-  // `meterSeries: null` singur NU prinde clienții la care câmpul lipsește complet (creați înainte de
-  // a exista) — de-aia clienții vechi din CRM nu apăreau deloc; isSet:false îi acoperă.
   const where = {
-    AND: [
-      { OR: [{ meterSeries: null }, { meterSeries: { isSet: false } }] },
-      { apaCanalImport: { not: true } },
-    ],
+    ...CRM_CLIENT_WHERE,
     ...(search
       ? {
           OR: [
@@ -112,12 +121,43 @@ export async function searchClients(_userId: string, q: string, limit = 8) {
   });
 }
 
+/**
+ * Opțiunile de client pentru selectoarele din Task-uri / Proiecte / Tichete / Calendar.
+ *
+ * Doar clienții de CRM + cei deja legați de un proiect sau task (ca valoarea curentă să rămână
+ * afișată la editare). Fără filtrul ăsta, cei ~19.000 de plătitori importați ajungeau în fiecare
+ * pagină: ~2,7 MB de HTML și ~19.000 de <option> într-un singur filtru (blocaj pe telefon).
+ * Plătitorii se caută din Plătitori / căutarea de clienți, nu dintr-un dropdown.
+ */
+export const crmClientOptions = unstable_cache(
+  async (): Promise<{ id: string; name: string }[]> => {
+    if (DEMO) return [];
+    const [crm, tasks, projects] = await Promise.all([
+      prisma.client.findMany({ where: CRM_CLIENT_WHERE, select: { id: true, name: true } }),
+      prisma.task.findMany({ where: { clientId: { not: null } }, select: { clientId: true }, distinct: ["clientId"] }),
+      prisma.project.findMany({ where: { clientId: { not: null } }, select: { clientId: true }, distinct: ["clientId"] }),
+    ]);
+    const have = new Set(crm.map((c) => c.id));
+    const extraIds = [...new Set([...tasks, ...projects].map((r) => r.clientId!).filter((id) => !have.has(id)))];
+    const extra = extraIds.length
+      ? await prisma.client.findMany({ where: { id: { in: extraIds } }, select: { id: true, name: true } })
+      : [];
+    return [...crm, ...extra].sort((a, b) => a.name.localeCompare(b.name, "ro"));
+  },
+  ["crm-client-options"],
+  { tags: ["clients"], revalidate: 60 },
+);
+
+/** crmClientOptions + un client anume (ex: al facturii deschise), ca valoarea curentă să rămână selectabilă. */
+export async function crmClientOptionsPlus(extraId?: string | null): Promise<{ id: string; name: string }[]> {
+  const base = await crmClientOptions();
+  if (!extraId || base.some((c) => c.id === extraId)) return base;
+  const extra = await prisma.client.findFirst({ where: { id: extraId }, select: { id: true, name: true } }).catch(() => null);
+  return extra ? [...base, extra].sort((a, b) => a.name.localeCompare(b.name, "ro")) : base;
+}
+
 export async function clientOptions(_userId: string): Promise<{ id: string; name: string }[]> {
-  if (DEMO) return [];
-  return prisma.client.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  return crmClientOptions();
 }
 
 export async function getClient(_userId: string, id: string) {

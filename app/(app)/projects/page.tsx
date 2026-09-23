@@ -2,7 +2,7 @@ import { requirePermission } from "@/lib/dal";
 import { listProjects } from "@/lib/queries/projects";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
-import { invoiceClientOptions } from "@/lib/queries/invoices";
+import { crmClientOptions } from "@/lib/queries/clients";
 import { backfillProjectSeq } from "@/app/actions/projects";
 import ProjectsManager from "@/app/components/ProjectsManager";
 import type { ProjectStatus } from "@prisma/client";
@@ -27,7 +27,7 @@ export default async function ProjectsPage({
     listProjects({ search: sp.q || undefined, status, page, pageSize }),
     userOptions(),
     teamOptions(),
-    invoiceClientOptions(),
+    crmClientOptions(),
   ]);
   return (
     <div className="w-full">

@@ -6,7 +6,7 @@ import { getMessages } from "@/lib/i18n";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { projectOptions } from "@/lib/queries/projects";
-import { invoiceClientOptions } from "@/lib/queries/invoices";
+import { crmClientOptions } from "@/lib/queries/clients";
 import { listCategories } from "@/lib/queries/categories";
 import { getQuietHoursSettings } from "@/lib/queries/company";
 import { env } from "@/lib/env";
@@ -84,7 +84,7 @@ export default async function TasksPage({
     userOptions(),
     teamOptions(),
     projectOptions(),
-    invoiceClientOptions(),
+    crmClientOptions(),
     listCategories(),
     getQuietHoursSettings(),
   ]);

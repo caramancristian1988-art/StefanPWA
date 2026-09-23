@@ -7,7 +7,7 @@ import { getMessages } from "@/lib/i18n";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { projectOptions } from "@/lib/queries/projects";
-import { invoiceClientOptions } from "@/lib/queries/invoices";
+import { crmClientOptions } from "@/lib/queries/clients";
 import { listCategories } from "@/lib/queries/categories";
 import { env } from "@/lib/env";
 import TasksManager from "@/app/components/TasksManager";
@@ -109,7 +109,7 @@ export default async function TicketsPage({
     userOptions(),
     teamOptions(),
     projectOptions(),
-    invoiceClientOptions(),
+    crmClientOptions(),
     listCategories(),
   ]);
 

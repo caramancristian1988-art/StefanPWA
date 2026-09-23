@@ -131,15 +131,6 @@ export async function getInvoiceByToken(token: string) {
 
 // --- Date reactive pentru formularul de creare ---
 
-export const invoiceClientOptions = unstable_cache(
-  async (): Promise<{ id: string; name: string }[]> => {
-    if (DEMO) return [];
-    return prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
-  },
-  ["client-options"],
-  { tags: ["clients"], revalidate: 300 },
-);
-
 export const invoiceProjectOptions = unstable_cache(
   async (): Promise<{ id: string; name: string; clientId: string | null }[]> => {
     if (DEMO) return [];

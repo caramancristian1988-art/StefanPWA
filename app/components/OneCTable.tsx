@@ -19,7 +19,7 @@ type Payload = {
   sums: { calculat: number; datorieAvans: number; deAchitat: number };
 };
 type Detail = {
-  id: string; uid: string; nume: string; clientId: string | null; invoiceNumber: string | null;
+  id: string; uid: string; nume: string; payerId: string | null; invoiceId: string | null; invoiceNumber: string | null;
   consumers: Record<string, string | number | null>[] | null;
   meters: Record<string, string | number | null>[] | null;
   readings: Record<string, string | number | null>[] | null;
@@ -137,7 +137,7 @@ export default function OneCTable() {
                 ["lines", "Linii de calcul (РасчетСумм)"],
               ] as const
             ).map(([k, l]) => (
-              <a key={k} href={exportUrl(k)} download className="block rounded-lg px-3 py-2 text-sm hover:bg-[var(--color-surface-2)]">{l}</a>
+              <a key={k} href={exportUrl(k)} download onClick={(e) => e.currentTarget.closest("details")?.removeAttribute("open")} className="block rounded-lg px-3 py-2 text-sm hover:bg-[var(--color-surface-2)]">{l}</a>
             ))}
           </div>
         </details>
@@ -274,7 +274,8 @@ function DetailDialog({ id, onClose }: { id: string; onClose: () => void }) {
             {d && <p className="break-all text-xs text-ink-soft">UID: {d.uid} · Factură: {d.invoiceNumber ?? "—"}</p>}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {d?.clientId && <Link href={`/platitori/${d.clientId}`} className="tap rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-sm hover:bg-[var(--color-surface-2)]">Fișa plătitorului</Link>}
+            {d?.payerId && <Link href={`/platitori/${d.payerId}`} className="tap rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-sm hover:bg-[var(--color-surface-2)]">Fișa plătitorului</Link>}
+            {d?.invoiceId && <Link href={`/invoices/${d.invoiceId}/edit`} className="tap rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-sm hover:bg-[var(--color-surface-2)]">Factura</Link>}
             <button type="button" onClick={onClose} className="tap grid size-9 place-items-center rounded-lg text-ink-soft hover:bg-[var(--color-surface-2)]" aria-label="Închide">✕</button>
           </div>
         </div>

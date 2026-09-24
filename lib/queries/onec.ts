@@ -108,55 +108,83 @@ export type OneCRow = Record<string, string | number | null> & {
 const SELECT: Record<string, true> = { id: true, clientId: true, invoiceNumber: true };
 for (const c of ONEC_COLUMNS) SELECT[c.key] = true;
 
+const collator = new Intl.Collator("ro");
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
+ * Sortarea și paginarea se fac aici, nu în MongoDB: un sort pe server peste documente cu liste mari
+ * (consumatori/contoare) depășește limita de memorie de 32 MB de îndată ce sari peste câteva mii de
+ * rânduri (ultimele pagini, coloană fără index). Aducem doar perechile mici (id, coloana de sortare,
+ * cele 3 sume), le sortăm în memorie, iar din baza de date citim numai rândurile paginii curente.
+ * Bonus: ordinea e aceeași pe toate paginile și pe toate coloanele, iar totalurile vin din același set.
+ */
 export async function listOneC(q: OneCQuery) {
   const where = await buildOneCWhere(q);
-  const orderBy = [{ [q.sort]: q.dir }, { uid: "asc" }] as Prisma.OneCRecordOrderByWithRelationInput[];
+  const col = COLS.get(q.sort) ?? COLS.get("nume")!;
+  const select: Record<string, true> = { id: true, uid: true, calculat: true, datorieAvans: true, deAchitat: true, [col.key]: true };
+  const all = (await prisma.oneCRecord.findMany({ where, select: select as Prisma.OneCRecordSelect })) as unknown as Record<string, string | number | null>[];
 
-  const [rows, total, sums] = await Promise.all([
-    prisma.oneCRecord.findMany({
-      where,
-      orderBy,
-      skip: (q.page - 1) * q.perPage,
-      take: q.perPage,
-      select: SELECT as Prisma.OneCRecordSelect,
-    }),
-    prisma.oneCRecord.count({ where }),
-    prisma.oneCRecord.aggregate({ where, _sum: { calculat: true, datorieAvans: true, deAchitat: true } }),
-  ]);
+  const mul = q.dir === "asc" ? 1 : -1;
+  all.sort((x, y) => {
+    const a = x[col.key], b = y[col.key];
+    let c: number;
+    if (a == null && b == null) c = 0;
+    else if (a == null) c = -1;
+    else if (b == null) c = 1;
+    else c = col.type === "num" ? Number(a) - Number(b) : collator.compare(String(a), String(b));
+    return c * mul || collator.compare(String(x.uid), String(y.uid));
+  });
 
-  const numbers = rows.map((r) => r.invoiceNumber).filter((n): n is string => !!n);
+  let calculat = 0, datorieAvans = 0, deAchitat = 0;
+  for (const r of all) {
+    calculat += Number(r.calculat) || 0;
+    datorieAvans += Number(r.datorieAvans) || 0;
+    deAchitat += Number(r.deAchitat) || 0;
+  }
+
+  const skip = (q.page - 1) * q.perPage;
+  const ids = all.slice(skip, skip + q.perPage).map((r) => String(r.id));
+  const rows = ids.length
+    ? ((await prisma.oneCRecord.findMany({ where: { id: { in: ids } }, select: SELECT as Prisma.OneCRecordSelect })) as unknown as (Record<string, string | number | null> & { id: string })[])
+    : [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const ordered = ids.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
+
+  const numbers = ordered.map((r) => r.invoiceNumber).filter((n): n is string => typeof n === "string" && n !== "");
   const invs = numbers.length
     ? await prisma.invoice.findMany({ where: { number: { in: numbers } }, select: { number: true, grandTotal: true } })
     : [];
   const pwa = new Map(invs.map((i) => [i.number, i.grandTotal]));
 
-  const items = rows.map((r) => {
-    const pwaTotal = r.invoiceNumber ? pwa.get(r.invoiceNumber) ?? null : null;
-    const de = (r as { deAchitat?: number | null }).deAchitat ?? 0;
-    return {
-      ...(r as unknown as Record<string, string | number | null>),
-      pwaTotal,
-      diff: pwaTotal == null ? null : Math.round((pwaTotal - de + Number.EPSILON) * 100) / 100,
-    } as OneCRow;
+  const items = ordered.map((r) => {
+    const pwaTotal = typeof r.invoiceNumber === "string" && r.invoiceNumber ? pwa.get(r.invoiceNumber) ?? null : null;
+    const de = Number(r.deAchitat) || 0;
+    return { ...r, pwaTotal, diff: pwaTotal == null ? null : round2(pwaTotal - de) } as OneCRow;
   });
 
   return {
     items,
-    total,
+    total: all.length,
     page: q.page,
     perPage: q.perPage,
-    sums: {
-      calculat: sums._sum.calculat ?? 0,
-      datorieAvans: sums._sum.datorieAvans ?? 0,
-      deAchitat: sums._sum.deAchitat ?? 0,
-    },
+    sums: { calculat: round2(calculat), datorieAvans: round2(datorieAvans), deAchitat: round2(deAchitat) },
   };
 }
 
-/** Detaliile (rândurile brute din tabelele-copil) ale unui abonat, după id. */
+/**
+ * Detaliile (rândurile brute din tabelele-copil) ale unui abonat, după id, plus unde poate fi deschis
+ * în PWA: fișa de plătitor există doar pentru cei cu cont personal (firmele importate fără cont nu
+ * apar în Plătitori), iar factura o găsim după număr.
+ */
 export async function getOneCDetail(id: string) {
-  return prisma.oneCRecord.findUnique({
+  const rec = await prisma.oneCRecord.findUnique({
     where: { id },
     select: { id: true, uid: true, nume: true, clientId: true, invoiceNumber: true, consumers: true, meters: true, readings: true, lines: true },
   });
+  if (!rec) return null;
+  const [payer, invoice] = await Promise.all([
+    rec.clientId ? prisma.client.findFirst({ where: { id: rec.clientId, meterSeries: { not: null } }, select: { id: true } }) : null,
+    rec.invoiceNumber ? prisma.invoice.findFirst({ where: { number: rec.invoiceNumber }, select: { id: true } }) : null,
+  ]);
+  return { ...rec, payerId: payer?.id ?? null, invoiceId: invoice?.id ?? null };
 }

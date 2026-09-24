@@ -227,10 +227,11 @@ export async function GET(req: Request) {
 
     // Ultima factură a fiecărui plătitor (sume, sold, perioadă) + datele lui din exportul 1C
     // (nr. contract, IDNO, zonă, sigiliu) — altfel Excelul nu avea nici suma, nici datoria.
-    const idList = payers.map((p) => p.id);
+    // Fără `clientId: { in: [~19.000 de id-uri] }`: Mongo îl execută în ~150 s (timeout pe Vercel).
+    // Citim toate facturile/înregistrările 1C (câteva zeci de mii de rânduri mici) și potrivim aici.
     const [invRows, oneC] = await Promise.all([
       prisma.invoice.findMany({
-        where: { clientId: { in: idList } },
+        where: { clientId: { not: null } },
         orderBy: { issueDate: "desc" },
         select: {
           clientId: true, number: true, issueDate: true, status: true, billingPeriodLabel: true, sectorNr: true,
@@ -239,7 +240,7 @@ export async function GET(req: Request) {
         },
       }),
       prisma.oneCRecord.findMany({
-        where: { clientId: { in: idList } },
+        where: { clientId: { not: null } },
         select: { clientId: true, nrContract: true, inn: true, zonaPresiune: true, sigiliu: true, dataInstalare: true, uid: true },
       }),
     ]);

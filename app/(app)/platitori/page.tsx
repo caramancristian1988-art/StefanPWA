@@ -80,7 +80,13 @@ export default async function PayersPage({
           <h1 className="text-xl font-bold">Plătitori</h1>
           <p className="mt-1 text-sm text-ink-soft">{total} plătitori Apă-Canal — facturi, tichete, cont portal.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/platitori/tabel"
+            className="tap inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm font-medium text-ink-soft hover:bg-[var(--color-surface-2)]"
+          >
+            Tabel 1C
+          </Link>
           <ExportButton
             entity="payers"
             params={{

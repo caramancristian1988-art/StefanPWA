@@ -833,3 +833,63 @@ model AppSettings {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// --- Tabelul 1C: exportul 1C (6 tabele legate prin UID) combinat într-un rând per abonat, cu TOATE datele
+// din fișier — pentru verificarea de către cei de la 1C. Coloanele: vezi lib/apa-canal-1c.ts (ONEC_COLUMNS).
+// Datele-detaliu (consumatori/contoare/citiri/linii) rămân ca JSON: un UID poate avea zeci de rânduri.
+model OneCRecord {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  uid           String   @unique
+  invoiceNumber String?
+  clientId      String?  @db.ObjectId
+  nume            String?
+  nrContract      String?
+  contPersonal    String?
+  tipSector       String?
+  telefon         String?
+  oras            String?
+  strada          String?
+  casa            String?
+  apartament      String?
+  dataDoc         String?
+  calculat        Float?
+  datorieAvans    Float?
+  deAchitat       Float?
+  consumatori     String?
+  nrConsumatori   Float?
+  inn             String?
+  zonaPresiune    String?
+  sectorUchastok  String?
+  nrPersoane      Float?
+  suprafata       Float?
+  inceputConsum   String?
+  sfarsitConsum   String?
+  nrContoare      Float?
+  contorActiv     String?
+  dataInstalare   String?
+  sigiliu         String?
+  dataScoatere    String?
+  citirePrec      Float?
+  dataCitirePrec  String?
+  citireCurenta   Float?
+  dataCitire      String?
+  consumTotal     Float?
+  sursaCitire     String?
+  apaVolum        Float?
+  apaTarif        Float?
+  apaSuma         Float?
+  canalVolum      Float?
+  canalTarif      Float?
+  canalSuma       Float?
+  consumers     Json?
+  meters        Json?
+  readings      Json?
+  lines         Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([contPersonal])
+  @@index([nume])
+  @@index([invoiceNumber])
+  @@index([clientId])
+}

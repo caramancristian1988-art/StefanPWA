@@ -32,12 +32,20 @@ export function toXLSX(headers: string[], rows: Row[]): Blob {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Export");
-  const arr = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as unknown as ArrayBuffer;
+  const arr = XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }) as unknown as ArrayBuffer;
   return new Blob([arr], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
 
+/**
+ * Corpul se trimite în flux (stream), nu ca un bloc: funcțiile Vercel refuză răspunsurile "normale"
+ * peste 4,5 MB (export cu ~19.000 de plătitori depășește ușor), dar nu și pe cele transmise în flux.
+ */
+export function streamText(text: string): ReadableStream<Uint8Array> {
+  return new Blob([text]).stream() as ReadableStream<Uint8Array>;
+}
+
 export function csvResponse(csv: string, filename: string): Response {
-  return new Response(csv, {
+  return new Response(streamText(csv), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
@@ -46,7 +54,7 @@ export function csvResponse(csv: string, filename: string): Response {
 }
 
 export function xlsxResponse(blob: Blob, filename: string): Response {
-  return new Response(blob, {
+  return new Response(blob.stream() as ReadableStream<Uint8Array>, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${filename}"`,

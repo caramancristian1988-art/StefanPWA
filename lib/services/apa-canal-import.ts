@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import iconv from "iconv-lite";
 import { ObjectId } from "mongodb";
 import type { Prisma } from "@prisma/client";
+import { buildOneCRecords } from "../apa-canal-1c";
 
 /**
  * Import date Apă-Canal dintr-un export 1C (JSON, de regulă codificat Windows-1251) — formatul
@@ -411,6 +412,46 @@ type ApaCanalPrisma = {
     createMany(args: { data: Prisma.InvoiceItemCreateManyInput[] }): Promise<{ count: number }>;
   };
 };
+
+type OneCPrisma = {
+  invoice: {
+    findMany(args: { where: { kind: "APA_CANAL" }; select: { number: true; clientId: true } }): Promise<{ number: string; clientId: string | null }[]>;
+  };
+  oneCRecord: {
+    deleteMany(args: { where: { uid: { in: string[] } } }): Promise<{ count: number }>;
+    createMany(args: { data: Prisma.OneCRecordCreateManyInput[] }): Promise<{ count: number }>;
+  };
+};
+
+/**
+ * Păstrează "Tabelul 1C" (colecția OneCRecord, un rând per UID cu TOATE datele din cele 6 tabele)
+ * în pas cu fiecare import: înlocuiește înregistrările abonaților din fișier. Rulat după
+ * applyApaCanalPlan, ca facturile să existe deja (legătura cu clientul se face după nr. factură).
+ */
+export async function syncOneCRecords(prisma: OneCPrisma, data: ApaCanalRawData): Promise<number> {
+  const records = buildOneCRecords(data);
+  const invs = await prisma.invoice.findMany({ where: { kind: "APA_CANAL" }, select: { number: true, clientId: true } });
+  const clientByNumber = new Map(invs.map((i) => [i.number, i.clientId]));
+
+  const CHUNK = 500;
+  let written = 0;
+  for (let i = 0; i < records.length; i += CHUNK) {
+    const slice = records.slice(i, i + CHUNK);
+    await prisma.oneCRecord.deleteMany({ where: { uid: { in: slice.map((r) => r.uid) } } });
+    const res = await prisma.oneCRecord.createMany({
+      data: slice.map((r) => ({
+        ...r,
+        clientId: (r.invoiceNumber && clientByNumber.get(r.invoiceNumber)) || null,
+        consumers: r.consumers as unknown as Prisma.InputJsonValue,
+        meters: r.meters as unknown as Prisma.InputJsonValue,
+        readings: r.readings as unknown as Prisma.InputJsonValue,
+        lines: r.lines as unknown as Prisma.InputJsonValue,
+      })),
+    });
+    written += res.count;
+  }
+  return written;
+}
 
 /** Scrie planul efectiv în bază (batch-uit — vezi scripts/import-apa-canal-cahul-april2024.mjs). */
 export async function applyApaCanalPlan(

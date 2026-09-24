@@ -2,10 +2,10 @@ import { getCurrentUser } from "@/lib/dal";
 import { listTasks } from "@/lib/queries/tasks";
 import { listClients } from "@/lib/queries/clients";
 import { buildPayerWhere } from "@/lib/queries/payers";
-import { INVOICE_STATUS_LIST } from "@/app/components/invoice-meta";
+import { INVOICE_STATUS_LIST, INVOICE_STATUS } from "@/app/components/invoice-meta";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
-import { toCSV, toXLSX, csvResponse, xlsxResponse } from "@/lib/export-utils";
+import { toCSV, toXLSX, csvResponse, xlsxResponse, streamText } from "@/lib/export-utils";
 import { formatDate, formatTime, DEFAULT_TZ } from "@/lib/date";
 import type { TaskStatus, TaskType, TaskPriority, ProjectStatus, AppointmentStatus, InvoiceStatus } from "@prisma/client";
 
@@ -49,7 +49,7 @@ export async function GET(req: Request) {
     if (format === "json") {
       // Cheile sunt aceleași ca antetele din Excel/CSV, deci fișierul se poate reimporta.
       const data = rows.map((r) => Object.fromEntries(headers.map((h) => [h, r[h] ?? ""])));
-      return new Response(JSON.stringify(data, null, 2), {
+      return new Response(streamText(JSON.stringify(data, null, 2)), {
         headers: {
           "Content-Type": "application/json; charset=utf-8",
           "Content-Disposition": `attachment; filename="${filename}-${today()}.json"`,
@@ -211,6 +211,7 @@ export async function GET(req: Request) {
       orderBy: { name: "asc" },
       take: 20000,
       select: {
+        id: true,
         name: true,
         meterSeries: true,
         phone: true,
@@ -224,20 +225,70 @@ export async function GET(req: Request) {
       },
     });
 
-    // Primele 8 coloane sunt cele acceptate la import; ultimele 2 sunt informative (ignorate la import).
-    const HEADERS = ["Serie contor", "Nume", "Telefon", "Email", "Note", "Nr. contor", "Adresa consum", "Indice curent", "Cont portal", "Nr. facturi"];
-    const rows = payers.map((p) => ({
-      "Serie contor": p.meterSeries ?? "",
-      "Nume": p.name,
-      "Telefon": p.phone ?? "",
-      "Email": p.email ?? "",
-      "Note": p.notes ?? "",
-      "Nr. contor": p.meterNumber ?? "",
-      "Adresa consum": p.consumAddress ?? "",
-      "Indice curent": p.meterCurrReading ?? "",
-      "Cont portal": p.portalPasswordHash ? "Activat" : "Neactivat",
-      "Nr. facturi": p._count.invoices,
-    }));
+    // Ultima factură a fiecărui plătitor (sume, sold, perioadă) + datele lui din exportul 1C
+    // (nr. contract, IDNO, zonă, sigiliu) — altfel Excelul nu avea nici suma, nici datoria.
+    const idList = payers.map((p) => p.id);
+    const [invRows, oneC] = await Promise.all([
+      prisma.invoice.findMany({
+        where: { clientId: { in: idList } },
+        orderBy: { issueDate: "desc" },
+        select: {
+          clientId: true, number: true, issueDate: true, status: true, billingPeriodLabel: true, sectorNr: true,
+          meterPrevReading: true, meterCurrReading: true, subtotal: true, datoriiAvans: true, recalculari: true,
+          penalitati: true, grandTotal: true, currency: true,
+        },
+      }),
+      prisma.oneCRecord.findMany({
+        where: { clientId: { in: idList } },
+        select: { clientId: true, nrContract: true, inn: true, zonaPresiune: true, sigiliu: true, dataInstalare: true, uid: true },
+      }),
+    ]);
+    const lastInvoice = new Map<string, (typeof invRows)[number]>();
+    for (const inv of invRows) if (inv.clientId && !lastInvoice.has(inv.clientId)) lastInvoice.set(inv.clientId, inv);
+    const oneCByClient = new Map(oneC.map((r) => [r.clientId, r]));
+
+    // Primele 8 coloane sunt cele acceptate la import; restul sunt informative (ignorate la import).
+    const HEADERS = [
+      "Serie contor", "Nume", "Telefon", "Email", "Note", "Nr. contor", "Adresa consum", "Indice curent", "Cont portal", "Nr. facturi",
+      "Nr. contract", "IDNO / ИНН", "Sector", "Nr. factură", "Data facturii", "Perioadă", "Status factură",
+      "Citire anterioară", "Citire curentă (factură)", "Calculat", "Datorii / avans", "Recalculări", "Penalități", "Total de plată", "Valută",
+      "Zonă presiune", "Nr. sigiliu", "Data instalării contor", "UID 1C",
+    ];
+    const rows = payers.map((p) => {
+      const inv = lastInvoice.get(p.id);
+      const c1 = oneCByClient.get(p.id);
+      return {
+        "Serie contor": p.meterSeries ?? "",
+        "Nume": p.name,
+        "Telefon": p.phone ?? "",
+        "Email": p.email ?? "",
+        "Note": p.notes ?? "",
+        "Nr. contor": p.meterNumber ?? "",
+        "Adresa consum": p.consumAddress ?? "",
+        "Indice curent": p.meterCurrReading ?? "",
+        "Cont portal": p.portalPasswordHash ? "Activat" : "Neactivat",
+        "Nr. facturi": p._count.invoices,
+        "Nr. contract": c1?.nrContract ?? "",
+        "IDNO / ИНН": c1?.inn ?? "",
+        "Sector": inv?.sectorNr ?? "",
+        "Nr. factură": inv?.number ?? "",
+        "Data facturii": inv ? fmtDate(inv.issueDate) : "",
+        "Perioadă": inv?.billingPeriodLabel ?? "",
+        "Status factură": inv ? (INVOICE_STATUS[inv.status as InvoiceStatus]?.label ?? inv.status) : "",
+        "Citire anterioară": inv?.meterPrevReading ?? "",
+        "Citire curentă (factură)": inv?.meterCurrReading ?? "",
+        "Calculat": inv ? inv.subtotal : "",
+        "Datorii / avans": inv ? inv.datoriiAvans : "",
+        "Recalculări": inv ? inv.recalculari : "",
+        "Penalități": inv ? inv.penalitati : "",
+        "Total de plată": inv ? inv.grandTotal : "",
+        "Valută": inv?.currency ?? "",
+        "Zonă presiune": c1?.zonaPresiune ?? "",
+        "Nr. sigiliu": c1?.sigiliu ?? "",
+        "Data instalării contor": c1?.dataInstalare ?? "",
+        "UID 1C": c1?.uid ?? "",
+      };
+    });
 
     return makeResponse(HEADERS, rows, "platitori");
   }

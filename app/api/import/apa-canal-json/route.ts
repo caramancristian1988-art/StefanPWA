@@ -8,6 +8,7 @@ import {
   parseApaCanalBuffer,
   buildApaCanalPlan,
   applyApaCanalPlan,
+  syncOneCRecords,
 } from "@/lib/services/apa-canal-import";
 
 // Fișierul poate depăși cu mult limita de 4.5 MB pentru corpul unui request către o funcție
@@ -75,6 +76,14 @@ export async function POST(req: Request) {
   }
 
   const applied = await applyApaCanalPlan(prisma, plan);
+
+  // "Tabelul 1C" (toate datele din export, un rând per UID). Un eșec aici nu strică importul
+  // facturilor/clienților, care e deja scris — doar se raportează în log.
+  try {
+    await syncOneCRecords(prisma, data);
+  } catch (e) {
+    console.error("[apa-canal-import] sincronizarea Tabelului 1C a eșuat:", e);
+  }
 
   await del(blobUrl).catch(() => {});
   // expire:0 — invalidare imediată (import creează mii de clienți; stale-while-revalidate ar

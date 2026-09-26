@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import iconv from "iconv-lite";
 import { PrismaClient } from "@prisma/client";
-import { buildOneCRecords } from "../lib/apa-canal-1c.ts";
+import { buildOneCRecords, makeNameFixer } from "../lib/apa-canal-1c.ts";
 
 const file = process.argv.find((a, i) => i >= 2 && !a.startsWith("--"));
 const commit = process.argv.includes("--commit");
@@ -35,17 +35,20 @@ const data = {
 };
 if (!data.documente.length || !data.abonenti.length) throw new Error("Fișierul nu pare exportul 1C Apă-Canal.");
 
-const records = buildOneCRecords(data);
+const prisma = new PrismaClient();
+const invsAll = await prisma.invoice.findMany({ where: { kind: "APA_CANAL" }, select: { number: true, clientId: true } });
+const clientByNumberAll = new Map(invsAll.map((i) => [i.number, i.clientId]));
+const clientsAll = await prisma.client.findMany({ select: { id: true, name: true, meterSeries: true } });
+const records = buildOneCRecords(data, { fixName: makeNameFixer(clientsAll, clientByNumberAll) });
+console.log(`Nume corectate (Ș/Ț refăcute din PWA): ${records.filter((r) => r.numeOriginal).length}`);
 console.log(`Abonați în fișier: ${data.abonenti.length} → înregistrări: ${records.length}`);
 console.log(`Rânduri-detaliu: consumatori ${records.reduce((s, r) => s + r.consumers.length, 0)}/${data.consumatori.length}, ` +
   `contoare ${records.reduce((s, r) => s + r.meters.length, 0)}/${data.contoare.length}, ` +
   `citiri ${records.reduce((s, r) => s + r.readings.length, 0)}/${data.citiri.length}, ` +
   `linii ${records.reduce((s, r) => s + r.lines.length, 0)}/${data.calculeSume.length}`);
 
-const prisma = new PrismaClient();
 try {
-  const invs = await prisma.invoice.findMany({ where: { kind: "APA_CANAL" }, select: { number: true, clientId: true } });
-  const clientByNumber = new Map(invs.map((i) => [i.number, i.clientId]));
+  const clientByNumber = clientByNumberAll;
   let linked = 0;
   for (const r of records) {
     r.clientId = clientByNumber.get(r.invoiceNumber) ?? null;

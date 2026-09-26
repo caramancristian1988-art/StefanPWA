@@ -22,7 +22,8 @@ export type OneCColumn = {
 /** Coloanele tabelului comun, în ordinea afișării. `key` = câmpul din modelul OneCRecord. */
 export const ONEC_COLUMNS: OneCColumn[] = [
   { key: "uid", label: "UID", src: "UID", type: "text", w: 250 },
-  { key: "nume", label: "Abonat", src: "Абоненты.Наименование", type: "text", w: 220 },
+  { key: "nume", label: "Abonat", src: "Абоненты.Наименование (cu Ș/Ț refăcute)", type: "text", w: 220 },
+  { key: "numeOriginal", label: "Nume în exportul 1C (original)", src: "Абоненты.Наименование", type: "text", w: 200 },
   { key: "nrContract", label: "Nr. contract", src: "Абоненты.НомерДоговора", type: "text", w: 100 },
   { key: "contPersonal", label: "Cont personal", src: "Абоненты.ЛицевойСчет", type: "text", w: 110 },
   { key: "tipSector", label: "Tip sector", src: "Абоненты.ТипСектора", type: "text", w: 120 },
@@ -87,6 +88,8 @@ export type OneCLine = {
 export type OneCRecordData = {
   uid: string;
   nume: string;
+  /** Numele exact cum l-a exportat 1C — completat doar când a fost corectat (Ș/Ț pierdute la export → "?"). */
+  numeOriginal: string | null;
   nrContract: string | null;
   contPersonal: string | null;
   tipSector: string | null;
@@ -160,6 +163,42 @@ const joined = (a: string[]) => {
 };
 const nz = (s: string) => (s ? s : null);
 
+/**
+ * Exportul 1C a pierdut Ș/Ț (Windows-1251 nu le are): apar ca "?". În PWA numele au fost corectate în Client;
+ * aici le refolosim, ca tabelul (și la fiecare sincronizare din API) să nu readucă "?". Fără nicio ghicire:
+ * numele corectat trebuie să coincidă cu cel din export pe fiecare poziție, în afară de "?".
+ */
+export type NameFixer = (info: { contPersonal: string | null; invoiceNumber: string; raw: string }) => string | null;
+
+export function isWildcardFix(raw: string, fixed: string): boolean {
+  if (raw === fixed || raw.length !== fixed.length) return false;
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] === "?") continue;
+    if (raw[i].toLowerCase() !== fixed[i].toLowerCase()) return false;
+  }
+  return true;
+}
+
+/** Corectorul de nume din clienții deja existenți (după cont personal, apoi după factura abonatului). */
+export function makeNameFixer(
+  clients: { id: string; name: string; meterSeries: string | null }[],
+  clientIdByInvoice: Map<string, string | null>,
+): NameFixer {
+  const bySeries = new Map<string, string>();
+  const nameById = new Map<string, string>();
+  for (const c of clients) {
+    nameById.set(c.id, c.name);
+    if (c.meterSeries) bySeries.set(c.meterSeries, c.name);
+  }
+  return ({ contPersonal, invoiceNumber, raw }) => {
+    if (!raw.includes("?")) return null;
+    const viaInvoice = clientIdByInvoice.get(invoiceNumber);
+    const candidates = [contPersonal ? bySeries.get(contPersonal) : undefined, viaInvoice ? nameById.get(viaInvoice) : undefined];
+    for (const c of candidates) if (c && isWildcardFix(raw, c)) return c;
+    return null;
+  };
+}
+
 const SVC_WATER = "Потребление воды";
 const SVC_SEWER = "Сброс канализации";
 // Valorile enumerate (tip sector, sursa citirii, tip serviciu) rămân EXACT ca în 1C — tabelul e făcut
@@ -181,7 +220,24 @@ function groupByUid(rows: Raw[]): Map<string, Raw[]> {
  * aceleași reguli ca la importul facturilor; TOT ce e în fișier rămâne oricum în listele-detaliu
  * (consumers/meters/readings/lines), deci nimic nu se pierde chiar dacă un UID are 52 de consumatori.
  */
-export function buildOneCRecords(data: OneCRawData): OneCRecordData[] {
+export function buildOneCRecords(data: OneCRawData, opts: { fixName?: NameFixer } = {}): OneCRecordData[] {
+  // Pas 1: numele de abonat corectabile ("?" → Ș/Ț). Aceleași nume apar și ca "consumator" în tabelele-copil;
+  // le corectăm și acolo, dar doar dacă același nume din export duce la o singură variantă corectă.
+  const fixByUid = new Map<string, string>();
+  const rawToFixed = new Map<string, string | null>();
+  if (opts.fixName) {
+    for (const sub of data.abonenti) {
+      const raw = str(sub["Наименование"]);
+      const cp = str(sub["ЛицевойСчет"]);
+      const uid = str(sub.UID);
+      const fixed = opts.fixName({ contPersonal: cp || null, invoiceNumber: cp ? `AC-${cp}` : `AC-${uid.slice(0, 8)}`, raw });
+      if (!fixed) continue;
+      fixByUid.set(uid, fixed);
+      rawToFixed.set(raw, rawToFixed.has(raw) && rawToFixed.get(raw) !== fixed ? null : fixed);
+    }
+  }
+  const fixChild = (n: string) => (n.includes("?") ? rawToFixed.get(n) ?? n : n);
+
   const docByUid = new Map(data.documente.map((d) => [str(d.UID), d]));
   const consByUid = groupByUid(data.consumatori);
   const meterByUid = groupByUid(data.contoare);
@@ -243,6 +299,11 @@ export function buildOneCRecords(data: OneCRawData): OneCRecordData[] {
       data: iso(l["ДатаПоказаний"]),
     }));
 
+    for (const c of consumers) c.nume = fixChild(c.nume);
+    for (const m of meters) { m.consumator = fixChild(m.consumator); m.subAbonat = fixChild(m.subAbonat); m.subConsumator = fixChild(m.subConsumator); }
+    for (const r of readings) r.consumator = fixChild(r.consumator);
+    for (const l of lines) l.consumator = fixChild(l.consumator);
+
     // Consumatorul "curent" = ultima perioadă.
     const lastCons = [...consumers].sort((a, b) => (b.perioada ?? "").localeCompare(a.perioada ?? ""))[0];
 
@@ -263,9 +324,12 @@ export function buildOneCRecords(data: OneCRawData): OneCRecordData[] {
       return t ? t.tarif : null;
     };
 
+    const rawNume = str(sub["Наименование"]);
+    const fixedNume = fixByUid.get(uid) ?? null;
     out.push({
       uid,
-      nume: str(sub["Наименование"]),
+      nume: fixedNume ?? rawNume,
+      numeOriginal: fixedNume ? rawNume : null,
       nrContract: nz(str(sub["НомерДоговора"])),
       contPersonal: nz(contPersonal),
       tipSector: nz(str(sub["ТипСектора"])),

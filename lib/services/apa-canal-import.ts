@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import iconv from "iconv-lite";
 import { ObjectId } from "mongodb";
 import type { Prisma } from "@prisma/client";
-import { buildOneCRecords } from "../apa-canal-1c";
+import { buildOneCRecords, makeNameFixer } from "../apa-canal-1c";
 import { prisma } from "../prisma";
 
 /**
@@ -481,6 +481,9 @@ type OneCPrisma = {
   invoice: {
     findMany(args: { where: { kind: "APA_CANAL" }; select: { number: true; clientId: true } }): Promise<{ number: string; clientId: string | null }[]>;
   };
+  client: {
+    findMany(args: { select: { id: true; name: true; meterSeries: true } }): Promise<{ id: string; name: string; meterSeries: string | null }[]>;
+  };
   oneCRecord: {
     deleteMany(args: { where: { uid: { in: string[] } } }): Promise<{ count: number }>;
     createMany(args: { data: Prisma.OneCRecordCreateManyInput[] }): Promise<{ count: number }>;
@@ -493,9 +496,11 @@ type OneCPrisma = {
  * applyApaCanalPlan, ca facturile să existe deja (legătura cu clientul se face după nr. factură).
  */
 export async function syncOneCRecords(prisma: OneCPrisma, data: ApaCanalRawData): Promise<number> {
-  const records = buildOneCRecords(data);
   const invs = await prisma.invoice.findMany({ where: { kind: "APA_CANAL" }, select: { number: true, clientId: true } });
   const clientByNumber = new Map(invs.map((i) => [i.number, i.clientId]));
+  // Numele cu "?" (Ș/Ț pierdute de exportul 1C) se iau din clienții din PWA, unde sunt deja corectate.
+  const clients = await prisma.client.findMany({ select: { id: true, name: true, meterSeries: true } });
+  const records = buildOneCRecords(data, { fixName: makeNameFixer(clients, clientByNumber) });
 
   // Loturi de câte 500 de UID-uri (fiecare: șterge vechile + inserează noile), câte 4 în paralel — loturile
   // au UID-uri diferite, deci nu se calcă între ele. Secvențial, ~18.000 de înregistrări durau ~100 s din

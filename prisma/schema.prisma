@@ -840,6 +840,7 @@ model AppSettings {
 model OneCRecord {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   uid           String   @unique
+  numeOriginal  String?
   invoiceNumber String?
   clientId      String?  @db.ObjectId
   nume            String?

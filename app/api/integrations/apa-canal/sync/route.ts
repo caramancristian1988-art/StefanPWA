@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { getCurrentUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
 
     revalidateTag("clients", { expire: 0 });
     const msg = `Sincronizat: ${applied.clientsCreated} clienți noi, ${applied.clientsUpdated} actualizați, ${applied.invoicesCreated} facturi noi.`;
-    await recordSync(true, msg);
+    await recordSync(true, msg, { wrote: true, contentHash: createHash("sha256").update(buf).digest("hex") });
     await logAudit(
       { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },
       { action: "invoice.bulk_import", module: "Invoices", objectName: `Sincronizare API Apă-Canal — ${plan.stats.documenteTotale} documente`, newValue: `${msg} Linii: ${applied.itemsCreated}.` },

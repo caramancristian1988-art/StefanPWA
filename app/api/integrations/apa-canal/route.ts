@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/lib/services/audit";
-import { getApiConfigPublic, saveApiConfig } from "@/lib/services/apa-canal-api";
+import { getApiConfigPublic, saveApiConfig, setAutoSync } from "@/lib/services/apa-canal-api";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +24,29 @@ export async function GET() {
     /* fără link */
   }
   return Response.json({ ...cfg, url: shown, username: cfg.username ? "••••••" : "", canEdit: false });
+}
+
+/** Pornește/oprește extragerea automată zilnică (cron). Doar administratorii. */
+export async function PATCH(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "Autentificare necesară." }, { status: 401 });
+  if (user.role !== "ADMIN") return Response.json({ error: "Doar un administrator poate porni sincronizarea automată." }, { status: 403 });
+
+  let body: { autoSync?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Cerere invalidă." }, { status: 400 });
+  }
+  if (typeof body.autoSync !== "boolean") return Response.json({ error: "Lipsește autoSync (true/false)." }, { status: 400 });
+  const res = await setAutoSync(body.autoSync);
+  if (!res.ok) return Response.json({ error: res.error }, { status: 400 });
+
+  await logAudit(
+    { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },
+    { action: "integration.update", module: "Integrations", objectName: "API plătitori Apă-Canal", newValue: body.autoSync ? "Sincronizare automată PORNITĂ" : "Sincronizare automată oprită" },
+  );
+  return Response.json({ ...(await getApiConfigPublic()), canEdit: true });
 }
 
 /** Salvează linkul și credențialele. Doar administratorii — parola dă acces la datele plătitorilor. */

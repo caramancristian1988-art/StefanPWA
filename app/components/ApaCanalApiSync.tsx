@@ -12,6 +12,8 @@ type Config = {
   lastSyncAt: string | null;
   lastSyncOk: boolean | null;
   lastSyncMessage: string | null;
+  lastSuccessAt: string | null;
+  autoSync: boolean;
   canEdit: boolean;
 };
 
@@ -99,6 +101,27 @@ export default function ApaCanalApiSync() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Nu s-a putut salva.");
       return false;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function toggleAuto(next: boolean) {
+    setError(null);
+    setInfo(null);
+    setBusy("save");
+    try {
+      const r = await fetch("/api/integrations/apa-canal", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoSync: next }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "Nu s-a putut schimba.");
+      setCfg(j);
+      setInfo(next ? "Sincronizare automată pornită — se rulează în fiecare noapte." : "Sincronizare automată oprită.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Nu s-a putut schimba.");
     } finally {
       setBusy(null);
     }
@@ -198,6 +221,30 @@ export default function ApaCanalApiSync() {
                     Ultima încercare: {new Date(cfg.lastSyncAt).toLocaleString("ro-RO")} — {cfg.lastSyncMessage}
                   </p>
                 )}
+                {cfg.lastSuccessAt && <p className="text-[11px] text-ink-soft">Ultima dată când s-au scris date din API: {new Date(cfg.lastSuccessAt).toLocaleString("ro-RO")}.</p>}
+
+                <div className="rounded-xl border border-[var(--color-line)] p-3">
+                  <label className="flex items-start gap-2.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cfg.autoSync}
+                      disabled={!canEdit || locked || dirty || (!cfg.autoSync && cfg.lastSyncOk !== true)}
+                      onChange={(e) => toggleAuto(e.target.checked)}
+                      className="mt-0.5 size-4 accent-[var(--color-brand)]"
+                    />
+                    <span>
+                      <b>Extrage automat în fiecare noapte</b> (în jur de 03:00)
+                      <span className="mt-0.5 block text-xs text-ink-soft">
+                        {cfg.autoSync
+                          ? "Pornit: aplicația își aduce singură datele, nu mai trebuie să apeși butonul. Dacă API-ul întoarce același lucru ca data trecută, nu se schimbă nimic."
+                          : cfg.lastSyncOk === true
+                            ? "Setările au funcționat — poți porni extragerea automată."
+                            : "Se poate porni doar după o testare sau o sincronizare reușită cu setările curente."}
+                        {!canEdit && " Doar un administrator o poate porni sau opri."}
+                      </span>
+                    </span>
+                  </label>
+                </div>
 
                 <div className="flex flex-wrap gap-2">
                   {canEdit && (

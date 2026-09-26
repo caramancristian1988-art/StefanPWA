@@ -21,9 +21,13 @@ export type ApiConfigPublic = {
   lastSyncAt: string | null;
   lastSyncOk: boolean | null;
   lastSyncMessage: string | null;
+  /** Data ultimei sincronizări care a SCRIS date (nu doar test). */
+  lastSuccessAt: string | null;
+  /** Cron-ul zilnic extrage singur datele. */
+  autoSync: boolean;
 };
 
-const EMPTY: ApiConfigPublic = { url: "", username: "", hasPassword: false, hasToken: false, lastSyncAt: null, lastSyncOk: null, lastSyncMessage: null };
+const EMPTY: ApiConfigPublic = { url: "", username: "", hasPassword: false, hasToken: false, lastSyncAt: null, lastSyncOk: null, lastSyncMessage: null, lastSuccessAt: null, autoSync: false };
 
 /** Configurația fără secrete — asta e tot ce ajunge vreodată în browser. */
 export async function getApiConfigPublic(): Promise<ApiConfigPublic> {
@@ -37,6 +41,8 @@ export async function getApiConfigPublic(): Promise<ApiConfigPublic> {
     lastSyncAt: row.lastSyncAt ? row.lastSyncAt.toISOString() : null,
     lastSyncOk: row.lastSyncOk,
     lastSyncMessage: row.lastSyncMessage,
+    lastSuccessAt: row.lastSuccessAt ? row.lastSuccessAt.toISOString() : null,
+    autoSync: row.autoSyncEnabled === true,
   };
 }
 
@@ -69,25 +75,62 @@ export async function saveApiConfig(input: ApiConfigInput, userId: string): Prom
   const username = input.username.trim().slice(0, 200);
 
   const existing = await prisma.apiIntegration.findFirst({ where: { key: KEY } });
+  const passChanged = input.password !== undefined && (input.password !== "" || !!existing?.passwordEnc);
+  const tokenChanged = input.token !== undefined && (input.token !== "" || !!existing?.tokenEnc);
+  const changed = !!existing && (v.url !== (existing.url ?? "") || username !== (existing.username ?? "") || passChanged || tokenChanged);
   const data = {
     url: v.url,
     username: username || null,
     passwordEnc: input.password === undefined ? existing?.passwordEnc ?? null : input.password === "" ? null : encryptSecret(input.password),
     tokenEnc: input.token === undefined ? existing?.tokenEnc ?? null : input.token === "" ? null : encryptSecret(input.token),
     updatedById: userId,
+    // Setări schimbate = ce a mers înainte nu mai e garantat: oprește automatul și cere o nouă testare.
+    ...(changed
+      ? { autoSyncEnabled: false, lastSyncOk: null, lastContentHash: null, lastSyncMessage: "Setările s-au schimbat — testează conexiunea din nou." }
+      : {}),
   };
   if (existing) await prisma.apiIntegration.update({ where: { id: existing.id }, data });
   else await prisma.apiIntegration.create({ data: { key: KEY, ...data } });
   return { ok: true };
 }
 
-export async function recordSync(ok: boolean, message: string) {
+export async function recordSync(ok: boolean, message: string, opts: { wrote?: boolean; contentHash?: string | null } = {}) {
   const existing = await prisma.apiIntegration.findFirst({ where: { key: KEY }, select: { id: true } });
   if (!existing) return;
+  const now = new Date();
   await prisma.apiIntegration.update({
     where: { id: existing.id },
-    data: { lastSyncAt: new Date(), lastSyncOk: ok, lastSyncMessage: message.slice(0, 500) },
+    data: {
+      lastSyncAt: now,
+      lastSyncOk: ok,
+      lastSyncMessage: message.slice(0, 500),
+      ...(ok && opts.wrote ? { lastSuccessAt: now } : {}),
+      ...(opts.contentHash !== undefined ? { lastContentHash: opts.contentHash } : {}),
+    },
   });
+}
+
+/**
+ * Pornește/oprește extragerea automată (cron). Pornirea cere ca ultima încercare cu setările curente
+ * să fi reușit — "dacă a mers o dată, o lăsăm să meargă singură". Oprirea e mereu permisă.
+ */
+export async function setAutoSync(enabled: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
+  const row = await prisma.apiIntegration.findFirst({ where: { key: KEY } });
+  if (!row?.url) return { ok: false, error: "API-ul nu e configurat." };
+  if (enabled && row.lastSyncOk !== true) {
+    return { ok: false, error: "Sincronizarea automată se poate porni doar după o testare sau o sincronizare reușită cu setările curente." };
+  }
+  await prisma.apiIntegration.update({ where: { id: row.id }, data: { autoSyncEnabled: enabled } });
+  return { ok: true };
+}
+
+/** Datele pentru cron: configurația + contul în numele căruia rulează (ultimul care a salvat setările). */
+export async function getAutoSyncState() {
+  const row = await prisma.apiIntegration.findFirst({ where: { key: KEY } });
+  if (!row || !row.url || row.autoSyncEnabled !== true) return null;
+  let owner = row.updatedById ? await prisma.user.findFirst({ where: { id: row.updatedById, isActive: true }, select: { id: true, name: true, role: true, isSuperAdmin: true } }) : null;
+  if (!owner) owner = await prisma.user.findFirst({ where: { role: "ADMIN", isActive: true }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, role: true, isSuperAdmin: true } });
+  return owner ? { owner, lastContentHash: row.lastContentHash } : null;
 }
 
 /**

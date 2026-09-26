@@ -909,6 +909,12 @@ model ApiIntegration {
   lastSyncMessage String?
   // Blocare cât rulează o sincronizare (două rulări simultane ar crea clienți dubli).
   syncLockUntil   DateTime?
+  // Sincronizare automată (cron zilnic: /api/cron/apa-canal-sync). Se poate porni doar după o
+  // sincronizare reușită cu setările curente și se oprește singură dacă se schimbă linkul/credențialele.
+  autoSyncEnabled Boolean?
+  // Amprenta ultimului răspuns scris: dacă API-ul întoarce exact același lucru, cron-ul nu mai face nimic.
+  lastContentHash String?
+  lastSuccessAt   DateTime?
   updatedById     String?   @db.ObjectId
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

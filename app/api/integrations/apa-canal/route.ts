@@ -13,7 +13,17 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Autentificare necesară." }, { status: 401 });
   if (!canUse(user)) return Response.json({ error: "Nu ai permisiunea de a folosi sincronizarea." }, { status: 403 });
-  return Response.json({ ...(await getApiConfigPublic()), canEdit: user.role === "ADMIN" });
+  const cfg = await getApiConfigPublic();
+  if (user.role === "ADMIN") return Response.json({ ...cfg, canEdit: true });
+  // Cine doar rulează sincronizarea nu are de ce să vadă linkul complet (poate conține o cheie în query) sau loginul.
+  let shown = "";
+  try {
+    const u = new URL(cfg.url);
+    shown = `${u.origin}${u.pathname}`;
+  } catch {
+    /* fără link */
+  }
+  return Response.json({ ...cfg, url: shown, username: cfg.username ? "••••••" : "", canEdit: false });
 }
 
 /** Salvează linkul și credențialele. Doar administratorii — parola dă acces la datele plătitorilor. */

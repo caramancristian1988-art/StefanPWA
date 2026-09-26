@@ -61,8 +61,18 @@ const pad5 = (n: unknown) => {
  * UTF-8 — încearcă întâi UTF-8 (dacă parsează curat ȘI conține texte non-ASCII valide, adică nu
  * a fost de fapt Windows-1251 citit greșit ca UTF-8), altfel cade pe Windows-1251.
  */
-export function parseApaCanalBuffer(buf: Buffer): ApaCanalRawData {
+export function parseApaCanalBuffer(input: Buffer): ApaCanalRawData {
   let obj: Record<string, unknown> | null = null;
+
+  // Serviciile HTTP 1C întorc frecvent UTF-8 cu BOM (EF BB BF) sau UTF-16 — JSON.parse pică pe BOM.
+  let buf = input;
+  if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) buf = buf.subarray(3);
+  else if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) buf = Buffer.from(buf.subarray(2).toString("utf16le"), "utf-8");
+  else if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+    const sw = Buffer.from(buf.subarray(2));
+    sw.swap16();
+    buf = Buffer.from(sw.toString("utf16le"), "utf-8");
+  }
 
   const tryUtf8 = () => {
     const text = buf.toString("utf-8");
@@ -85,7 +95,17 @@ export function parseApaCanalBuffer(buf: Buffer): ApaCanalRawData {
   };
 
   obj = tryUtf8() ?? tryWin1251();
-  if (!obj) throw new Error("Fișierul nu este JSON valid (nici UTF-8, nici Windows-1251).");
+  if (!obj) throw new Error("Răspunsul nu este JSON valid (nici UTF-8, nici Windows-1251).");
+
+  // Unele API-uri împachetează datele ({ "data": {...} } sau o listă cu un singur obiect): le desfacem.
+  const hasTables = (o: unknown): o is Record<string, unknown> =>
+    !!o && typeof o === "object" && !Array.isArray(o) && Array.isArray((o as Record<string, unknown>)["Документы"]);
+  if (!hasTables(obj)) {
+    const root: unknown = obj;
+    const candidates: unknown[] = Array.isArray(root) ? root : Object.values(obj);
+    const inner = candidates.find(hasTables) ?? (candidates.length === 1 && Array.isArray(candidates[0]) ? (candidates[0] as unknown[]).find(hasTables) : undefined);
+    if (inner) obj = inner as Record<string, unknown>;
+  }
 
   const documente = (obj["Документы"] as Record<string, unknown>[]) ?? [];
   const abonenti = (obj["Абоненты"] as Record<string, unknown>[]) ?? [];
@@ -96,7 +116,7 @@ export function parseApaCanalBuffer(buf: Buffer): ApaCanalRawData {
 
   if (documente.length === 0 || abonenti.length === 0) {
     throw new Error(
-      "Fișierul nu conține tabelele așteptate (\"Документы\"/\"Абоненты\") — nu pare exportul 1C Apă-Canal.",
+      "Nu găsesc tabelele așteptate (\"Документы\"/\"Абоненты\") — nu pare exportul 1C Apă-Canal (format diferit față de fișierul exportat?).",
     );
   }
 
@@ -477,22 +497,32 @@ export async function syncOneCRecords(prisma: OneCPrisma, data: ApaCanalRawData)
   const invs = await prisma.invoice.findMany({ where: { kind: "APA_CANAL" }, select: { number: true, clientId: true } });
   const clientByNumber = new Map(invs.map((i) => [i.number, i.clientId]));
 
+  // Loturi de câte 500 de UID-uri (fiecare: șterge vechile + inserează noile), câte 4 în paralel — loturile
+  // au UID-uri diferite, deci nu se calcă între ele. Secvențial, ~18.000 de înregistrări durau ~100 s din
+  // cele 300 s ale funcției.
   const CHUNK = 500;
+  const PARALLEL = 4;
+  const chunks: (typeof records)[] = [];
+  for (let i = 0; i < records.length; i += CHUNK) chunks.push(records.slice(i, i + CHUNK));
   let written = 0;
-  for (let i = 0; i < records.length; i += CHUNK) {
-    const slice = records.slice(i, i + CHUNK);
-    await prisma.oneCRecord.deleteMany({ where: { uid: { in: slice.map((r) => r.uid) } } });
-    const res = await prisma.oneCRecord.createMany({
-      data: slice.map((r) => ({
-        ...r,
-        clientId: (r.invoiceNumber && clientByNumber.get(r.invoiceNumber)) || null,
-        consumers: r.consumers as unknown as Prisma.InputJsonValue,
-        meters: r.meters as unknown as Prisma.InputJsonValue,
-        readings: r.readings as unknown as Prisma.InputJsonValue,
-        lines: r.lines as unknown as Prisma.InputJsonValue,
-      })),
-    });
-    written += res.count;
+  for (let i = 0; i < chunks.length; i += PARALLEL) {
+    const counts = await Promise.all(
+      chunks.slice(i, i + PARALLEL).map(async (slice) => {
+        await prisma.oneCRecord.deleteMany({ where: { uid: { in: slice.map((r) => r.uid) } } });
+        const res = await prisma.oneCRecord.createMany({
+          data: slice.map((r) => ({
+            ...r,
+            clientId: (r.invoiceNumber && clientByNumber.get(r.invoiceNumber)) || null,
+            consumers: r.consumers as unknown as Prisma.InputJsonValue,
+            meters: r.meters as unknown as Prisma.InputJsonValue,
+            readings: r.readings as unknown as Prisma.InputJsonValue,
+            lines: r.lines as unknown as Prisma.InputJsonValue,
+          })),
+        });
+        return res.count;
+      }),
+    );
+    written += counts.reduce((x, y) => x + y, 0);
   }
   return written;
 }

@@ -185,6 +185,11 @@ export default function ApaCanalApiSync() {
                   <label className={lbl} htmlFor="api-token">Token (opțional — se folosește doar dacă nu ai login)</label>
                   <input id="api-token" type="password" value={token} onChange={(e) => setToken(e.target.value)} disabled={!canEdit || locked} autoComplete="new-password" placeholder={cfg.hasToken ? "•••••••• salvat" : ""} className={fld} />
                 </div>
+                {/^http:\/\//i.test(url.trim()) && !/^http:\/\/(localhost|127\.0\.0\.1)/i.test(url.trim()) && (
+                  <p className="rounded-lg bg-st-progress/10 px-3 py-2 text-xs text-st-progress">
+                    Linkul începe cu http:// — login-ul și parola ar circula necriptat prin internet. Folosește https:// dacă serverul îl permite.
+                  </p>
+                )}
                 {!canEdit && <p className="text-xs text-ink-soft">Doar un administrator poate schimba linkul și credențialele. Poți totuși testa și sincroniza.</p>}
                 <p className="text-[11px] text-ink-soft">Parola se păstrează criptat și nu mai apare niciodată pe ecran.</p>
 

@@ -5,6 +5,18 @@
     "app/api/invoice/public/[token]/pdf/route.ts": {
       "memory": 1769,
       "maxDuration": 60
+    },
+    "app/api/integrations/apa-canal/sync/route.ts": {
+      "memory": 1769,
+      "maxDuration": 300
+    },
+    "app/api/import/apa-canal-json/route.ts": {
+      "memory": 1769,
+      "maxDuration": 300
+    },
+    "app/api/platitori/tabel/export/route.ts": {
+      "memory": 1769,
+      "maxDuration": 300
     }
   },
   "crons": [

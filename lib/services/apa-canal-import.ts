@@ -4,6 +4,7 @@ import iconv from "iconv-lite";
 import { ObjectId } from "mongodb";
 import type { Prisma } from "@prisma/client";
 import { buildOneCRecords } from "../apa-canal-1c";
+import { prisma } from "../prisma";
 
 /**
  * Import date Apă-Canal dintr-un export 1C (JSON, de regulă codificat Windows-1251) — formatul
@@ -107,7 +108,11 @@ export type ExistingClientLite = {
   name: string;
   meterSeries: string | null;
   portalActivatedAt: Date | null;
+  /** Data ultimei facturi (instantaneul din Client) — un import mai vechi nu are voie să o dea înapoi. */
+  lastInvoiceIssueDate?: Date | null;
 };
+
+export type ExistingInvoiceLite = { clientId: string | null; issueDate: Date };
 
 export type ApaCanalPlanStats = {
   documenteTotale: number;
@@ -135,15 +140,28 @@ export type ApaCanalPlan = {
  * Construiește planul de import (pur, fără nicio scriere în bază) — id-uri Mongo pre-generate,
  * ca să putem lega facturile/liniile de clienți fără dus-întors la bază per rând.
  *
- * Potrivire client: după nume normalizat, primul potrivit "consumă" acel client existent (un
- * nume care apare de 2 ori în fișier nu va suprascrie de 2 ori același client). Cont personal
- * (Лицевой счет) devine noul Client.meterSeries (cod de login portal) — ÎNSĂ nu se atinge la
- * clienții care și-au activat deja contul (le-ar bloca login-ul), și nici dacă valoarea e deja
- * folosită de alt client (coliziune, foarte rar).
+ * Potrivire client (în ordinea asta): (1) clientul facturii cu același număr, deja în bază, (2) clientul
+ * cu același cont personal (Лицевой счет), (3) nume normalizat — primul potrivit "consumă" acel client
+ * existent (un nume care apare de 2 ori în fișier nu va suprascrie de 2 ori același client). Primele
+ * două fac importul repetabil (același fișier / același API de mai multe ori nu dublează nimic, nici
+ * măcar clienții ale căror nume au fost corectate între timp). Cont personal devine Client.meterSeries
+ * (cod de login portal) — ÎNSĂ nu se atinge la clienții care și-au activat deja contul (le-ar bloca
+ * login-ul), și nici dacă valoarea e deja folosită de alt client (coliziune, foarte rar).
+ *
+ * Număr factură: `AC-<cont personal>` (sau `AC-<uid>` fără cont). Dacă există deja o factură cu acel
+ * număr din ALTĂ lună, cea nouă primește sufixul perioadei (`AC-<cont>-YYYYMM`) — deci o sincronizare
+ * dintr-o perioadă nouă adaugă facturi noi, iar una din aceeași perioadă nu face nimic (nici nu
+ * suprascrie facturile modificate manual).
  */
 export function buildApaCanalPlan(
   data: ApaCanalRawData,
-  ctx: { ownerId: string; existingClients: ExistingClientLite[]; existingInvoiceNumbers: Set<string> },
+  ctx: {
+    ownerId: string;
+    existingClients: ExistingClientLite[];
+    existingInvoiceNumbers: Set<string>;
+    /** number → {clientId, issueDate}; permite potrivirea după factură și numerotarea pe perioade. */
+    existingInvoices?: Map<string, ExistingInvoiceLite>;
+  },
 ): ApaCanalPlan {
   const docByUid = new Map(data.documente.map((d) => [str(d.UID), d]));
   const subByUid = new Map(data.abonenti.map((a) => [str(a.UID), a]));
@@ -192,6 +210,9 @@ export function buildApaCanalPlan(
   }
 
   const clientByNameKey = new Map(ctx.existingClients.map((c) => [norm(c.name), c]));
+  const clientBySeries = new Map(ctx.existingClients.filter((c) => c.meterSeries).map((c) => [c.meterSeries as string, c]));
+  const clientById = new Map(ctx.existingClients.map((c) => [c.id, c]));
+  const existingInvoices = ctx.existingInvoices ?? new Map<string, ExistingInvoiceLite>();
   const usedMeterSeries = new Set(ctx.existingClients.map((c) => c.meterSeries).filter(Boolean) as string[]);
   const consumedNames = new Set<string>();
   const existingInvoiceNumbers = new Set(ctx.existingInvoiceNumbers);
@@ -221,6 +242,16 @@ export function buildApaCanalPlan(
     const items = itemsByUid.get(uid) ?? [];
 
     const contPersonalRaw = str(sub["ЛицевойСчет"]);
+
+    const issueDate = new Date(str(doc["Дата"]));
+    const baseNumber = contPersonalRaw ? `AC-${contPersonalRaw}` : `AC-${uid.slice(0, 8)}`;
+    const baseExisting = existingInvoices.get(baseNumber);
+    const sameMonth = (a: Date, b: Date) => a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
+    const period = `${issueDate.getUTCFullYear()}${String(issueDate.getUTCMonth() + 1).padStart(2, "0")}`;
+    const number = baseExisting && !sameMonth(baseExisting.issueDate, issueDate) ? `${baseNumber}-${period}` : baseNumber;
+    // Factura există deja (același abonat, aceeași perioadă): nu atingem nimic — nici factura, nici clientul.
+    if (existingInvoiceNumbers.has(number)) { skippedExistingInvoice++; continue; }
+
     const phone = str(sub["Телефон"]) || null;
     const consumAddress = [
       str(sub["Город"]),
@@ -234,38 +265,50 @@ export function buildApaCanalPlan(
     const meterCurrReadingNum = reading ? reading.curr : null;
     const meterReadingEstimated = reading ? reading.estimat : false;
 
+    // Identitatea clientului (vezi comentariul funcției): factură → cont personal → nume.
+    const nameKey = norm(name);
+    let existing: ExistingClientLite | undefined =
+      (baseExisting?.clientId ? clientById.get(baseExisting.clientId) : undefined) ??
+      (contPersonalRaw ? clientBySeries.get(contPersonalRaw) : undefined);
+    const matchedByIdentity = !!existing;
+    if (!existing && !consumedNames.has(nameKey)) existing = clientByNameKey.get(nameKey);
+
     let meterSeries: string | null = null;
     if (contPersonalRaw) {
-      if (!usedMeterSeries.has(contPersonalRaw)) meterSeries = contPersonalRaw;
+      if (existing && existing.meterSeries === contPersonalRaw) meterSeries = contPersonalRaw; // deja al lui
+      else if (!usedMeterSeries.has(contPersonalRaw)) meterSeries = contPersonalRaw;
       else meterSeriesCollisions++;
     }
 
     // Calculat aici (nu mai jos, la construcția facturii) — Client.lastInvoice* trebuie
     // populat direct la import, ca /platitori (sold, status, sector) să nu depindă de o
     // reîmprospătare ulterioară care rulează doar la creare/editare individuală de factură.
-    const issueDate = new Date(str(doc["Дата"]));
     const subtotal = round2(doc["Начислено"]);
     const datoriiAvans = round2(doc["ОплаченоДолг"]);
     const grandTotal = round2(subtotal + datoriiAvans);
 
-    const nameKey = norm(name);
-    const existing = !consumedNames.has(nameKey) ? clientByNameKey.get(nameKey) : undefined;
-
     let clientId: string;
     if (existing) {
-      consumedNames.add(nameKey);
+      if (!matchedByIdentity) consumedNames.add(nameKey);
       matchedExisting++;
       clientId = existing.id;
+      // Un import dintr-o perioadă mai veche nu are voie să dea înapoi instantaneul "ultima factură".
+      const newest = !existing.lastInvoiceIssueDate || issueDate >= existing.lastInvoiceIssueDate;
       const upd: Prisma.ClientUpdateInput = {
-        meterNumber,
-        meterCurrReading: meterCurrReadingNum,
-        meterReadingEstimated,
         consumAddress: consumAddress ?? undefined,
-        lastInvoiceStatus: "SENT",
-        lastInvoiceGrandTotal: grandTotal,
-        lastInvoiceSectorNr: sectorNr,
-        lastInvoiceIssueDate: issueDate,
+        ...(newest
+          ? {
+              meterNumber,
+              meterCurrReading: meterCurrReadingNum,
+              meterReadingEstimated,
+              lastInvoiceStatus: "SENT" as const,
+              lastInvoiceGrandTotal: grandTotal,
+              lastInvoiceSectorNr: sectorNr,
+              lastInvoiceIssueDate: issueDate,
+            }
+          : {}),
       };
+      existing.lastInvoiceIssueDate = newest ? issueDate : existing.lastInvoiceIssueDate;
       if (existing.portalActivatedAt) {
         preservedActivated++;
       } else if (meterSeries && meterSeries !== existing.meterSeries) {
@@ -294,12 +337,13 @@ export function buildApaCanalPlan(
         lastInvoiceIssueDate: issueDate,
         apaCanalImport: !meterSeries,
       });
-      clientByNameKey.set(nameKey, { id: clientId, name, meterSeries, portalActivatedAt: null });
+      const created = { id: clientId, name, meterSeries, portalActivatedAt: null, lastInvoiceIssueDate: issueDate };
+      clientByNameKey.set(nameKey, created);
+      clientById.set(clientId, created);
+      if (meterSeries) clientBySeries.set(meterSeries, created);
       consumedNames.add(nameKey);
     }
 
-    const number = contPersonalRaw ? `AC-${contPersonalRaw}` : `AC-${uid.slice(0, 8)}`;
-    if (existingInvoiceNumbers.has(number)) { skippedExistingInvoice++; continue; }
     existingInvoiceNumbers.add(number);
 
     const invoiceId = oid();
@@ -451,6 +495,41 @@ export async function syncOneCRecords(prisma: OneCPrisma, data: ApaCanalRawData)
     written += res.count;
   }
   return written;
+}
+
+/**
+ * Pipeline-ul complet, comun importului din fișier și sincronizării din API: parsare → plan → (opțional)
+ * scriere + Tabelul 1C. Fără `commit` doar calculează planul (statistici), fără nicio scriere.
+ * Un eșec la Tabelul 1C nu strică importul deja scris — doar se raportează în log.
+ */
+export async function importApaCanalBuffer(buf: Buffer, opts: { ownerId: string; commit: boolean }) {
+  const data = parseApaCanalBuffer(buf);
+
+  const [existingClients, existingInvoices] = await Promise.all([
+    // Toți clienții, nu doar ai utilizatorului care rulează importul: aplicația e a unei singure firme,
+    // iar plătitorii aparțin celui care i-a importat prima dată — altfel, la o sincronizare pornită de
+    // altcineva, toți ar părea "noi" și s-ar dubla.
+    prisma.client.findMany({
+      select: { id: true, name: true, meterSeries: true, portalActivatedAt: true, lastInvoiceIssueDate: true },
+    }),
+    prisma.invoice.findMany({ select: { number: true, clientId: true, issueDate: true } }),
+  ]);
+
+  const plan = buildApaCanalPlan(data, {
+    ownerId: opts.ownerId,
+    existingClients,
+    existingInvoiceNumbers: new Set(existingInvoices.map((i) => i.number)),
+    existingInvoices: new Map(existingInvoices.map((i) => [i.number, { clientId: i.clientId, issueDate: i.issueDate }])),
+  });
+  if (!opts.commit) return { data, plan, applied: null as ApaCanalApplyResult | null };
+
+  const applied = await applyApaCanalPlan(prisma, plan);
+  try {
+    await syncOneCRecords(prisma, data);
+  } catch (e) {
+    console.error("[apa-canal-import] sincronizarea Tabelului 1C a eșuat:", e);
+  }
+  return { data, plan, applied };
 }
 
 /** Scrie planul efectiv în bază (batch-uit — vezi scripts/import-apa-canal-cahul-april2024.mjs). */

@@ -893,3 +893,25 @@ model OneCRecord {
   @@index([invoiceNumber])
   @@index([clientId])
 }
+
+// --- Integrare API: linkul + credențialele cu care se extrag datele (ex: plătitorii Apă-Canal din exportul
+// 1C expus ca API). Un singur document per `key`. Parola/token-ul sunt criptate (lib/secret-box.ts) și nu
+// ajung niciodată în browser.
+model ApiIntegration {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  key             String
+  url             String?
+  username        String?
+  passwordEnc     String?
+  tokenEnc        String?
+  lastSyncAt      DateTime?
+  lastSyncOk      Boolean?
+  lastSyncMessage String?
+  // Blocare cât rulează o sincronizare (două rulări simultane ar crea clienți dubli).
+  syncLockUntil   DateTime?
+  updatedById     String?   @db.ObjectId
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([key])
+}

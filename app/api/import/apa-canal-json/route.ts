@@ -2,14 +2,8 @@ import { revalidateTag } from "next/cache";
 import { del } from "@vercel/blob";
 import { getCurrentUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/services/audit";
-import {
-  parseApaCanalBuffer,
-  buildApaCanalPlan,
-  applyApaCanalPlan,
-  syncOneCRecords,
-} from "@/lib/services/apa-canal-import";
+import { importApaCanalBuffer } from "@/lib/services/apa-canal-import";
 
 // Fișierul poate depăși cu mult limita de 4.5 MB pentru corpul unui request către o funcție
 // serverless Vercel — de-asta clientul îl urcă întâi direct în Vercel Blob (vezi
@@ -47,42 +41,16 @@ export async function POST(req: Request) {
     );
   }
 
-  let data: ReturnType<typeof parseApaCanalBuffer>;
+  let result: Awaited<ReturnType<typeof importApaCanalBuffer>>;
   try {
-    data = parseApaCanalBuffer(buf);
+    result = await importApaCanalBuffer(buf, { ownerId: user.id, commit });
   } catch (e) {
-    return Response.json(
-      { error: e instanceof Error ? e.message : "Fișier invalid." },
-      { status: 400 },
-    );
+    return Response.json({ error: e instanceof Error ? e.message : "Fișier invalid." }, { status: 400 });
   }
+  const { plan, applied } = result;
 
-  const [existingClients, existingInvoices] = await Promise.all([
-    prisma.client.findMany({
-      where: { userId: user.id },
-      select: { id: true, name: true, meterSeries: true, portalActivatedAt: true },
-    }),
-    prisma.invoice.findMany({ select: { number: true } }),
-  ]);
-
-  const plan = buildApaCanalPlan(data, {
-    ownerId: user.id,
-    existingClients,
-    existingInvoiceNumbers: new Set(existingInvoices.map((i) => i.number)),
-  });
-
-  if (!commit) {
+  if (!commit || !applied) {
     return Response.json({ dryRun: true, stats: plan.stats });
-  }
-
-  const applied = await applyApaCanalPlan(prisma, plan);
-
-  // "Tabelul 1C" (toate datele din export, un rând per UID). Un eșec aici nu strică importul
-  // facturilor/clienților, care e deja scris — doar se raportează în log.
-  try {
-    await syncOneCRecords(prisma, data);
-  } catch (e) {
-    console.error("[apa-canal-import] sincronizarea Tabelului 1C a eșuat:", e);
   }
 
   await del(blobUrl).catch(() => {});

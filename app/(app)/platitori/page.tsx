@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import ExportButton from "@/app/components/ExportButton";
 import ImportButton from "@/app/components/ImportButton";
+import ApaCanalApiSync from "@/app/components/ApaCanalApiSync";
 import { listPayers, countPayersNeedingNameFix, normalizePerPage, PER_PAGE_OPTIONS, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
 import { money } from "@/app/components/invoice-meta";
 import { INVOICE_STATUS, INVOICE_STATUS_LIST, type InvoiceStatusKey } from "@/app/components/invoice-meta";
@@ -37,6 +38,8 @@ export default async function PayersPage({
 }) {
   const user = await requirePermission("clients.view");
   const canImport = can(user, "clients.create") && can(user, "clients.edit");
+  // Sincronizarea din API creează și facturi, deci cere și permisiunea de creare facturi.
+  const canSyncApi = canImport && can(user, "invoices.create");
   const sp = await searchParams;
   const q = sp.q ?? "";
   const status = sp.status ?? "";
@@ -99,6 +102,7 @@ export default async function PayersPage({
               nameFix: nameFix ? "1" : undefined,
             }}
           />
+          {canSyncApi && <ApaCanalApiSync />}
           {canImport && <ImportButton entity="payers" hideAi />}
         </div>
       </div>

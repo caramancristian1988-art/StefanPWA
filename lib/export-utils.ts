@@ -29,6 +29,8 @@ export function toXLSX(headers: string[], rows: Row[]): Blob {
     return { wch: Math.min(maxLen + 2, 60) };
   });
   ws["!cols"] = colWidths;
+  ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length, 1), c: Math.max(headers.length - 1, 0) } }) };
+  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Export");

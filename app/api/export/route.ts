@@ -294,6 +294,93 @@ export async function GET(req: Request) {
     return makeResponse(HEADERS, rows, "platitori");
   }
 
+  // ─── DECONTARE (extras de cont) per plătitor ──────────────────────
+  // Cei de la 1C au un raport "Взаиморасчеты с абонентами" (decontare/regularizare) — un abonat, o
+  // perioadă, cu soldul anterior, plata, consumul și totalul de plată. Noi nu ținem un jurnal de plăți
+  // (nu e în exportul 1C și nici API-ul lor nu-l are încă), deci nu putem reface acea parte; în schimb
+  // avem, PENTRU FIECARE FACTURĂ, exact restul: calculat, sold anterior/regularizare, penalități,
+  // recalculări, total de plată, indice anterior/curent și consumul apă/canal. Asta e suficient pentru
+  // reconcilierea de totaluri pe care o fac ei — un rând per perioadă, plus un rând TOTAL.
+  if (entity === "payer-statement") {
+    if (!can(user, "clients.view")) return new Response("Fără permisiune.", { status: 403 });
+    const clientId = sp.get("id") ?? "";
+    const client = clientId
+      ? await prisma.client.findFirst({
+          where: { id: clientId },
+          select: { id: true, name: true, meterSeries: true, consumAddress: true, phone: true, email: true },
+        })
+      : null;
+    if (!client) return new Response("Plătitor inexistent.", { status: 404 });
+
+    const invoices = await prisma.invoice.findMany({
+      where: { clientId: client.id, kind: "APA_CANAL" },
+      orderBy: { issueDate: "asc" },
+      select: {
+        number: true, status: true, issueDate: true, billingPeriodLabel: true, sectorNr: true, contPersonal: true,
+        meterPrevReading: true, meterCurrReading: true, subtotal: true, datoriiAvans: true, recalculari: true,
+        penalitati: true, grandTotal: true, currency: true,
+        items: { select: { description: true, quantity: true, unitPrice: true } },
+      },
+    });
+
+    const HEADERS = [
+      "Abonat", "Cont personal", "Adresă", "Sector", "Perioadă", "Data facturii", "Nr. factură", "Status factură",
+      "Index anterior", "Index curent", "Consum apă (m³)", "Tarif apă", "Consum canal (m³)", "Tarif canal",
+      "Calculat", "Sold anterior / regularizare", "Recalculări", "Penalități", "Total de plată", "Valută",
+    ];
+    const isApa = (d: string) => /alimentare cu ap[aă]/i.test(d);
+    const isCanal = (d: string) => /canalizare/i.test(d);
+    let sumCalc = 0, sumSold = 0, sumRecalc = 0, sumPenal = 0, sumTotal = 0, sumApa = 0, sumCanal = 0;
+    const rows = invoices.map((inv) => {
+      const apaItem = inv.items.find((it) => isApa(it.description));
+      const canalItem = inv.items.find((it) => isCanal(it.description));
+      sumCalc += inv.subtotal; sumSold += inv.datoriiAvans; sumRecalc += inv.recalculari; sumPenal += inv.penalitati; sumTotal += inv.grandTotal;
+      sumApa += apaItem?.quantity ?? 0; sumCanal += canalItem?.quantity ?? 0;
+      return {
+        "Abonat": client.name,
+        "Cont personal": inv.contPersonal ?? client.meterSeries ?? "",
+        "Adresă": client.consumAddress ?? "",
+        "Sector": inv.sectorNr ?? "",
+        "Perioadă": inv.billingPeriodLabel ?? "",
+        "Data facturii": fmtDate(inv.issueDate),
+        "Nr. factură": inv.number,
+        "Status factură": INVOICE_STATUS[inv.status as InvoiceStatus]?.label ?? inv.status,
+        "Index anterior": inv.meterPrevReading ?? "",
+        "Index curent": inv.meterCurrReading ?? "",
+        "Consum apă (m³)": apaItem?.quantity ?? "",
+        "Tarif apă": apaItem?.unitPrice ?? "",
+        "Consum canal (m³)": canalItem?.quantity ?? "",
+        "Tarif canal": canalItem?.unitPrice ?? "",
+        "Calculat": inv.subtotal,
+        "Sold anterior / regularizare": inv.datoriiAvans,
+        "Recalculări": inv.recalculari,
+        "Penalități": inv.penalitati,
+        "Total de plată": inv.grandTotal,
+        "Valută": inv.currency,
+      };
+    });
+    if (rows.length > 0) {
+      rows.push({
+        "Abonat": "TOTAL", "Cont personal": "", "Adresă": "", "Sector": "", "Perioadă": "", "Data facturii": "",
+        "Nr. factură": "", "Status factură": "", "Index anterior": "", "Index curent": "",
+        "Consum apă (m³)": Math.round(sumApa * 1000) / 1000, "Tarif apă": "",
+        "Consum canal (m³)": Math.round(sumCanal * 1000) / 1000, "Tarif canal": "",
+        "Calculat": Math.round(sumCalc * 100) / 100, "Sold anterior / regularizare": Math.round(sumSold * 100) / 100,
+        "Recalculări": Math.round(sumRecalc * 100) / 100, "Penalități": Math.round(sumPenal * 100) / 100,
+        "Total de plată": Math.round(sumTotal * 100) / 100, "Valută": invoices[0]?.currency ?? "MDL",
+      });
+    }
+
+    // Content-Disposition trebuie să fie ASCII (Latin-1) — Ș/Ț (U+0218/9, U+021A/B) nu încap și
+    // pică request-ul cu 500 ("Cannot convert argument to a ByteString"); ă/â/î se descompun cu
+    // NFD, dar Ș/Ț (varianta cu virguliță) nu au descompunere, deci se înlocuiesc explicit.
+    const safeName = client.name
+      .replace(/[ȘŞ]/g, "S").replace(/[șş]/g, "s").replace(/[ȚŢ]/g, "T").replace(/[țţ]/g, "t")
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9 -]/g, "").trim().replace(/\s+/g, "-").slice(0, 60) || client.id;
+    return makeResponse(HEADERS, rows, "decontare-" + safeName);
+  }
+
   // ─── APPOINTMENTS ─────────────────────────────────────────────────
   if (entity === "appointments") {
     const view = sp.get("view") ?? "lista";

@@ -8,10 +8,12 @@ export default function ExportButton({
   entity,
   params = {},
   className,
+  label = "Export",
 }: {
   entity: string;
   params?: Record<string, string | undefined>;
   className?: string;
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -32,12 +34,12 @@ export default function ExportButton({
           className ??
           "tap inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-3 text-sm font-medium text-ink-soft hover:bg-[var(--color-surface-2)]"
         }
-        aria-label="Export"
+        aria-label={label}
       >
         <svg className="size-4 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M10 3v10m0 0-3-3m3 3 3-3M4 15h12" />
         </svg>
-        Export
+        {label}
       </button>
 
       {open && (

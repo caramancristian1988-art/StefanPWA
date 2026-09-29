@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconX } from "./icons";
+import ApaCanalSyncReport from "./ApaCanalSyncReport";
+import type { SyncReport } from "@/lib/services/apa-canal-import";
 
 type Config = {
   url: string;
@@ -52,6 +54,7 @@ export default function ApaCanalApiSync() {
   const [info, setInfo] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [applied, setApplied] = useState<Applied | null>(null);
+  const [report, setReport] = useState<SyncReport | null>(null);
 
   async function load() {
     setError(null);
@@ -69,6 +72,7 @@ export default function ApaCanalApiSync() {
 
   useEffect(() => {
     if (open) {
+      setReport(null);
       setStats(null);
       setApplied(null);
       setInfo(null);
@@ -136,6 +140,7 @@ export default function ApaCanalApiSync() {
     setInfo(null);
     setStats(null);
     setApplied(null);
+    setReport(null);
     if (cfg?.canEdit && dirty && !(await save())) return;
     if (commit && !confirm("Extrag plătitorii din API și îi scriu în aplicație (clienți și facturi noi). Continui?")) return;
     setBusy(commit ? "sync" : "test");
@@ -148,6 +153,7 @@ export default function ApaCanalApiSync() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Eroare la sincronizare.");
       setStats(j.stats);
+      setReport(j.report ?? null);
       if (commit) {
         setApplied(j.applied);
         router.refresh();
@@ -292,6 +298,7 @@ export default function ApaCanalApiSync() {
                 )}
               </div>
             )}
+            {report && <ApaCanalSyncReport report={report} committed={!!applied} />}
           </div>
         </div>
       )}

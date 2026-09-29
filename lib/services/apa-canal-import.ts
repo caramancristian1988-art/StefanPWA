@@ -148,12 +148,28 @@ export type ApaCanalPlanStats = {
   totalDePlata: number;
 };
 
+/** Ce s-a întâmplat cu fiecare document din fișier/API — pentru raportul detaliat din "Sincronizare API". */
+export type ApaCanalDocOutcome = {
+  uid: string;
+  number: string | null;
+  name: string;
+  contPersonal: string | null;
+  /** НомерДоговора — singurul identificator al firmelor/instituțiilor, care nu au cont personal. */
+  contract?: string | null;
+  period: string | null;
+  status: "nou" | "existent" | "sarit";
+  clientNou?: boolean;
+  motiv?: string;
+  api: { calculat: number; datorie: number; deAchitat: number; citirePrec: string | null; citireCurenta: string | null } | null;
+};
+
 export type ApaCanalPlan = {
   clientsToCreate: Prisma.ClientCreateManyInput[];
   clientUpdates: { id: string; data: Prisma.ClientUpdateInput }[];
   invoicesToCreate: Prisma.InvoiceCreateManyInput[];
   itemsToCreate: Prisma.InvoiceItemCreateManyInput[];
   stats: ApaCanalPlanStats;
+  docs: ApaCanalDocOutcome[];
 };
 
 /**
@@ -248,13 +264,22 @@ export function buildApaCanalPlan(
   let matchedExisting = 0;
   let createdNew = 0;
   let skippedExistingInvoice = 0;
+  const docs: ApaCanalDocOutcome[] = [];
 
   for (const [uid, doc] of docByUid) {
     const sub = subByUid.get(uid);
-    if (!sub) { skippedNoDoc++; continue; }
+    if (!sub) {
+      skippedNoDoc++;
+      docs.push({ uid, number: null, name: "", contPersonal: null, period: null, status: "sarit", motiv: "Documentul nu are abonat în tabelul Абоненты (același UID)", api: null });
+      continue;
+    }
 
     const name = str(sub["Наименование"]);
-    if (!name) { skippedNoDoc++; continue; }
+    if (!name) {
+      skippedNoDoc++;
+      docs.push({ uid, number: null, name: "", contPersonal: str(sub["ЛицевойСчет"]) || null, contract: str(sub["НомерДоговора"]) || null, period: null, status: "sarit", motiv: "Abonatul nu are nume (Наименование gol)", api: null });
+      continue;
+    }
 
     const consumer = consumerByUid.get(uid);
     const meter = meterByUid.get(uid);
@@ -269,8 +294,20 @@ export function buildApaCanalPlan(
     const sameMonth = (a: Date, b: Date) => a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
     const period = `${issueDate.getUTCFullYear()}${String(issueDate.getUTCMonth() + 1).padStart(2, "0")}`;
     const number = baseExisting && !sameMonth(baseExisting.issueDate, issueDate) ? `${baseNumber}-${period}` : baseNumber;
+    const apiValues = {
+      calculat: round2(doc["Начислено"]),
+      datorie: round2(doc["ОплаченоДолг"]),
+      deAchitat: round2(round2(doc["Начислено"]) + round2(doc["ОплаченоДолг"])),
+      citirePrec: reading ? pad5(reading.prev) : null,
+      citireCurenta: reading ? pad5(reading.curr) : null,
+    };
+    const docBase = { uid, number, name, contPersonal: contPersonalRaw || null, contract: str(sub["НомерДоговора"]) || null, period: `${period.slice(0, 4)}-${period.slice(4)}`, api: apiValues };
     // Factura există deja (același abonat, aceeași perioadă): nu atingem nimic — nici factura, nici clientul.
-    if (existingInvoiceNumbers.has(number)) { skippedExistingInvoice++; continue; }
+    if (existingInvoiceNumbers.has(number)) {
+      skippedExistingInvoice++;
+      docs.push({ ...docBase, status: "existent" });
+      continue;
+    }
 
     const phone = str(sub["Телефон"]) || null;
     const consumAddress = [
@@ -365,6 +402,7 @@ export function buildApaCanalPlan(
     }
 
     existingInvoiceNumbers.add(number);
+    docs.push({ ...docBase, status: "nou", clientNou: !existing });
 
     const invoiceId = oid();
     invoicesToCreate.push({
@@ -423,6 +461,7 @@ export function buildApaCanalPlan(
     clientUpdates,
     invoicesToCreate,
     itemsToCreate,
+    docs,
     stats: {
       documenteTotale: docByUid.size,
       sariteFaraAbonent: skippedNoDoc,
@@ -565,6 +604,108 @@ export async function importApaCanalBuffer(buf: Buffer, opts: { ownerId: string;
     console.error("[apa-canal-import] sincronizarea Tabelului 1C a eșuat:", e);
   }
   return { data, plan, applied };
+}
+
+export type SyncReportDiff = { camp: string; api: string; aplicatie: string };
+export type SyncReportRow = {
+  number: string | null;
+  name: string;
+  contPersonal: string | null;
+  contract?: string | null;
+  period: string | null;
+  deAchitat: number | null;
+  clientNou?: boolean;
+  motiv?: string;
+  diffs?: SyncReportDiff[];
+};
+export type SyncReport = {
+  /** Câte rânduri are fiecare tabel în răspuns — aceleași cifre ca în Node-RED. */
+  tabele: { nume: string; ro: string; randuri: number }[];
+  documenteUnice: number;
+  documenteRepetate: number;
+  counts: { noi: number; noiCuClientNou: number; identice: number; diferite: number; sarite: number };
+  noi: SyncReportRow[];
+  diferite: SyncReportRow[];
+  identice: SyncReportRow[];
+  sarite: SyncReportRow[];
+  /** Listele de mai sus sunt tăiate la LIST_LIMIT rânduri, ca răspunsul să rămână mic la 18.000 de abonați. */
+  limita: number;
+};
+
+const REPORT_LIST_LIMIT = 300;
+const money2 = (n: number) => n.toFixed(2);
+
+/**
+ * Raportul detaliat pentru "Sincronizare API": pentru fiecare document din API — factură nouă, factură deja
+ * existentă IDENTICĂ, deja existentă dar cu valori DIFERITE (care anume), sau sărit (de ce). Facturile existente
+ * nu sunt modificate de sincronizare (vezi buildApaCanalPlan); raportul doar arată dacă datele din API mai
+ * corespund cu cele din aplicație.
+ */
+export async function buildSyncReport(data: ApaCanalRawData, plan: ApaCanalPlan): Promise<SyncReport> {
+  const existingNumbers = plan.docs.filter((d) => d.status === "existent" && d.number).map((d) => d.number as string);
+  const stored = existingNumbers.length
+    ? await prisma.invoice.findMany({
+        where: { number: { in: existingNumbers } },
+        select: { number: true, subtotal: true, datoriiAvans: true, grandTotal: true, meterPrevReading: true, meterCurrReading: true },
+      })
+    : [];
+  const byNumber = new Map(stored.map((s) => [s.number, s]));
+
+  const noi: SyncReportRow[] = [];
+  const diferite: SyncReportRow[] = [];
+  const identice: SyncReportRow[] = [];
+  const sarite: SyncReportRow[] = [];
+  let noiCuClientNou = 0;
+
+  for (const d of plan.docs) {
+    const base: SyncReportRow = { number: d.number, name: d.name, contPersonal: d.contPersonal, contract: d.contract ?? null, period: d.period, deAchitat: d.api?.deAchitat ?? null };
+    if (d.status === "sarit") {
+      sarite.push({ ...base, motiv: d.motiv });
+    } else if (d.status === "nou") {
+      if (d.clientNou) noiCuClientNou++;
+      noi.push({ ...base, clientNou: d.clientNou });
+    } else {
+      const s = d.number ? byNumber.get(d.number) : undefined;
+      const a = d.api!;
+      const diffs: SyncReportDiff[] = [];
+      if (s) {
+        const num = (camp: string, api: number, app: number | null | undefined) => {
+          if (Math.abs(api - (app ?? 0)) > 0.005) diffs.push({ camp, api: money2(api), aplicatie: money2(app ?? 0) });
+        };
+        const txt = (camp: string, api: string | null, app: string | null | undefined) => {
+          if ((api ?? "") !== (app ?? "")) diffs.push({ camp, api: api ?? "—", aplicatie: app ?? "—" });
+        };
+        num("Calculat (MDL)", a.calculat, s.subtotal);
+        num("Datorie/avans (MDL)", a.datorie, s.datoriiAvans);
+        num("De achitat (MDL)", a.deAchitat, s.grandTotal);
+        txt("Citire precedentă", a.citirePrec, s.meterPrevReading);
+        txt("Citire curentă", a.citireCurenta, s.meterCurrReading);
+      }
+      if (diffs.length) diferite.push({ ...base, diffs });
+      else identice.push(base);
+    }
+  }
+
+  const tabele = [
+    { nume: "Документы", ro: "Documente (chitanțe)", randuri: data.documente.length },
+    { nume: "Абоненты", ro: "Abonați", randuri: data.abonenti.length },
+    { nume: "Потребители", ro: "Consumatori", randuri: data.consumatori.length },
+    { nume: "ИзмерительныеПриборы", ro: "Contoare", randuri: data.contoare.length },
+    { nume: "Потребления", ro: "Citiri", randuri: data.citiri.length },
+    { nume: "РасчетСумм", ro: "Linii de calcul (apă/canal)", randuri: data.calculeSume.length },
+  ];
+
+  return {
+    tabele,
+    documenteUnice: plan.docs.length,
+    documenteRepetate: data.documente.length - plan.docs.length,
+    counts: { noi: noi.length, noiCuClientNou, identice: identice.length, diferite: diferite.length, sarite: sarite.length },
+    noi: noi.slice(0, REPORT_LIST_LIMIT),
+    diferite: diferite.slice(0, REPORT_LIST_LIMIT),
+    identice: identice.slice(0, REPORT_LIST_LIMIT),
+    sarite: sarite.slice(0, REPORT_LIST_LIMIT),
+    limita: REPORT_LIST_LIMIT,
+  };
 }
 
 /** Scrie planul efectiv în bază (batch-uit — vezi scripts/import-apa-canal-cahul-april2024.mjs). */

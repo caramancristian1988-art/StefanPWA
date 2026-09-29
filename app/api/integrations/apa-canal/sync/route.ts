@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getCurrentUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/lib/services/audit";
-import { importApaCanalBuffer } from "@/lib/services/apa-canal-import";
+import { buildSyncReport, importApaCanalBuffer } from "@/lib/services/apa-canal-import";
 import { acquireSyncLock, ApiFetchError, fetchFromConfiguredApi, getApiConfigPublic, recordSync, releaseSyncLock } from "@/lib/services/apa-canal-api";
 
 export const dynamic = "force-dynamic";
@@ -36,11 +36,12 @@ export async function POST(req: Request) {
   }
   try {
     const buf = await fetchFromConfiguredApi();
-    const { plan, applied } = await importApaCanalBuffer(buf, { ownerId: user.id, commit });
+    const { data, plan, applied } = await importApaCanalBuffer(buf, { ownerId: user.id, commit });
+    const report = await buildSyncReport(data, plan);
 
     if (!commit || !applied) {
       await recordSync(true, `Test reușit: ${plan.stats.documenteTotale} abonați în API, ${plan.stats.clientiNoiDeCreat} clienți noi, ${plan.stats.facturiDeCreat} facturi noi.`);
-      return Response.json({ dryRun: true, stats: plan.stats });
+      return Response.json({ dryRun: true, stats: plan.stats, report });
     }
 
     revalidateTag("clients", { expire: 0 });
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
       { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },
       { action: "invoice.bulk_import", module: "Invoices", objectName: `Sincronizare API Apă-Canal — ${plan.stats.documenteTotale} documente`, newValue: `${msg} Linii: ${applied.itemsCreated}.` },
     );
-    return Response.json({ dryRun: false, stats: plan.stats, applied });
+    return Response.json({ dryRun: false, stats: plan.stats, applied, report });
   } catch (e) {
     const message =
       e instanceof ApiFetchError ? e.message : e instanceof Error ? e.message : "Eroare necunoscută la sincronizare.";

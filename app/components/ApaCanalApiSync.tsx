@@ -110,6 +110,9 @@ export default function ApaCanalApiSync() {
     setError(null);
     setInfo(null);
     setBusy("save");
+    // Optimist: altfel checkbox-ul (controlat de cfg.autoSync) revine vizual la starea veche cât timp
+    // cererea e în zbor, pentru că `disabled` devine true în același re-render — pare că apăsarea "nu a prins".
+    setCfg((c) => (c ? { ...c, autoSync: next } : c));
     try {
       const r = await fetch("/api/integrations/apa-canal", {
         method: "PATCH",
@@ -121,6 +124,7 @@ export default function ApaCanalApiSync() {
       setCfg(j);
       setInfo(next ? "Sincronizare automată pornită — se rulează în fiecare noapte." : "Sincronizare automată oprită.");
     } catch (e) {
+      setCfg((c) => (c ? { ...c, autoSync: !next } : c));
       setError(e instanceof Error ? e.message : "Nu s-a putut schimba.");
     } finally {
       setBusy(null);

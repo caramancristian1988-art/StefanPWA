@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/actions/auth";
@@ -150,6 +150,14 @@ function AppShellInner({
   const [drawer, setDrawer] = useState(false);
   const path = usePathname();
   const m = useMessages();
+
+  // La navigare (mai ales din meniul mobil), poziția de scroll a paginii anterioare rămâne —
+  // dacă erai scrollat jos pe o pagină lungă, ajungi pe pagina nouă tot scrollat jos, ceea ce
+  // pare "blocat" (nu mai poți da scroll) dacă pagina nouă are mai puțin conținut sau se
+  // încarcă progresiv. Resetăm explicit la fiecare schimbare de rută.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [path]);
   const current = NAV.find((n) => path.startsWith(n.href))
     ? (path.startsWith("/appointments")
         ? (appointmentsLabel ?? m.nav.dashboard)
@@ -172,7 +180,7 @@ function AppShellInner({
         {drawer && (
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-black/40" onClick={() => setDrawer(false)} />
-            <aside className="absolute left-0 top-0 flex h-full w-72 flex-col bg-[var(--color-surface)] p-4">
+            <aside className="absolute left-0 top-0 flex h-full w-72 flex-col overflow-y-auto bg-[var(--color-surface)] p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
               <Brand label={appointmentsLabel} />
               <div className="mt-6 flex-1">
                 <NavList onNavigate={() => setDrawer(false)} perms={perms} items={NAV} appointmentsLabel={appointmentsLabel} />

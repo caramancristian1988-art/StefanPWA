@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import ExportButton from "@/app/components/ExportButton";
 import ImportButton from "@/app/components/ImportButton";
 import ApaCanalApiSync from "@/app/components/ApaCanalApiSync";
+import AutoSubmitOnChange from "@/app/components/AutoSubmitOnChange";
 import { listPayers, listPayerMonths, parsePayerMonth, countPayersNeedingNameFix, normalizePerPage, PER_PAGE_OPTIONS, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
 import { money } from "@/app/components/invoice-meta";
 import { INVOICE_STATUS, INVOICE_STATUS_LIST, type InvoiceStatusKey } from "@/app/components/invoice-meta";
@@ -27,6 +28,11 @@ const SORT_OPTIONS: { value: PayerSort; label: string }[] = [
 ];
 const selectCls =
   "h-11 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
+// Un filtru cu valoare aleasă (nu cea implicită) capătă chenar/fundal colorat, ca să se vadă dintr-o
+// privire ce e activ — înainte, toate select-urile arătau la fel, activ sau nu.
+function activeSelectCls(active: boolean): string {
+  return active ? selectCls + " border-brand bg-brand-soft text-brand-strong" : selectCls;
+}
 
 export default async function PayersPage({
   searchParams,
@@ -145,31 +151,32 @@ export default async function PayersPage({
             className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand"
           />
         </div>
+        <AutoSubmitOnChange>
         <div className="flex flex-wrap items-center gap-2">
-          <select name="month" defaultValue={month} className={selectCls} aria-label="Luna facturii">
+          <select name="month" defaultValue={month} className={activeSelectCls(!!month)} aria-label="Luna facturii">
             <option value="">Ultima factură (orice lună)</option>
             {months.map((m) => (
               <option key={m.month} value={m.month}>Factura pe {monthLabel(m.month)} ({m.count.toLocaleString("ro-RO")})</option>
             ))}
           </select>
-          <select name="status" defaultValue={status} className={selectCls}>
+          <select name="status" defaultValue={status} className={activeSelectCls(!!status)}>
             <option value="">Toți (cont)</option>
             <option value="activated">Activați</option>
             <option value="pending">Neactivați</option>
           </select>
-          <select name="sector" defaultValue={sector} className={selectCls}>
+          <select name="sector" defaultValue={sector} className={activeSelectCls(!!sector)}>
             <option value="">Toate sectoarele</option>
             {SECTORS.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
-          <select name="invoiceStatus" defaultValue={invoiceStatus} className={selectCls}>
+          <select name="invoiceStatus" defaultValue={invoiceStatus} className={activeSelectCls(!!invoiceStatus)}>
             <option value="">Toate statusurile</option>
             {INVOICE_STATUS_LIST.map((s) => (
               <option key={s} value={s}>{INVOICE_STATUS[s].label}</option>
             ))}
           </select>
-          <select name="debt" defaultValue={debt} className={selectCls}>
+          <select name="debt" defaultValue={debt} className={activeSelectCls(!!debt)}>
             <option value="">Sold: toate</option>
             {DEBT_OPTIONS.map((d) => (
               <option key={d.value} value={d.value}>{d.label}</option>
@@ -194,6 +201,7 @@ export default async function PayersPage({
             </Link>
           )}
         </div>
+        </AutoSubmitOnChange>
       </form>
 
       <div className="flex flex-col gap-2">

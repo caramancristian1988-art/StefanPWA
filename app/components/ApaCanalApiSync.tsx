@@ -36,6 +36,26 @@ const fld =
 const lbl = "mb-1 block text-xs font-semibold text-ink-soft";
 const money = (n: number) => `${n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MDL`;
 
+// Parametrul de perioadă al API-ului lor (ex: ?DateOfTheMonth=2026-07-01) — mai simplu cu un
+// selector de zi/lună/an decât editat de mână în link de fiecare dată când vor altă lună.
+const PERIOD_PARAM = "DateOfTheMonth";
+function isAbsoluteUrl(raw: string): boolean {
+  try { new URL(raw); return true; } catch { return false; }
+}
+function getPeriodParam(raw: string): string {
+  try { return new URL(raw).searchParams.get(PERIOD_PARAM) ?? ""; } catch { return ""; }
+}
+function withPeriodParam(raw: string, date: string): string {
+  try {
+    const u = new URL(raw);
+    if (date) u.searchParams.set(PERIOD_PARAM, date);
+    else u.searchParams.delete(PERIOD_PARAM);
+    return u.toString();
+  } catch {
+    return raw; // linkul nu e încă o adresă completă — nimic de atașat
+  }
+}
+
 /**
  * Buton + fereastră pentru sincronizarea plătitorilor dintr-un API: aici se pun linkul și credențialele
  * (login/parolă sau token), se testează conexiunea (fără să scrie nimic) și se extrag datele.
@@ -203,6 +223,22 @@ export default function ApaCanalApiSync() {
                 <div>
                   <label className={lbl} htmlFor="api-url">Link API</label>
                   <input id="api-url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={!canEdit || locked} placeholder="https://server.exemplu.md/api/platitori" inputMode="url" autoComplete="off" className={fld} />
+                </div>
+                <div>
+                  <label className={lbl} htmlFor="api-period">Perioadă (parametrul „{PERIOD_PARAM}” din link)</label>
+                  <input
+                    id="api-period"
+                    type="date"
+                    value={getPeriodParam(url)}
+                    onChange={(e) => setUrl((u) => withPeriodParam(u, e.target.value))}
+                    disabled={!canEdit || locked || !isAbsoluteUrl(url)}
+                    className={fld}
+                  />
+                  <p className="mt-1 text-[11px] text-ink-soft">
+                    {isAbsoluteUrl(url)
+                      ? "Alegi ziua/luna/anul — se scrie automat în linkul de mai sus."
+                      : "Completează întâi linkul (cu https://…), ca să poți alege perioada."}
+                  </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>

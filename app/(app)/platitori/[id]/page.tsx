@@ -93,18 +93,29 @@ export default async function PayerDetailPage({
       />
 
       <div>
-        <h2 className="mb-2 text-base font-bold">Facturi ({invoices.length})</h2>
+        <h2 className="mb-2 text-base font-bold">Facturi pe luni ({invoices.length})</h2>
         {invoices.length === 0 ? (
           <div className="card p-6 text-center text-sm text-ink-soft">Nicio factură încă.</div>
         ) : (
           <div className="flex flex-col gap-2">
             {invoices.map((inv) => {
               const st = INVOICE_STATUS[inv.status as InvoiceStatusKey];
+              // Luna facturii: eticheta perioadei (facturile Apă-Canal o au, ex. "SEPTEMBRIE 2026"), altfel luna emiterii.
+              const luna = inv.billingPeriodLabel || inv.issueDate.toLocaleDateString("ro-RO", { month: "long", year: "numeric", timeZone: "UTC" });
+              const isAc = inv.kind === "APA_CANAL";
               return (
-                <div key={inv.id} className="card flex items-center justify-between p-4">
-                  <div>
-                    <p className="text-sm font-semibold">{inv.number}</p>
-                    <p className="text-xs text-ink-soft">Emisă: {fmtDate(inv.issueDate)}</p>
+                <div key={inv.id} className="card flex flex-wrap items-center justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold uppercase">{luna}</p>
+                    <p className="text-xs text-ink-soft">
+                      {inv.number} · emisă {fmtDate(inv.issueDate)}
+                      {isAc && (inv.meterPrevReading || inv.meterCurrReading) && <> · citiri {inv.meterPrevReading ?? "—"} → {inv.meterCurrReading ?? "—"}</>}
+                    </p>
+                    {isAc && (
+                      <p className="text-xs text-ink-soft">
+                        Calculat {money(inv.subtotal, inv.currency)} · Datorie/avans {money(inv.datoriiAvans ?? 0, inv.currency)}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">

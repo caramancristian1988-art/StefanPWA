@@ -354,6 +354,11 @@ export async function getPayerInvoices(clientId: string) {
       issueDate: true,
       publicToken: true,
       meterCurrReading: true,
+      meterPrevReading: true,
+      billingPeriodLabel: true,
+      subtotal: true,
+      datoriiAvans: true,
+      kind: true,
     },
   });
 }

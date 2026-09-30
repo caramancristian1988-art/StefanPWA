@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/dal";
 import { listTasks } from "@/lib/queries/tasks";
 import { listClients } from "@/lib/queries/clients";
-import { buildPayerWhere } from "@/lib/queries/payers";
+import { buildPayerWhere, matchesMonthInvoice, monthRange, parsePayerMonth } from "@/lib/queries/payers";
 import { INVOICE_STATUS_LIST, INVOICE_STATUS } from "@/app/components/invoice-meta";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
@@ -195,18 +195,22 @@ export async function GET(req: Request) {
     const sectorParam = sp.get("sector");
     const debtParam = sp.get("debt");
     const invoiceStatusParam = sp.get("invoiceStatus");
+    const invoiceStatusFilter = invoiceStatusParam && INVOICE_STATUS_LIST.includes(invoiceStatusParam as InvoiceStatus)
+      ? (invoiceStatusParam as InvoiceStatus)
+      : undefined;
+    const debtFilter = debtParam === "has" || debtParam === "none" ? debtParam : undefined;
+    // Cu o lună aleasă, soldul/statusul se filtrează pe factura acelei luni (mai jos, în memorie), nu pe ultima.
+    const month = parsePayerMonth(sp.get("month"));
     const where = await buildPayerWhere({
       search: sp.get("q") || undefined,
       status: sp.get("status") === "activated" || sp.get("status") === "pending" ? (sp.get("status") as "activated" | "pending") : undefined,
       sector: sectorParam === "privat" || sectorParam === "comunal" ? sectorParam : undefined,
-      invoiceStatus: invoiceStatusParam && INVOICE_STATUS_LIST.includes(invoiceStatusParam as InvoiceStatus)
-        ? (invoiceStatusParam as InvoiceStatus)
-        : undefined,
-      debt: debtParam === "has" || debtParam === "none" ? debtParam : undefined,
+      invoiceStatus: month ? undefined : invoiceStatusFilter,
+      debt: month ? undefined : debtFilter,
       street: sp.get("street") || undefined,
       needsNameFix: sp.get("nameFix") === "1",
     });
-    const payers = await prisma.client.findMany({
+    const payersAll = await prisma.client.findMany({
       where,
       orderBy: { name: "asc" },
       take: 20000,
@@ -244,8 +248,19 @@ export async function GET(req: Request) {
         select: { clientId: true, nrContract: true, inn: true, zonaPresiune: true, sigiliu: true, dataInstalare: true, uid: true },
       }),
     ]);
+    const range = month ? monthRange(month) : null;
     const lastInvoice = new Map<string, (typeof invRows)[number]>();
-    for (const inv of invRows) if (inv.clientId && !lastInvoice.has(inv.clientId)) lastInvoice.set(inv.clientId, inv);
+    for (const inv of invRows) {
+      if (!inv.clientId || lastInvoice.has(inv.clientId)) continue;
+      if (range && !(inv.issueDate >= range.gte && inv.issueDate < range.lt)) continue;
+      lastInvoice.set(inv.clientId, inv);
+    }
+    const payers = month
+      ? payersAll.filter((p) => {
+          const inv = lastInvoice.get(p.id);
+          return inv && matchesMonthInvoice(inv, { debt: debtFilter, invoiceStatus: invoiceStatusFilter });
+        })
+      : payersAll;
     const oneCByClient = new Map(oneC.map((r) => [r.clientId, r]));
 
     // Primele 8 coloane sunt cele acceptate la import; restul sunt informative (ignorate la import).

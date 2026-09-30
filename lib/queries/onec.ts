@@ -16,7 +16,15 @@ export type OneCQuery = {
   perPage: number;
   /** Doar abonații la care "De achitat" din 1C diferă de totalul facturii din PWA. */
   onlyDiff: boolean;
+  /**
+   * Luna documentelor: "latest" = un singur rând per abonat, cel mai recent (implicit); "all" = toate lunile;
+   * "YYYY-MM" = doar luna aceea. UID-ul din 1C e per chitanță (se schimbă în fiecare lună), deci fără
+   * filtrul ăsta același abonat apare o dată pentru fiecare lună importată.
+   */
+  period: string;
 };
+
+const PERIOD_RE = /^\d{4}-\d{2}$/;
 
 const COLS = new Map(ONEC_COLUMNS.map((c) => [c.key, c]));
 
@@ -35,6 +43,42 @@ export function parseOneCQuery(sp: URLSearchParams): OneCQuery {
     page: Math.max(1, Math.floor(Number(sp.get("page"))) || 1),
     perPage: Number.isFinite(perPageRaw) && perPageRaw > 0 ? Math.min(perPageRaw, MAX_PER_PAGE) : 100,
     onlyDiff: sp.get("diff") === "1",
+    period: parsePeriod(sp.get("period")),
+  };
+}
+
+export function parsePeriod(raw: string | null): string {
+  const v = (raw ?? "").trim();
+  return v === "all" || PERIOD_RE.test(v) ? v : "latest";
+}
+
+// Identitatea abonatului peste luni: cont personal; firmele/instituțiile (fără cont) după nr. de contract.
+const subscriberKey = (r: { contPersonal: string | null; nrContract: string | null; nume: string | null }) =>
+  r.contPersonal ? `c:${r.contPersonal}` : r.nrContract ? `k:${r.nrContract}` : `n:${(r.nume ?? "").trim().toLowerCase()}`;
+
+/** Păstrează doar rândurile care sunt cele mai recente ale abonatului lor (când perioada e "latest"). */
+export function keepLatest<T extends Record<string, unknown>>(rows: T[], period: string, index: { latestIds: string[] }): T[] {
+  if (period !== "latest") return rows;
+  const set = new Set(index.latestIds);
+  return rows.filter((r) => set.has(String(r["id"])));
+}
+
+/** Id-urile rândului celui mai recent al fiecărui abonat + lunile disponibile (pentru lista de filtre). */
+export async function oneCPeriodIndex(): Promise<{ latestIds: string[]; months: { month: string; count: number }[] }> {
+  const rows = await prisma.oneCRecord.findMany({ select: { id: true, contPersonal: true, nrContract: true, nume: true, dataDoc: true } });
+  const best = new Map<string, { id: string; dataDoc: string }>();
+  const months = new Map<string, number>();
+  for (const r of rows) {
+    const d = r.dataDoc ?? "";
+    const m = d.slice(0, 7);
+    if (m) months.set(m, (months.get(m) ?? 0) + 1);
+    const k = subscriberKey(r);
+    const prev = best.get(k);
+    if (!prev || d > prev.dataDoc) best.set(k, { id: r.id, dataDoc: d });
+  }
+  return {
+    latestIds: [...best.values()].map((b) => b.id),
+    months: [...months.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([month, count]) => ({ month, count })),
   };
 }
 
@@ -80,8 +124,13 @@ async function diffInvoiceNumbers(): Promise<string[]> {
   return out;
 }
 
-export async function buildOneCWhere(q: Pick<OneCQuery, "filters" | "onlyDiff">): Promise<Prisma.OneCRecordWhereInput> {
+/**
+ * Filtrul "latest" NU se pune aici ca `id: { in: [...] }`: cu ~19.000 de id-uri MongoDB răspunde în ~80 s
+ * (măsurat). Se aplică în memorie, după interogare — vezi keepLatest (listOneC și exportul o folosesc).
+ */
+export async function buildOneCWhere(q: Pick<OneCQuery, "filters" | "onlyDiff" | "period">): Promise<Prisma.OneCRecordWhereInput> {
   const and: Prisma.OneCRecordWhereInput[] = [];
+  if (PERIOD_RE.test(q.period)) and.push({ dataDoc: { startsWith: q.period } });
   for (const [key, value] of Object.entries(q.filters)) {
     const col: OneCColumn | undefined = COLS.get(key);
     if (!col) continue;
@@ -119,10 +168,14 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
  * Bonus: ordinea e aceeași pe toate paginile și pe toate coloanele, iar totalurile vin din același set.
  */
 export async function listOneC(q: OneCQuery) {
-  const where = await buildOneCWhere(q);
+  const [index, where] = await Promise.all([oneCPeriodIndex(), buildOneCWhere(q)]);
   const col = COLS.get(q.sort) ?? COLS.get("nume")!;
   const select: Record<string, true> = { id: true, uid: true, calculat: true, datorieAvans: true, deAchitat: true, [col.key]: true };
-  const all = (await prisma.oneCRecord.findMany({ where, select: select as Prisma.OneCRecordSelect })) as unknown as Record<string, string | number | null>[];
+  const all = keepLatest(
+    (await prisma.oneCRecord.findMany({ where, select: select as Prisma.OneCRecordSelect })) as unknown as Record<string, string | number | null>[],
+    q.period,
+    index,
+  );
 
   const mul = q.dir === "asc" ? 1 : -1;
   all.sort((x, y) => {
@@ -168,6 +221,8 @@ export async function listOneC(q: OneCQuery) {
     page: q.page,
     perPage: q.perPage,
     sums: { calculat: round2(calculat), datorieAvans: round2(datorieAvans), deAchitat: round2(deAchitat) },
+    months: index.months,
+    period: q.period,
   };
 }
 

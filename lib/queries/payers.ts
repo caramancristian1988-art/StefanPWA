@@ -44,9 +44,49 @@ export type ListPayersOpts = {
    * nu îl poate reprezenta deloc (cazul real: Ș/Ț românesc, absente din acea pagină de coduri —
    * pierdere ireversibilă, produsă în sistemul sursă înainte să ajungă fișierul la noi). */
   needsNameFix?: boolean;
+  /**
+   * "YYYY-MM": doar plătitorii cu factură în luna aceea, afișați cu factura acelei luni; filtrele de sold și
+   * status se aplică tot pe factura lunii (nu pe ultima). Fără lună = ultima factură, ca până acum.
+   */
+  month?: string;
   page?: number;
   perPage?: number;
 };
+
+const MONTH_RE = /^\d{4}-\d{2}$/;
+
+export function parsePayerMonth(v: unknown): string | undefined {
+  return typeof v === "string" && MONTH_RE.test(v) ? v : undefined;
+}
+
+export function monthRange(month: string): { gte: Date; lt: Date } {
+  const [y, m] = month.split("-").map(Number);
+  return { gte: new Date(Date.UTC(y, m - 1, 1)), lt: new Date(Date.UTC(y, m, 1)) };
+}
+
+/** Lunile în care există facturi Apă-Canal, cu numărul de facturi — pentru lista "Luna facturii". */
+export async function listPayerMonths(): Promise<{ month: string; count: number }[]> {
+  if (DEMO) return [];
+  const res = (await prisma.invoice.aggregateRaw({
+    pipeline: [
+      { $match: { kind: "APA_CANAL" } },
+      { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$issueDate" } }, n: { $sum: 1 } } },
+      { $sort: { _id: -1 } },
+    ],
+  })) as unknown as { _id: string; n: number }[];
+  return res.filter((r) => r._id).map((r) => ({ month: r._id, count: r.n }));
+}
+
+/** Filtrele de sold/status aplicate pe factura unei luni (în memorie). */
+export function matchesMonthInvoice(
+  inv: { status: InvoiceStatus; grandTotal: number },
+  opts: Pick<ListPayersOpts, "debt" | "invoiceStatus">,
+): boolean {
+  if (opts.invoiceStatus && inv.status !== opts.invoiceStatus) return false;
+  if (opts.debt === "has" && !(inv.grandTotal > 0)) return false;
+  if (opts.debt === "none" && inv.grandTotal > 0) return false;
+  return true;
+}
 
 /**
  * Id-urile clienților al căror nume conține "?" literal — nu putem folosi `contains: "?"` direct
@@ -112,6 +152,8 @@ export async function listPayers(opts: ListPayersOpts = {}) {
 
   const page = Math.max(1, opts.page ?? 1);
   const perPage = normalizePerPage(opts.perPage);
+  const month = parsePayerMonth(opts.month);
+  if (month) return listPayersForMonth(month, opts, page, perPage);
   const where = await buildPayerWhere(opts);
 
   const orderBy: Prisma.ClientOrderByWithRelationInput =
@@ -168,6 +210,68 @@ export async function listPayers(opts: ListPayersOpts = {}) {
         : null,
     };
   });
+
+  return { items: rows, total, page, perPage, hasMore: page * perPage < total };
+}
+
+const collator = new Intl.Collator("ro");
+
+/**
+ * Lista pentru o lună anume. Potrivirea plătitor ↔ factura lunii se face în memorie: un filtru
+ * `id: { in: [~19.000 de id-uri] }` durează ~80 s în MongoDB (măsurat), deci aducem proiecții mici
+ * (clienți filtrați + facturile lunii), le potrivim aici și citim din bază doar rândurile paginii.
+ */
+async function listPayersForMonth(month: string, opts: ListPayersOpts, page: number, perPage: number) {
+  const where = await buildPayerWhere({ ...opts, debt: undefined, invoiceStatus: undefined });
+  const [clients, monthInvoices] = await Promise.all([
+    prisma.client.findMany({ where, select: { id: true, name: true } }),
+    prisma.invoice.findMany({
+      where: { kind: "APA_CANAL", issueDate: monthRange(month), clientId: { not: null } },
+      orderBy: { issueDate: "desc" },
+      select: { clientId: true, number: true, status: true, grandTotal: true, currency: true },
+    }),
+  ]);
+  const invByClient = new Map<string, (typeof monthInvoices)[number]>();
+  for (const inv of monthInvoices) if (inv.clientId && !invByClient.has(inv.clientId)) invByClient.set(inv.clientId, inv);
+
+  const matched = clients.filter((c) => {
+    const inv = invByClient.get(c.id);
+    return inv && matchesMonthInvoice(inv, opts);
+  });
+  if (opts.sort === "debtDesc" || opts.sort === "debtAsc") {
+    const mul = opts.sort === "debtAsc" ? 1 : -1;
+    matched.sort((a, b) => (invByClient.get(a.id)!.grandTotal - invByClient.get(b.id)!.grandTotal) * mul || collator.compare(a.name, b.name));
+  } else {
+    matched.sort((a, b) => collator.compare(a.name, b.name));
+  }
+
+  const total = matched.length;
+  const ids = matched.slice((page - 1) * perPage, page * perPage).map((c) => c.id);
+  const [pageClients, counts] = ids.length
+    ? await Promise.all([
+        prisma.client.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, meterSeries: true, email: true, phone: true, portalPasswordHash: true } }),
+        prisma.invoice.groupBy({ by: ["clientId"], where: { clientId: { in: ids } }, _count: { _all: true } }),
+      ])
+    : [[], []];
+  const byId = new Map(pageClients.map((c) => [c.id, c]));
+  const countBy = new Map(counts.map((c) => [c.clientId, c._count._all]));
+
+  const rows: PayerRow[] = ids
+    .map((id) => byId.get(id))
+    .filter((c): c is NonNullable<typeof c> => !!c)
+    .map((c) => {
+      const inv = invByClient.get(c.id)!;
+      return {
+        id: c.id,
+        name: c.name,
+        meterSeries: c.meterSeries,
+        email: c.email,
+        phone: c.phone,
+        activated: !!c.portalPasswordHash,
+        invoiceCount: countBy.get(c.id) ?? 0,
+        latestInvoice: { number: inv.number, status: inv.status, grandTotal: inv.grandTotal, currency: inv.currency },
+      };
+    });
 
   return { items: rows, total, page, perPage, hasMore: page * perPage < total };
 }

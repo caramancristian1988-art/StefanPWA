@@ -17,7 +17,12 @@ type Payload = {
   page: number;
   perPage: number;
   sums: { calculat: number; datorieAvans: number; deAchitat: number };
+  months: { month: string; count: number }[];
+  period: string;
 };
+
+const LUNI = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
+const monthLabel = (m: string) => `${LUNI[Number(m.slice(5, 7)) - 1] ?? m.slice(5, 7)} ${m.slice(0, 4)}`;
 type Detail = {
   id: string; uid: string; nume: string; payerId: string | null; invoiceId: string | null; invoiceNumber: string | null;
   consumers: Record<string, string | number | null>[] | null;
@@ -49,6 +54,9 @@ export default function OneCTable() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(100);
   const [onlyDiff, setOnlyDiff] = useState(false);
+  // Implicit un rând per abonat (luna cea mai recentă) — UID-ul 1C e per chitanță, deci altfel același
+  // abonat apare o dată pentru fiecare lună importată.
+  const [period, setPeriod] = useState("latest");
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,10 +84,11 @@ export default function OneCTable() {
       sp.set("sort", sort);
       sp.set("dir", dir);
       if (onlyDiff) sp.set("diff", "1");
+      sp.set("period", period);
       for (const [k, v] of Object.entries(extra)) sp.set(k, v);
       return sp.toString();
     },
-    [applied, sort, dir, onlyDiff],
+    [applied, sort, dir, onlyDiff, period],
   );
 
   useEffect(() => {
@@ -110,6 +119,18 @@ export default function OneCTable() {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+        <select
+          value={period}
+          onChange={(e) => { setPeriod(e.target.value); setPage(1); }}
+          className="h-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2 text-sm font-medium"
+          aria-label="Luna"
+        >
+          <option value="latest">Luna cea mai recentă (un rând per abonat)</option>
+          {data?.months.map((m) => (
+            <option key={m.month} value={m.month}>Doar {monthLabel(m.month)} ({m.count.toLocaleString("ro-RO")})</option>
+          ))}
+          <option value="all">Toate lunile (un rând per abonat și lună)</option>
+        </select>
         <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={onlyDiff} onChange={(e) => { setOnlyDiff(e.target.checked); setPage(1); }} className="size-4 accent-[var(--color-brand)]" />
           Doar diferențe PWA ≠ 1C
@@ -130,7 +151,7 @@ export default function OneCTable() {
             <p className="px-3 py-1.5 text-[11px] text-ink-soft">Cu filtrele curente și filtru pe fiecare coloană în Excel. Fiecare tabel are UID.</p>
             {(
               [
-                ["main", "Tabel comun (un rând per UID)"],
+                ["main", "Tabel comun (după filtrul de lună)"],
                 ["consumers", "Consumatori (Потребители)"],
                 ["meters", "Contoare (ИзмерительныеПриборы)"],
                 ["readings", "Citiri (Потребления)"],
@@ -145,12 +166,13 @@ export default function OneCTable() {
 
       <p className="mb-2 text-xs text-ink-soft">
         Filtrele merg pe fiecare coloană (text: „conține”). La coloanele cu numere poți scrie <b>&gt;100</b>, <b>&lt;=0</b>, <b>=45.3</b> sau un interval <b>10-50</b>.
-        Click pe un rând = toate datele lui din cele 6 tabele 1C.
+        Click pe un rând = toate datele lui din cele 6 tabele 1C. În 1C, UID-ul e al chitanței unei luni, nu al abonatului —
+        la „Toate lunile” același abonat apare o dată pentru fiecare lună (vezi coloana „Data document”).
       </p>
 
       {data && (
         <div className="mb-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-          <span><b>{data.total.toLocaleString("ro-RO")}</b> abonați</span>
+          <span><b>{data.total.toLocaleString("ro-RO")}</b> {period === "all" ? "rânduri (abonat × lună)" : "abonați"}</span>
           <span>Σ Calculat: <b>{money(data.sums.calculat)}</b></span>
           <span>Σ Datorie/avans: <b>{money(data.sums.datorieAvans)}</b></span>
           <span>Σ De achitat: <b>{money(data.sums.deAchitat)}</b></span>

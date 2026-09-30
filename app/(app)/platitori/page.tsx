@@ -4,7 +4,7 @@ import { can } from "@/lib/permissions";
 import ExportButton from "@/app/components/ExportButton";
 import ImportButton from "@/app/components/ImportButton";
 import ApaCanalApiSync from "@/app/components/ApaCanalApiSync";
-import { listPayers, countPayersNeedingNameFix, normalizePerPage, PER_PAGE_OPTIONS, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
+import { listPayers, listPayerMonths, parsePayerMonth, countPayersNeedingNameFix, normalizePerPage, PER_PAGE_OPTIONS, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
 import { money } from "@/app/components/invoice-meta";
 import { INVOICE_STATUS, INVOICE_STATUS_LIST, type InvoiceStatusKey } from "@/app/components/invoice-meta";
 import { IconChevronLeft, IconChevronRight } from "@/app/components/icons";
@@ -33,7 +33,7 @@ export default async function PayersPage({
 }: {
   searchParams: Promise<{
     q?: string; status?: string; sector?: string; invoiceStatus?: string;
-    debt?: string; street?: string; sort?: string; page?: string; perPage?: string; nameFix?: string;
+    debt?: string; street?: string; sort?: string; page?: string; perPage?: string; nameFix?: string; month?: string;
   }>;
 }) {
   const user = await requirePermission("clients.view");
@@ -51,9 +51,10 @@ export default async function PayersPage({
   const nameFix = sp.nameFix === "1";
   const page = Math.max(1, Number(sp.page) || 1);
   const perPage = normalizePerPage(sp.perPage);
+  const month = parsePayerMonth(sp.month) ?? "";
   const statusFilter = status === "activated" || status === "pending" ? status : undefined;
 
-  const [{ items, total, hasMore }, nameFixCount] = await Promise.all([
+  const [{ items, total, hasMore }, nameFixCount, months] = await Promise.all([
     listPayers({
       search: q,
       status: statusFilter,
@@ -63,25 +64,31 @@ export default async function PayersPage({
       street: street || undefined,
       sort: sort as PayerSort,
       needsNameFix: nameFix || undefined,
+      month: month || undefined,
       page,
       perPage,
     }),
     countPayersNeedingNameFix(),
+    listPayerMonths(),
   ]);
 
   const qp = (overrides: Record<string, string>) => {
-    const p = new URLSearchParams({ q, status, sector, invoiceStatus, debt, street, sort, nameFix: nameFix ? "1" : "", perPage: perPage === 50 ? "" : String(perPage), ...overrides });
+    const p = new URLSearchParams({ q, status, sector, invoiceStatus, debt, street, sort, month, nameFix: nameFix ? "1" : "", perPage: perPage === 50 ? "" : String(perPage), ...overrides });
     for (const [k, v] of [...p.entries()]) if (!v || v === "name") p.delete(k);
     return `?${p.toString()}`;
   };
-  const activeFilterCount = [status, sector, invoiceStatus, debt, street].filter(Boolean).length;
+  const activeFilterCount = [status, sector, invoiceStatus, debt, street, month].filter(Boolean).length;
+  const LUNI = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
+  const monthLabel = (m: string) => `${LUNI[Number(m.slice(5, 7)) - 1] ?? m.slice(5, 7)} ${m.slice(0, 4)}`;
 
   return (
     <div className="w-full">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">Plătitori</h1>
-          <p className="mt-1 text-sm text-ink-soft">{total} plătitori Apă-Canal — facturi, tichete, cont portal.</p>
+          <p className="mt-1 text-sm text-ink-soft">
+            {total} plătitori Apă-Canal{month ? ` cu factură pe ${monthLabel(month)} (suma și statusul afișate sunt ale acelei luni)` : " — facturi, tichete, cont portal"}.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link
@@ -100,6 +107,7 @@ export default async function PayersPage({
               debt: debt || undefined,
               street: street || undefined,
               nameFix: nameFix ? "1" : undefined,
+              month: month || undefined,
             }}
           />
           {canSyncApi && <ApaCanalApiSync />}
@@ -138,6 +146,12 @@ export default async function PayersPage({
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <select name="month" defaultValue={month} className={selectCls} aria-label="Luna facturii">
+            <option value="">Ultima factură (orice lună)</option>
+            {months.map((m) => (
+              <option key={m.month} value={m.month}>Factura pe {monthLabel(m.month)} ({m.count.toLocaleString("ro-RO")})</option>
+            ))}
+          </select>
           <select name="status" defaultValue={status} className={selectCls}>
             <option value="">Toți (cont)</option>
             <option value="activated">Activați</option>

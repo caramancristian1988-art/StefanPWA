@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { ONEC_COLUMNS, type OneCConsumer, type OneCLine, type OneCMeter, type OneCReading } from "@/lib/apa-canal-1c";
-import { buildOneCWhere, parseOneCQuery } from "@/lib/queries/onec";
+import { buildOneCWhere, keepLatest, oneCPeriodIndex, parseOneCQuery } from "@/lib/queries/onec";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -59,7 +59,8 @@ export async function GET(req: Request) {
   const requested = sp.get("sheet") ?? "";
   const sheetKey: SheetKey = requested in SHEETS ? (requested as SheetKey) : "main";
   const def = SHEETS[sheetKey];
-  const where = await buildOneCWhere(parseOneCQuery(sp));
+  const query = parseOneCQuery(sp);
+  const [where, index] = await Promise.all([buildOneCWhere(query), oneCPeriodIndex()]);
 
   // Doar coloanele necesare foii cerute (fără listele-copil la foaia principală, și invers).
   const select: Record<string, true> = { id: true, uid: true, nume: true, invoiceNumber: true };
@@ -93,7 +94,7 @@ export async function GET(req: Request) {
   records.sort((x, y) => (x.nume ?? "").localeCompare(y.nume ?? "", "ro") || x.uid.localeCompare(y.uid));
 
   const rows: Cell[][] = [];
-  for (const r of records) {
+  for (const r of keepLatest(records, query.period, index)) {
     if (sheetKey === "main") {
       const total = r.invoiceNumber ? pwa.get(r.invoiceNumber) ?? null : null;
       const de = (r.deAchitat as number | null) ?? 0;

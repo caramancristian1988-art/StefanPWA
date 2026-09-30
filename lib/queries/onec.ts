@@ -238,7 +238,12 @@ export async function getOneCDetail(id: string) {
   });
   if (!rec) return null;
   const [payer, invoice] = await Promise.all([
-    rec.clientId ? prisma.client.findFirst({ where: { id: rec.clientId, meterSeries: { not: null } }, select: { id: true } }) : null,
+    rec.clientId
+      ? prisma.client.findFirst({
+          where: { id: rec.clientId, OR: [{ meterSeries: { not: null } }, { apaCanalContract: { not: null } }] },
+          select: { id: true },
+        })
+      : null,
     rec.invoiceNumber ? prisma.invoice.findFirst({ where: { number: rec.invoiceNumber }, select: { id: true } }) : null,
   ]);
   return { ...rec, payerId: payer?.id ?? null, invoiceId: invoice?.id ?? null };

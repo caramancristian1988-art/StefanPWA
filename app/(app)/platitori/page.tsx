@@ -210,11 +210,13 @@ export default async function PayersPage({
                 <p className="text-xs text-ink-soft">
                   {/* meterSeries = numărul contractului cu care clientul se loghează în portal
                       (vezi pagina de detaliu) — "Cont personal", nu "Serie contor". */}
-                  Cont personal: {p.meterSeries} · {p.email || "fără email"} ·{" "}
-                  {p.activated ? (
-                    <span className="text-brand-strong">activat</span>
+                  {p.meterSeries ? (
+                    <>
+                      Cont personal: {p.meterSeries} · {p.email || "fără email"} ·{" "}
+                      {p.activated ? <span className="text-brand-strong">activat</span> : <span>neactivat</span>}
+                    </>
                   ) : (
-                    <span>neactivat</span>
+                    <>Firmă · Contract: {p.contract}</>
                   )}
                 </p>
               </div>

@@ -16,6 +16,8 @@ export type PayerRow = {
   id: string;
   name: string;
   meterSeries: string | null;
+  /** Nr. contract 1C — la firmele fără cont personal (identitatea lor). */
+  contract: string | null;
   email: string | null;
   phone: string | null;
   activated: boolean;
@@ -126,7 +128,22 @@ export async function buildPayerWhere(opts: ListPayersOpts = {}): Promise<Prisma
   const nameFixIds = opts.needsNameFix ? await findClientIdsNeedingNameFix() : null;
 
   return {
-    meterSeries: { not: null },
+    // Plătitori = abonații Apă-Canal: persoanele (cont personal) și firmele/instituțiile (nr. contract 1C).
+    AND: [
+      { OR: [{ meterSeries: { not: null } }, { apaCanalContract: { not: null } }] },
+      ...(search
+        ? [
+            {
+              OR: [
+                { name: { contains: search, mode: "insensitive" as const } },
+                { meterSeries: { contains: search, mode: "insensitive" as const } },
+                { apaCanalContract: { contains: search, mode: "insensitive" as const } },
+                { email: { contains: search, mode: "insensitive" as const } },
+              ],
+            },
+          ]
+        : []),
+    ],
     ...(nameFixIds ? { id: { in: nameFixIds } } : {}),
     ...(opts.status === "activated" ? { portalPasswordHash: { not: null } } : {}),
     ...(opts.status === "pending" ? { portalPasswordHash: null } : {}),
@@ -135,15 +152,6 @@ export async function buildPayerWhere(opts: ListPayersOpts = {}): Promise<Prisma
     ...(opts.debt === "has" ? { lastInvoiceGrandTotal: { gt: 0 } } : {}),
     ...(opts.debt === "none" ? { lastInvoiceGrandTotal: { lte: 0 } } : {}),
     ...(street ? { consumAddress: { contains: street, mode: "insensitive" as const } } : {}),
-    ...(search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" as const } },
-            { meterSeries: { contains: search, mode: "insensitive" as const } },
-            { email: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {}),
   };
 }
 
@@ -169,7 +177,7 @@ export async function listPayers(opts: ListPayersOpts = {}) {
       orderBy,
       skip: (page - 1) * perPage,
       take: perPage,
-      select: { id: true, name: true, meterSeries: true, email: true, phone: true, portalPasswordHash: true },
+      select: { id: true, name: true, meterSeries: true, apaCanalContract: true, email: true, phone: true, portalPasswordHash: true },
     }),
     prisma.client.count({ where }),
   ]);
@@ -196,6 +204,7 @@ export async function listPayers(opts: ListPayersOpts = {}) {
       id: c.id,
       name: c.name,
       meterSeries: c.meterSeries,
+      contract: c.apaCanalContract,
       email: c.email,
       phone: c.phone,
       activated: !!c.portalPasswordHash,
@@ -249,7 +258,7 @@ async function listPayersForMonth(month: string, opts: ListPayersOpts, page: num
   const ids = matched.slice((page - 1) * perPage, page * perPage).map((c) => c.id);
   const [pageClients, counts] = ids.length
     ? await Promise.all([
-        prisma.client.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, meterSeries: true, email: true, phone: true, portalPasswordHash: true } }),
+        prisma.client.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, meterSeries: true, apaCanalContract: true, email: true, phone: true, portalPasswordHash: true } }),
         prisma.invoice.groupBy({ by: ["clientId"], where: { clientId: { in: ids } }, _count: { _all: true } }),
       ])
     : [[], []];
@@ -265,6 +274,7 @@ async function listPayersForMonth(month: string, opts: ListPayersOpts, page: num
         id: c.id,
         name: c.name,
         meterSeries: c.meterSeries,
+        contract: c.apaCanalContract,
         email: c.email,
         phone: c.phone,
         activated: !!c.portalPasswordHash,
@@ -280,6 +290,8 @@ export type PayerDetail = {
   id: string;
   name: string;
   meterSeries: string | null;
+  /** Nr. contract 1C — la firmele fără cont personal. */
+  contract: string | null;
   email: string | null;
   phone: string | null;
   notes: string | null;
@@ -299,6 +311,7 @@ export async function getPayer(id: string): Promise<PayerDetail | null> {
       id: true,
       name: true,
       meterSeries: true,
+      apaCanalContract: true,
       email: true,
       phone: true,
       notes: true,
@@ -310,11 +323,12 @@ export async function getPayer(id: string): Promise<PayerDetail | null> {
       consumAddress: true,
     },
   });
-  if (!c || !c.meterSeries) return null;
+  if (!c || (!c.meterSeries && !c.apaCanalContract)) return null;
   return {
     id: c.id,
     name: c.name,
     meterSeries: c.meterSeries,
+    contract: c.apaCanalContract,
     email: c.email,
     phone: c.phone,
     notes: c.notes,

@@ -38,12 +38,14 @@ export default async function PayerDetailPage({
               {/* meterSeries e identificatorul cu care clientul se loghează în portal — afișat
                   ca "Cont personal" (nu "Serie contor"), la fel ca pe factură/pagina de login,
                   ca staff-ul să știe exact ce număr să-i dea clientului. */}
-              Cont personal: <b>{payer.meterSeries}</b>
+              {payer.meterSeries ? <>Cont personal: <b>{payer.meterSeries}</b></> : <>Firmă · Contract 1C: <b>{payer.contract}</b></>}
               {payer.meterNumber && <> · Contor: {payer.meterNumber}</>}
             </p>
             {payer.consumAddress && <p className="text-sm text-ink-soft">{payer.consumAddress}</p>}
           </div>
-          {payer.activated ? (
+          {!payer.meterSeries ? (
+            <span className="rounded-full bg-[var(--color-surface-2)] px-2.5 py-1 text-xs font-medium text-ink-soft">Fără cont de portal</span>
+          ) : payer.activated ? (
             <span className="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand-strong">Cont activat</span>
           ) : (
             <span className="rounded-full bg-[var(--color-surface-2)] px-2.5 py-1 text-xs font-medium text-ink-soft">Cont neactivat</span>

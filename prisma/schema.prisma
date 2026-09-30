@@ -630,6 +630,9 @@ model Client {
   // Abonat Apă-Canal creat de importul 1C FĂRĂ cont personal (în general firme/agenți economici) — nu e
   // client "de CRM", deci nu apare în lista /clients; facturile lui rămân în /invoices.
   apaCanalImport        Boolean @default(false)
+  // Nr. contract din 1C (НомерДоговора) — identitatea firmelor/instituțiilor, care n-au cont personal:
+  // același contract = același plătitor, în toate lunile. (Persoanele fizice se identifică după meterSeries.)
+  apaCanalContract      String?
   lastInvoiceIssueDate  DateTime?
 
   appointments            Appointment[]

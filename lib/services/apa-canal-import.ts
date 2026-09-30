@@ -130,6 +130,8 @@ export type ExistingClientLite = {
   portalActivatedAt: Date | null;
   /** Data ultimei facturi (instantaneul din Client) — un import mai vechi nu are voie să o dea înapoi. */
   lastInvoiceIssueDate?: Date | null;
+  /** Nr. contract 1C al firmelor (fără cont personal) — vezi Client.apaCanalContract. */
+  apaCanalContract?: string | null;
 };
 
 export type ExistingInvoiceLite = { clientId: string | null; issueDate: Date };
@@ -245,8 +247,14 @@ export function buildApaCanalPlan(
     itemsByUid.set(uid, arr);
   }
 
-  const clientByNameKey = new Map(ctx.existingClients.map((c) => [norm(c.name), c]));
+  const clientsByNameKey = new Map<string, ExistingClientLite[]>();
+  for (const c of ctx.existingClients) {
+    const list = clientsByNameKey.get(norm(c.name)) ?? [];
+    list.push(c);
+    clientsByNameKey.set(norm(c.name), list);
+  }
   const clientBySeries = new Map(ctx.existingClients.filter((c) => c.meterSeries).map((c) => [c.meterSeries as string, c]));
+  const clientByContract = new Map(ctx.existingClients.filter((c) => c.apaCanalContract).map((c) => [c.apaCanalContract as string, c]));
   const clientById = new Map(ctx.existingClients.map((c) => [c.id, c]));
   const existingInvoices = ctx.existingInvoices ?? new Map<string, ExistingInvoiceLite>();
   const usedMeterSeries = new Set(ctx.existingClients.map((c) => c.meterSeries).filter(Boolean) as string[]);
@@ -322,13 +330,20 @@ export function buildApaCanalPlan(
     const meterCurrReadingNum = reading ? reading.curr : null;
     const meterReadingEstimated = reading ? reading.estimat : false;
 
-    // Identitatea clientului (vezi comentariul funcției): factură → cont personal → nume.
+    // Identitatea clientului: factură → cont personal → (firme, fără cont) nr. contract → nume.
+    // Numele doar ca ultimă variantă și DOAR spre un client fără identitate 1C (fără cont personal și fără
+    // contract, adică unul din CRM, de dinaintea importului). Altfel o firmă ajungea pe contul unei persoane
+    // cu același nume (s-a întâmplat: 12 facturi din sept. 2026), iar un abonat nou — pe contul unui omonim.
+    const contractRaw = str(sub["НомерДоговора"]);
     const nameKey = norm(name);
     let existing: ExistingClientLite | undefined =
       (baseExisting?.clientId ? clientById.get(baseExisting.clientId) : undefined) ??
-      (contPersonalRaw ? clientBySeries.get(contPersonalRaw) : undefined);
+      (contPersonalRaw ? clientBySeries.get(contPersonalRaw) : undefined) ??
+      (!contPersonalRaw && contractRaw ? clientByContract.get(contractRaw) : undefined);
     const matchedByIdentity = !!existing;
-    if (!existing && !consumedNames.has(nameKey)) existing = clientByNameKey.get(nameKey);
+    if (!existing && !consumedNames.has(nameKey)) {
+      existing = clientsByNameKey.get(nameKey)?.find((c) => !c.meterSeries && !c.apaCanalContract);
+    }
 
     let meterSeries: string | null = null;
     if (contPersonalRaw) {
@@ -373,6 +388,11 @@ export function buildApaCanalPlan(
         if (existing.meterSeries) usedMeterSeries.delete(existing.meterSeries);
         usedMeterSeries.add(meterSeries);
       }
+      if (!contPersonalRaw && contractRaw && !existing.apaCanalContract && !existing.meterSeries) {
+        upd.apaCanalContract = contractRaw;
+        existing.apaCanalContract = contractRaw;
+        clientByContract.set(contractRaw, existing);
+      }
       clientUpdates.push({ id: existing.id, data: upd });
     } else {
       createdNew++;
@@ -393,11 +413,16 @@ export function buildApaCanalPlan(
         lastInvoiceSectorNr: sectorNr,
         lastInvoiceIssueDate: issueDate,
         apaCanalImport: !meterSeries,
+        apaCanalContract: !contPersonalRaw && contractRaw ? contractRaw : null,
       });
-      const created = { id: clientId, name, meterSeries, portalActivatedAt: null, lastInvoiceIssueDate: issueDate };
-      clientByNameKey.set(nameKey, created);
+      const created: ExistingClientLite = {
+        id: clientId, name, meterSeries, portalActivatedAt: null, lastInvoiceIssueDate: issueDate,
+        apaCanalContract: !contPersonalRaw && contractRaw ? contractRaw : null,
+      };
+      clientsByNameKey.set(nameKey, [...(clientsByNameKey.get(nameKey) ?? []), created]);
       clientById.set(clientId, created);
       if (meterSeries) clientBySeries.set(meterSeries, created);
+      if (created.apaCanalContract) clientByContract.set(created.apaCanalContract, created);
       consumedNames.add(nameKey);
     }
 
@@ -584,7 +609,7 @@ export async function importApaCanalBuffer(buf: Buffer, opts: { ownerId: string;
     // iar plătitorii aparțin celui care i-a importat prima dată — altfel, la o sincronizare pornită de
     // altcineva, toți ar părea "noi" și s-ar dubla.
     prisma.client.findMany({
-      select: { id: true, name: true, meterSeries: true, portalActivatedAt: true, lastInvoiceIssueDate: true },
+      select: { id: true, name: true, meterSeries: true, portalActivatedAt: true, lastInvoiceIssueDate: true, apaCanalContract: true },
     }),
     prisma.invoice.findMany({ select: { number: true, clientId: true, issueDate: true } }),
   ]);

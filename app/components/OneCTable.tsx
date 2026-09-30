@@ -256,9 +256,16 @@ function MiniTable({ title, rows, cols }: { title: string; rows: Record<string, 
       {list.length === 0 ? (
         <p className="text-xs text-ink-soft">— niciun rând în fișierul 1C —</p>
       ) : (
-        <div className="overflow-auto rounded-lg border border-[var(--color-line)]" style={{ maxHeight: 260 }}>
+        // Doar overflow orizontal aici, fără antet fix (sticky) — un glisor propriu pe verticală,
+        // imbricat în cel al ferestrei de detaliu (cum era înainte, cu antet fix pe amândouă),
+        // declanșează pe iOS/Safari un bug cunoscut de randare: rândurile se suprapun fantomatic la
+        // derulare (exact ce s-a văzut pe telefon). Notă: chiar și fără maxHeight/overflow-y explicit,
+        // simplul `overflow-x: auto` face browserul să trateze acest div ca "glisor" și pe verticală
+        // (regulă CSS: o axă non-"visible" o transformă și pe cealaltă din "visible" în "auto"), ceea ce
+        // ar rupe din nou ancorarea "sticky" la glisorul ferestrei — de-aia headerul NU mai e sticky aici.
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-line)]">
           <table className="w-max min-w-full text-xs">
-            <thead className="sticky top-0 bg-[var(--color-surface-2)]">
+            <thead className="bg-[var(--color-surface-2)]">
               <tr>{cols.map(([k, l]) => <th key={k} className="whitespace-nowrap px-2 py-1 text-left font-semibold">{l}</th>)}</tr>
             </thead>
             <tbody>

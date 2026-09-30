@@ -6,6 +6,7 @@ import { INVOICE_STATUS_LIST, INVOICE_STATUS } from "@/app/components/invoice-me
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { toCSV, toXLSX, csvResponse, xlsxResponse, streamText } from "@/lib/export-utils";
+import { getPayerStatement } from "@/lib/services/payer-statement";
 import { formatDate, formatTime, DEFAULT_TZ } from "@/lib/date";
 import type { TaskStatus, TaskType, TaskPriority, ProjectStatus, AppointmentStatus, InvoiceStatus } from "@prisma/client";
 
@@ -318,71 +319,46 @@ export async function GET(req: Request) {
   // reconcilierea de totaluri pe care o fac ei — un rând per perioadă, plus un rând TOTAL.
   if (entity === "payer-statement") {
     if (!can(user, "clients.view")) return new Response("Fără permisiune.", { status: 403 });
-    const clientId = sp.get("id") ?? "";
-    const client = clientId
-      ? await prisma.client.findFirst({
-          where: { id: clientId },
-          select: { id: true, name: true, meterSeries: true, consumAddress: true, phone: true, email: true },
-        })
-      : null;
-    if (!client) return new Response("Plătitor inexistent.", { status: 404 });
-
-    const invoices = await prisma.invoice.findMany({
-      where: { clientId: client.id, kind: "APA_CANAL" },
-      orderBy: { issueDate: "asc" },
-      select: {
-        number: true, status: true, issueDate: true, billingPeriodLabel: true, sectorNr: true, contPersonal: true,
-        meterPrevReading: true, meterCurrReading: true, subtotal: true, datoriiAvans: true, recalculari: true,
-        penalitati: true, grandTotal: true, currency: true,
-        items: { select: { description: true, quantity: true, unitPrice: true } },
-      },
-    });
+    const statement = await getPayerStatement(sp.get("id") ?? "");
+    if (!statement) return new Response("Plătitor inexistent.", { status: 404 });
+    const { client, rows: stRows, totals } = statement;
 
     const HEADERS = [
       "Abonat", "Cont personal", "Adresă", "Sector", "Perioadă", "Data facturii", "Nr. factură", "Status factură",
       "Index anterior", "Index curent", "Consum apă (m³)", "Tarif apă", "Consum canal (m³)", "Tarif canal",
       "Calculat", "Sold anterior / regularizare", "Recalculări", "Penalități", "Total de plată", "Valută",
     ];
-    const isApa = (d: string) => /alimentare cu ap[aă]/i.test(d);
-    const isCanal = (d: string) => /canalizare/i.test(d);
-    let sumCalc = 0, sumSold = 0, sumRecalc = 0, sumPenal = 0, sumTotal = 0, sumApa = 0, sumCanal = 0;
-    const rows = invoices.map((inv) => {
-      const apaItem = inv.items.find((it) => isApa(it.description));
-      const canalItem = inv.items.find((it) => isCanal(it.description));
-      sumCalc += inv.subtotal; sumSold += inv.datoriiAvans; sumRecalc += inv.recalculari; sumPenal += inv.penalitati; sumTotal += inv.grandTotal;
-      sumApa += apaItem?.quantity ?? 0; sumCanal += canalItem?.quantity ?? 0;
-      return {
-        "Abonat": client.name,
-        "Cont personal": inv.contPersonal ?? client.meterSeries ?? "",
-        "Adresă": client.consumAddress ?? "",
-        "Sector": inv.sectorNr ?? "",
-        "Perioadă": inv.billingPeriodLabel ?? "",
-        "Data facturii": fmtDate(inv.issueDate),
-        "Nr. factură": inv.number,
-        "Status factură": INVOICE_STATUS[inv.status as InvoiceStatus]?.label ?? inv.status,
-        "Index anterior": inv.meterPrevReading ?? "",
-        "Index curent": inv.meterCurrReading ?? "",
-        "Consum apă (m³)": apaItem?.quantity ?? "",
-        "Tarif apă": apaItem?.unitPrice ?? "",
-        "Consum canal (m³)": canalItem?.quantity ?? "",
-        "Tarif canal": canalItem?.unitPrice ?? "",
-        "Calculat": inv.subtotal,
-        "Sold anterior / regularizare": inv.datoriiAvans,
-        "Recalculări": inv.recalculari,
-        "Penalități": inv.penalitati,
-        "Total de plată": inv.grandTotal,
-        "Valută": inv.currency,
-      };
-    });
+    const rows = stRows.map((inv) => ({
+      "Abonat": client.name,
+      "Cont personal": inv.contPersonal ?? client.meterSeries ?? "",
+      "Adresă": client.consumAddress ?? "",
+      "Sector": inv.sectorNr ?? "",
+      "Perioadă": inv.billingPeriodLabel ?? "",
+      "Data facturii": fmtDate(inv.issueDate),
+      "Nr. factură": inv.number,
+      "Status factură": INVOICE_STATUS[inv.status as InvoiceStatus]?.label ?? inv.status,
+      "Index anterior": inv.meterPrevReading ?? "",
+      "Index curent": inv.meterCurrReading ?? "",
+      "Consum apă (m³)": inv.apaQty ?? "",
+      "Tarif apă": inv.apaTarif ?? "",
+      "Consum canal (m³)": inv.canalQty ?? "",
+      "Tarif canal": inv.canalTarif ?? "",
+      "Calculat": inv.subtotal,
+      "Sold anterior / regularizare": inv.datoriiAvans,
+      "Recalculări": inv.recalculari,
+      "Penalități": inv.penalitati,
+      "Total de plată": inv.grandTotal,
+      "Valută": inv.currency,
+    }));
     if (rows.length > 0) {
       rows.push({
         "Abonat": "TOTAL", "Cont personal": "", "Adresă": "", "Sector": "", "Perioadă": "", "Data facturii": "",
         "Nr. factură": "", "Status factură": "", "Index anterior": "", "Index curent": "",
-        "Consum apă (m³)": Math.round(sumApa * 1000) / 1000, "Tarif apă": "",
-        "Consum canal (m³)": Math.round(sumCanal * 1000) / 1000, "Tarif canal": "",
-        "Calculat": Math.round(sumCalc * 100) / 100, "Sold anterior / regularizare": Math.round(sumSold * 100) / 100,
-        "Recalculări": Math.round(sumRecalc * 100) / 100, "Penalități": Math.round(sumPenal * 100) / 100,
-        "Total de plată": Math.round(sumTotal * 100) / 100, "Valută": invoices[0]?.currency ?? "MDL",
+        "Consum apă (m³)": totals.apaQty, "Tarif apă": "",
+        "Consum canal (m³)": totals.canalQty, "Tarif canal": "",
+        "Calculat": totals.subtotal, "Sold anterior / regularizare": totals.datoriiAvans,
+        "Recalculări": totals.recalculari, "Penalități": totals.penalitati,
+        "Total de plată": totals.grandTotal, "Valută": stRows[0]?.currency ?? "MDL",
       });
     }
 

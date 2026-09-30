@@ -6,7 +6,6 @@ import { getPayer, getPayerInvoices, getPayerTickets } from "@/lib/queries/payer
 import { money, fmtDate, INVOICE_STATUS, type InvoiceStatusKey } from "@/app/components/invoice-meta";
 import { TASK_STATUS_RO } from "@/lib/telegram";
 import PayerActions from "@/app/components/PayerActions";
-import ExportButton from "@/app/components/ExportButton";
 import { IconChevronLeft } from "@/app/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -79,10 +78,15 @@ export default async function PayerDetailPage({
         >
           Trimite factură nouă
         </Link>
-        {/* "Decontare" — un rând per perioadă (calculat, sold anterior, penalități, consum apă/canal,
-            total) + un rând TOTAL, în același spirit cu raportul "Взаиморасчеты с абонентами" pe care
-            îl folosește Apă-Canal pentru totaluri (fără jurnalul de plăți — nu-l avem). */}
-        <ExportButton entity="payer-statement" params={{ id: payer.id }} label="Decontare" className="tap inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-4 text-sm font-medium text-ink-soft hover:bg-[var(--color-surface-2)]" />
+        {/* "Decontare" — pagină cu fișă tip tabel contabil (un rând per perioadă + rând TOTAL), în
+            același spirit cu raportul "Взаиморасчеты с абонентами" pe care îl folosește Apă-Canal
+            pentru totaluri (fără jurnalul de plăți — nu-l avem); Excel/CSV/JSON, de acolo. */}
+        <Link
+          href={`/platitori/${payer.id}/decontare`}
+          className="tap inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--color-line)] px-4 text-sm font-medium text-ink-soft hover:bg-[var(--color-surface-2)]"
+        >
+          Decontare
+        </Link>
       </div>
 
       <PayerActions

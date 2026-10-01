@@ -11,7 +11,11 @@ import { decryptSecret, encryptSecret } from "../secret-box";
 
 const KEY = "apa-canal-1c";
 const MAX_BYTES = 250 * 1024 * 1024;
-const TIMEOUT_MS = 240_000;
+// Funcția de sincronizare are 300 s în total (vezi vercel.json — Hobby + Fluid Compute permite
+// 300 s, nu 60 s ca în modelul vechi). Dacă descărcarea ar primi tot bugetul, nu ar mai rămâne timp
+// pentru scris (mai ales la o extragere reală, cu mii de facturi noi) — funcția ar fi omorâtă brusc
+// de platformă, fără niciun mesaj de-al nostru. 120 s de descărcare lasă ~180 s pentru procesare.
+const TIMEOUT_MS = 120_000;
 
 export type ApiConfigPublic = {
   url: string;

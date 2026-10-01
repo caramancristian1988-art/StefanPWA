@@ -75,6 +75,7 @@ export default function ApaCanalApiSync() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [applied, setApplied] = useState<Applied | null>(null);
   const [report, setReport] = useState<SyncReport | null>(null);
+  const [elapsed, setElapsed] = useState(0);
 
   async function load() {
     setError(null);
@@ -103,6 +104,15 @@ export default function ApaCanalApiSync() {
   }, [open]);
 
   const dirty = !!cfg && (url.trim() !== cfg.url || username.trim() !== cfg.username || password !== "" || token !== "");
+
+  // Un cronometru vizibil cât timp durează testarea/extragerea — altfel, din reclamație, nu se vedea
+  // dacă aplicația mai lucrează sau s-a blocat ("nu îmi dă mesaj dacă a mers sau nu").
+  useEffect(() => {
+    if (busy !== "test" && busy !== "sync") { setElapsed(0); return; }
+    const t0 = Date.now();
+    const iv = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [busy]);
 
   async function save(): Promise<boolean> {
     setError(null);
@@ -164,25 +174,38 @@ export default function ApaCanalApiSync() {
     if (cfg?.canEdit && dirty && !(await save())) return;
     if (commit && !confirm("Extrag plătitorii din API și îi scriu în aplicație (clienți și facturi noi). Continui?")) return;
     setBusy(commit ? "sync" : "test");
+    // Dacă serverul nu răspunde deloc (conexiune blocată, nu doar lentă), nu așteptăm la nesfârșit —
+    // funcția de pe server oricum se oprește la 300 s, deci la fel și aici, ca butonul să nu rămână
+    // blocat vizual fără niciun mesaj.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 295_000);
     try {
       const r = await fetch("/api/integrations/apa-canal/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ commit }),
+        signal: ctrl.signal,
       });
-      const j = await r.json();
+      let j: { error?: string; stats?: Stats; report?: SyncReport; applied?: Applied };
+      try {
+        j = await r.json();
+      } catch {
+        throw new Error(`Răspuns neașteptat de la server (HTTP ${r.status}) — probabil a durat prea mult și a fost întrerupt.`);
+      }
       if (!r.ok) throw new Error(j.error ?? "Eroare la sincronizare.");
-      setStats(j.stats);
+      setStats(j.stats ?? null);
       setReport(j.report ?? null);
       if (commit) {
-        setApplied(j.applied);
+        setApplied(j.applied ?? null);
         router.refresh();
       }
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Eroare la sincronizare.");
+      const isAbort = e instanceof DOMException && e.name === "AbortError";
+      setError(isAbort ? "A durat prea mult (peste 5 minute) și s-a întrerupt. Încearcă din nou — dacă se repetă, API-ul lor e prea lent sau indisponibil." : e instanceof Error ? e.message : "Eroare la sincronizare.");
       await load();
     } finally {
+      clearTimeout(timer);
       setBusy(null);
     }
   }
@@ -299,14 +322,18 @@ export default function ApaCanalApiSync() {
                     </button>
                   )}
                   <button type="button" disabled={locked || !(cfg.url || url.trim())} onClick={() => run(false)} className="tap h-11 rounded-xl border border-brand px-4 text-sm font-semibold text-brand-strong hover:bg-brand-soft disabled:opacity-40">
-                    {busy === "test" ? "Se testează…" : "Testează conexiunea"}
+                    {busy === "test" ? `Se testează… (${elapsed}s)` : "Testează conexiunea"}
                   </button>
                   <button type="button" disabled={locked || !(cfg.url || url.trim())} onClick={() => run(true)} className="tap h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-strong disabled:opacity-40">
-                    {busy === "sync" ? "Se extrage…" : "Extrage din API"}
+                    {busy === "sync" ? `Se extrage… (${elapsed}s)` : "Extrage din API"}
                   </button>
                 </div>
                 {locked && (busy === "test" || busy === "sync") && (
-                  <p className="text-xs text-ink-soft">Se descarcă și se procesează datele — poate dura 1–2 minute, nu închide fereastra.</p>
+                  <p className="text-xs text-ink-soft">
+                    {elapsed < 5
+                      ? "Se descarcă și se procesează datele — nu închide fereastra."
+                      : `Încă lucrează (${elapsed} secunde) — poate dura până la câteva minute la un fișier mare, e normal. Rămâi pe pagină.`}
+                  </p>
                 )}
               </div>
             )}

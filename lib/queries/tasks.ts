@@ -120,29 +120,73 @@ export type TaskFilter = {
   search?: string;
   userId: string;
   teamIds?: string[];
+  /** Ce task-uri are voie userul să vadă — vezi lib/permissions.ts (canViewTask) pentru aceeași
+   * regulă aplicată la deschiderea individuală a unui task. "ALL" (implicit) = fără restricție. */
+  viewScope?: string;
+  viewTeamIds?: string[];
+  viewMemberIds?: string[];
   page?: number;
   pageSize?: number;
 };
 
 const PAGE_SIZE = 20;
 
+/** Extrage din userul curent cele 3 câmpuri de vizibilitate, gata de dat la listTasks/tasksDueBetween
+ * (`listTasks({ ...taskViewFilter(user), ...restul filtrelor })`) — un singur loc de întreținut. */
+export function taskViewFilter(user: { taskViewScope: string; taskViewTeamIds: string[]; taskViewMemberIds: string[] }) {
+  return { viewScope: user.taskViewScope, viewTeamIds: user.taskViewTeamIds, viewMemberIds: user.taskViewMemberIds };
+}
+
+/**
+ * Compune condițiile într-un singur `where`, prin AND — nu prin atribuiri succesive pe `where.OR`
+ * (cum erau scope="mine" și căutarea pe #număr înainte: a doua atribuire o ștergea pe prima dacă
+ * amândouă erau active deodată, lăsând "mine" fără efect). Fiecare fragment de mai jos e opțional —
+ * `undefined` e omis de Prisma dintr-un AND, deci e sigur să le înșiri necondiționat.
+ */
 function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
+  const and: Prisma.TaskWhereInput[] = [];
   const where: Prisma.TaskWhereInput = {};
+
   // Filtrul explicit pe persoană are prioritate față de scope
   if (filter.assigneeId) {
     where.assigneeId = filter.assigneeId;
   } else if (filter.scope === "mine") {
-    where.OR = [
-      { assigneeId: filter.userId },
-      { extraAssigneeIds: { has: filter.userId } },
-      ...(filter.teamIds?.length ? [
-        { teamId: { in: filter.teamIds } },
-        { extraTeamIds: { hasSome: filter.teamIds } },
-      ] : []),
-    ];
+    and.push({
+      OR: [
+        { assigneeId: filter.userId },
+        { extraAssigneeIds: { has: filter.userId } },
+        ...(filter.teamIds?.length ? [
+          { teamId: { in: filter.teamIds } },
+          { extraTeamIds: { hasSome: filter.teamIds } },
+        ] : []),
+      ],
+    });
   } else if (filter.scope === "created") {
     where.creatorId = filter.userId;
   }
+
+  // Vizibilitate (cine are voie să VADĂ task-ul, diferit de scope-ul de mai sus, care doar
+  // comută tab-ul "Toate/Ale mele/Create de mine" — asta e un plafon aplicat peste orice tab).
+  if (filter.viewScope === "RESTRICTED") {
+    const teamIds = filter.viewTeamIds ?? [];
+    const memberIds = filter.viewMemberIds ?? [];
+    and.push({
+      OR: [
+        { creatorId: filter.userId },
+        { assigneeId: filter.userId },
+        { extraAssigneeIds: { has: filter.userId } },
+        ...(teamIds.length ? [{ teamId: { in: teamIds } }, { extraTeamIds: { hasSome: teamIds } }] : []),
+        ...(memberIds.length
+          ? [
+              { assigneeId: { in: memberIds } },
+              { extraAssigneeIds: { hasSome: memberIds } },
+              { creatorId: { in: memberIds } },
+            ]
+          : []),
+      ],
+    });
+  }
+
   if (filter.teamId) where.teamId = filter.teamId;
   if (filter.statuses?.length) where.status = { in: filter.statuses };
   else if (filter.status) where.status = filter.status;
@@ -201,11 +245,13 @@ function buildWhere(filter: TaskFilter): Prisma.TaskWhereInput {
     const stripped = term.startsWith("#") ? term.slice(1) : term;
     const seqNum = /^\d+$/.test(stripped) ? parseInt(stripped, 10) : NaN;
     if (!isNaN(seqNum)) {
-      where.OR = [{ seq: seqNum }, { title: { contains: term, mode: "insensitive" } }];
+      and.push({ OR: [{ seq: seqNum }, { title: { contains: term, mode: "insensitive" } }] });
     } else {
       where.title = { contains: term, mode: "insensitive" };
     }
   }
+
+  if (and.length) where.AND = and;
   return where;
 }
 
@@ -262,6 +308,9 @@ export async function tasksDueBetween(opts: {
   scope: "all" | "mine" | "created";
   userId: string;
   teamIds?: string[];
+  viewScope?: string;
+  viewTeamIds?: string[];
+  viewMemberIds?: string[];
   from: Date;
   to: Date;
   assigneeId?: string;
@@ -276,6 +325,9 @@ export async function tasksDueBetween(opts: {
     scope: opts.scope,
     userId: opts.userId,
     teamIds: opts.teamIds,
+    viewScope: opts.viewScope,
+    viewTeamIds: opts.viewTeamIds,
+    viewMemberIds: opts.viewMemberIds,
     assigneeId: opts.assigneeId,
     teamId: opts.teamId,
     projectId: opts.projectId,
@@ -380,6 +432,7 @@ export async function dashboardStats(
   userId: string,
   teamIds: string[],
   role: "ADMIN" | "STAFF" = "STAFF",
+  taskView?: { scope: string; teamIds: string[]; memberIds: string[] },
 ) {
   if (DEMO) {
     return {
@@ -399,15 +452,26 @@ export async function dashboardStats(
   };
   const openStatuses: TaskStatus[] = ["NEW", "ASSIGNED", "READ", "IN_PROGRESS", "ON_HOLD", "REVIEW"];
 
-  // Adminii văd contorizări globale; STAFF-ul vede doar ale lor
-  const globalTicketWhere: Prisma.TaskWhereInput =
-    role === "ADMIN"
-      ? { type: "TICKET", status: { in: openStatuses } }
-      : { ...mineWhere, type: "TICKET", status: { in: openStatuses } };
-  const globalTaskWhere: Prisma.TaskWhereInput =
-    role === "ADMIN"
-      ? { type: "TASK", status: { in: openStatuses } }
-      : { ...mineWhere, type: "TASK", status: { in: openStatuses } };
+  // Adminii văd contorizări globale — dar NU dacă li s-a restrâns vizibilitatea (taskViewScope
+  // "RESTRICTED"): atunci numărătoarea "globală" se plafonează la fel ca lista de task-uri (echipele/
+  // persoanele alese la crearea contului, plus mereu task-urile proprii). STAFF vede doar ale lui.
+  const vTeamIds = taskView?.teamIds ?? [];
+  const vMemberIds = taskView?.memberIds ?? [];
+  const restrictedWhere: Prisma.TaskWhereInput = {
+    OR: [
+      { creatorId: userId },
+      { assigneeId: userId },
+      { extraAssigneeIds: { has: userId } },
+      ...(vTeamIds.length ? [{ teamId: { in: vTeamIds } }, { extraTeamIds: { hasSome: vTeamIds } }] : []),
+      ...(vMemberIds.length
+        ? [{ assigneeId: { in: vMemberIds } }, { extraAssigneeIds: { hasSome: vMemberIds } }, { creatorId: { in: vMemberIds } }]
+        : []),
+    ],
+  };
+  const canSeeAll = role === "ADMIN" && taskView?.scope !== "RESTRICTED";
+  const globalBaseWhere = canSeeAll ? {} : role === "ADMIN" ? restrictedWhere : mineWhere;
+  const globalTicketWhere: Prisma.TaskWhereInput = { ...globalBaseWhere, type: "TICKET", status: { in: openStatuses } };
+  const globalTaskWhere: Prisma.TaskWhereInput = { ...globalBaseWhere, type: "TASK", status: { in: openStatuses } };
 
   const [grouped, ticketsOpen, tasksOpen, projectsActive] = await Promise.all([
     prisma.task.groupBy({ by: ["status"], where: mineWhere, _count: { _all: true } }),

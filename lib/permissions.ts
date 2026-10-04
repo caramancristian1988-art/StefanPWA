@@ -149,3 +149,35 @@ export function canEditTask(
   if (task.extraAssigneeIds?.includes(user.id)) return true;
   return false;
 }
+
+export type TaskVisibilitySubject = {
+  id: string;
+  taskViewScope: string;
+  taskViewTeamIds: string[];
+  taskViewMemberIds: string[];
+};
+
+export type TaskTeamOwnership = TaskOwnership & {
+  teamId: string | null;
+  extraTeamIds?: string[];
+};
+
+/**
+ * Vede userul task-ul ăsta? taskViewScope="ALL" (implicit — comportamentul de dinainte de
+ * restricție) vede tot. "RESTRICTED" vede doar: propriile task-uri (creator/asignat/co-asignat —
+ * mereu vizibile, indiferent de listele de mai jos) + cele din echipele/persoanele alese de admin
+ * la crearea contului (taskViewTeamIds/taskViewMemberIds) — vezi lib/queries/tasks.ts (buildWhere)
+ * pentru aceeași regulă aplicată la nivel de listă/export, nu doar la deschiderea individuală.
+ */
+export function canViewTask(user: TaskVisibilitySubject, task: TaskTeamOwnership): boolean {
+  if (user.taskViewScope !== "RESTRICTED") return true;
+  if (task.creatorId === user.id) return true;
+  if (task.assigneeId === user.id) return true;
+  if (task.extraAssigneeIds?.includes(user.id)) return true;
+  if (task.teamId && user.taskViewTeamIds.includes(task.teamId)) return true;
+  if (task.extraTeamIds?.some((id) => user.taskViewTeamIds.includes(id))) return true;
+  if (task.assigneeId && user.taskViewMemberIds.includes(task.assigneeId)) return true;
+  if (task.extraAssigneeIds?.some((id) => user.taskViewMemberIds.includes(id))) return true;
+  if (user.taskViewMemberIds.includes(task.creatorId)) return true;
+  return false;
+}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
-import { listTasks } from "@/lib/queries/tasks";
+import { listTasks, taskViewFilter } from "@/lib/queries/tasks";
 import { getLocaleFromCookie } from "@/lib/i18n/locale-cookie";
 import { getMessages } from "@/lib/i18n";
 import { userOptions } from "@/lib/queries/users";
@@ -91,6 +91,7 @@ export default async function TicketsPage({
       scope,
       userId: user.id,
       teamIds: user.teamIds,
+      ...taskViewFilter(user),
       types: ["TICKET"],
       statuses: groupStatuses,
       status: singleStatus,

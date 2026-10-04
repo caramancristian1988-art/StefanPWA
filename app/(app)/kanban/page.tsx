@@ -1,5 +1,5 @@
 import { requirePermission } from "@/lib/dal";
-import { listTasks } from "@/lib/queries/tasks";
+import { listTasks, taskViewFilter } from "@/lib/queries/tasks";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { projectOptions } from "@/lib/queries/projects";
@@ -15,7 +15,7 @@ export default async function KanbanPage() {
   // STAFF vede doar task-urile proprii/echipei lui; ADMIN vede tot
   const kanbanScope = user.role === "STAFF" ? "mine" : "all";
   const [result, users, teams, projects, categories] = await Promise.all([
-    listTasks({ scope: kanbanScope, userId: user.id, teamIds: user.teamIds, page: 1, pageSize: KANBAN_LIMIT }),
+    listTasks({ scope: kanbanScope, userId: user.id, teamIds: user.teamIds, ...taskViewFilter(user), page: 1, pageSize: KANBAN_LIMIT }),
     userOptions(),
     teamOptions(),
     projectOptions(),

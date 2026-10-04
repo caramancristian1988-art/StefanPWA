@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { getProject } from "@/lib/queries/projects";
-import { listTasks } from "@/lib/queries/tasks";
+import { listTasks, taskViewFilter } from "@/lib/queries/tasks";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
 import { crmClientOptions } from "@/lib/queries/clients";
@@ -49,6 +49,7 @@ export default async function ProjectDetailPage({
       scope: "all",
       userId: user.id,
       teamIds: user.teamIds,
+      ...taskViewFilter(user),
       projectId: id,
       pageSize: 200,
       page: 1,

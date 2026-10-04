@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
-import { can, canEditTask } from "@/lib/permissions";
+import { can, canEditTask, canViewTask } from "@/lib/permissions";
 import { getTask } from "@/lib/queries/tasks";
 import { listTaskComments } from "@/lib/services/tasks";
 import { dateKeyOf, formatDate, formatTime } from "@/lib/date";
@@ -100,6 +100,9 @@ export default async function TaskDetailPage({
   ]);
 
   if (!task) notFound();
+  // Acces direct pe URL la un task din afara vizibilității alocate — tratat ca inexistent,
+  // nu ca "fără permisiune" (nu dezvăluim nici măcar că task-ul există).
+  if (!canViewTask(user, task)) notFound();
 
   const canDelete = can(user, "tasks.delete");
   const canEdit = canEditTask(user, task);

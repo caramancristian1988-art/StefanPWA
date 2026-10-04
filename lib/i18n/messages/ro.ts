@@ -507,6 +507,11 @@
     scopeMembers: "Doar anumiți membri",
     noTeams: "Nicio echipă creată încă.",
     noStaff: "Niciun alt utilizator încă.",
+    taskViewLabel: "Vizibilitate task-uri / tichete",
+    taskViewHint: "Implicit vede toate task-urile. Bifează ca să-l limitezi doar la anumite echipe și/sau persoane (plus task-urile proprii, mereu vizibile).",
+    taskViewAllLabel: "Vede toate task-urile",
+    taskViewTeamsLabel: "Echipe vizibile",
+    taskViewMembersLabel: "Persoane vizibile (task-urile lor)",
   },
   auditLogs: {
     title: "Audit Logs",

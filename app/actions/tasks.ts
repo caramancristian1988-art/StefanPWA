@@ -17,7 +17,7 @@ import {
   listTaskComments,
   updateTask,
 } from "@/lib/services/tasks";
-import { listTasks, taskHistory, type TaskHistoryRow, type TaskRow } from "@/lib/queries/tasks";
+import { listTasks, taskHistory, taskViewFilter, type TaskHistoryRow, type TaskRow } from "@/lib/queries/tasks";
 import { logAudit } from "@/lib/services/audit";
 import { TASK_STATUS_RO } from "@/lib/telegram";
 import type { TaskStatus, TaskType, TaskPriority } from "@prisma/client";
@@ -51,7 +51,7 @@ export async function listTasksAction(opts: TaskListOpts): Promise<TaskListResul
   ) as "mine" | "all" | "created";
   const pageSize = opts.ps === "all" ? 9999 : Math.min(9999, Math.max(1, Number(opts.ps) || 20));
   return listTasks({
-    scope, userId: user.id, teamIds: user.teamIds,
+    scope, userId: user.id, teamIds: user.teamIds, ...taskViewFilter(user),
     types: opts.types?.length ? (opts.types as TaskType[]) : undefined,
     status: F_STATUSES.has(opts.status ?? "") ? (opts.status as TaskStatus) : undefined,
     priority: F_PRIOS.has(opts.prio ?? "") ? (opts.prio as TaskPriority) : undefined,

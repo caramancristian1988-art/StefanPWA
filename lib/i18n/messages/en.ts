@@ -509,6 +509,11 @@ const en: Messages = {
     scopeMembers: "Specific members only",
     noTeams: "No teams created yet.",
     noStaff: "No other users yet.",
+    taskViewLabel: "Task / ticket visibility",
+    taskViewHint: "By default sees all tasks. Check to limit them to specific teams and/or people (plus their own tasks, always visible).",
+    taskViewAllLabel: "Sees all tasks",
+    taskViewTeamsLabel: "Visible teams",
+    taskViewMembersLabel: "Visible people (their tasks)",
   },
   auditLogs: {
     title: "Audit Logs",

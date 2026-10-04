@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/dal";
-import { listTasks } from "@/lib/queries/tasks";
+import { listTasks, taskViewFilter } from "@/lib/queries/tasks";
 import { listClients } from "@/lib/queries/clients";
 import { buildPayerWhere, matchesMonthInvoice, monthRange, parsePayerMonth } from "@/lib/queries/payers";
 import { INVOICE_STATUS_LIST, INVOICE_STATUS } from "@/app/components/invoice-meta";
@@ -69,6 +69,7 @@ export async function GET(req: Request) {
     const { items } = await listTasks({
       userId: user.id,
       teamIds: user.teamIds,
+      ...taskViewFilter(user),
       scope: (sp.get("scope") as "all" | "mine" | "created") || "all",
       status: (sp.get("status") as TaskStatus) || undefined,
       types: type,

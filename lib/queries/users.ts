@@ -16,6 +16,9 @@ export type UserRow = {
   notifyScope: string;
   notifyTeamIds: string[];
   notifyMemberIds: string[];
+  taskViewScope: string;
+  taskViewTeamIds: string[];
+  taskViewMemberIds: string[];
 };
 
 const USER_SELECT = {
@@ -31,12 +34,15 @@ const USER_SELECT = {
   notifyScope: true,
   notifyTeamIds: true,
   notifyMemberIds: true,
+  taskViewScope: true,
+  taskViewTeamIds: true,
+  taskViewMemberIds: true,
 } as const;
 
 export async function listUsers(): Promise<UserRow[]> {
   if (DEMO) {
     return [
-      { id: "demo-user", name: "Cont Demo", email: "demo@local", role: "ADMIN", isActive: true, isSuperAdmin: true, permissions: [], notifyEvents: [], telegramChatId: null, notifyScope: "ALL", notifyTeamIds: [], notifyMemberIds: [] },
+      { id: "demo-user", name: "Cont Demo", email: "demo@local", role: "ADMIN", isActive: true, isSuperAdmin: true, permissions: [], notifyEvents: [], telegramChatId: null, notifyScope: "ALL", notifyTeamIds: [], notifyMemberIds: [], taskViewScope: "ALL", taskViewTeamIds: [], taskViewMemberIds: [] },
     ];
   }
   return prisma.user.findMany({

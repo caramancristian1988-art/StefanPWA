@@ -26,6 +26,9 @@ export const demoUser: CurrentUser = {
   isActive: true,
   isSuperAdmin: true,
   teamIds: [],
+  taskViewScope: "ALL",
+  taskViewTeamIds: [],
+  taskViewMemberIds: [],
 };
 
 export const demoSettings: Settings = {

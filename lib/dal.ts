@@ -15,6 +15,9 @@ export type CurrentUser = {
   isActive: boolean;
   isSuperAdmin: boolean;
   teamIds: string[];
+  taskViewScope: string;
+  taskViewTeamIds: string[];
+  taskViewMemberIds: string[];
 };
 
 /** Super-admin: acces la Audit Logs + gestionarea celorlalți super-admini. */
@@ -46,6 +49,9 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       isActive: true,
       isSuperAdmin: true,
       teamIds: [],
+      taskViewScope: "ALL",
+      taskViewTeamIds: [],
+      taskViewMemberIds: [],
     };
   }
   const token = await getSessionToken();
@@ -67,6 +73,9 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           isActive: true,
           isSuperAdmin: true,
           teamIds: true,
+          taskViewScope: true,
+          taskViewTeamIds: true,
+          taskViewMemberIds: true,
         },
       },
     },

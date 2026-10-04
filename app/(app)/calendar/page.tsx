@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { requirePermission } from "@/lib/dal";
 import { getUserTimezone } from "@/lib/queries/settings";
-import { tasksDueBetween } from "@/lib/queries/tasks";
+import { tasksDueBetween, taskViewFilter } from "@/lib/queries/tasks";
 import { apptsBetween } from "@/lib/queries/appointments";
 import { userOptions } from "@/lib/queries/users";
 import { teamOptions } from "@/lib/queries/teams";
@@ -141,6 +141,7 @@ export default async function CalendarPage({
           scope,
           userId: user.id,
           teamIds: user.teamIds,
+          ...taskViewFilter(user),
           from,
           to,
           assigneeId,

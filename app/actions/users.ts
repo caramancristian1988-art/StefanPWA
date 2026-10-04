@@ -45,6 +45,12 @@ function parseIdList(formData: FormData, key: string): string[] {
   return formData.getAll(key).map(String).filter(Boolean);
 }
 
+const TASK_VIEW_SCOPES = ["ALL", "RESTRICTED"];
+function parseTaskViewScope(formData: FormData): string {
+  const v = String(formData.get("taskViewScope") ?? "ALL");
+  return TASK_VIEW_SCOPES.includes(v) ? v : "ALL";
+}
+
 export async function createUser(
   _prev: UserState,
   formData: FormData,
@@ -79,6 +85,9 @@ export async function createUser(
       notifyScope: parseNotifyScope(formData),
       notifyTeamIds: parseIdList(formData, "notifyTeamIds"),
       notifyMemberIds: parseIdList(formData, "notifyMemberIds"),
+      taskViewScope: parseTaskViewScope(formData),
+      taskViewTeamIds: parseIdList(formData, "taskViewTeamIds"),
+      taskViewMemberIds: parseIdList(formData, "taskViewMemberIds"),
     },
     select: { id: true },
   });
@@ -153,6 +162,9 @@ export async function updateUser(
         notifyScope: parseNotifyScope(formData),
         notifyTeamIds: parseIdList(formData, "notifyTeamIds"),
         notifyMemberIds: parseIdList(formData, "notifyMemberIds"),
+        taskViewScope: parseTaskViewScope(formData),
+        taskViewTeamIds: parseIdList(formData, "taskViewTeamIds"),
+        taskViewMemberIds: parseIdList(formData, "taskViewMemberIds"),
         ...(newPassword.length >= 8 ? { passwordHash: await hashPassword(newPassword) } : {}),
       },
     });

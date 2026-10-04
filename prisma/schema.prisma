@@ -141,6 +141,15 @@ model User {
   notifyTeamIds   String[] @db.ObjectId
   notifyMemberIds String[] @db.ObjectId
 
+  // --- Ce task-uri/tichete VEDE (listă, Kanban, calendar, export, fișa individuală) ---
+  // ALL = vede tot, ca până acum (implicit — niciun cont existent nu pierde acces la upgrade).
+  // RESTRICTED = doar echipele din taskViewTeamIds și persoanele din taskViewMemberIds, PLUS
+  // mereu propriile task-uri (create de el sau asignate lui) — independent de rol (și adminii
+  // pot fi restricționați, nu doar STAFF): contabilii nu trebuie să vadă task-urile de șantier.
+  taskViewScope     String   @default("ALL")
+  taskViewTeamIds   String[] @db.ObjectId
+  taskViewMemberIds String[] @db.ObjectId
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/dal";
 import { can } from "@/lib/permissions";
-import { listTasks } from "@/lib/queries/tasks";
+import { listTasks, taskViewFilter } from "@/lib/queries/tasks";
 import { getLocaleFromCookie } from "@/lib/i18n/locale-cookie";
 import { getMessages } from "@/lib/i18n";
 import { userOptions } from "@/lib/queries/users";
@@ -67,6 +67,7 @@ export default async function TasksPage({
       scope,
       userId: user.id,
       teamIds: user.teamIds,
+      ...taskViewFilter(user),
       types: ["TASK"],
       status: pick<TaskStatus>(sp.status, STATUS_SET),
       priority: pick<TaskPriority>(sp.prio, PRIO_SET),

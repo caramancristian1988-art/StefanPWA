@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { requireUser } from "@/lib/dal";
-import { dashboardStats, listTasks } from "@/lib/queries/tasks";
+import { dashboardStats, listTasks, taskViewFilter } from "@/lib/queries/tasks";
+import type { CurrentUser } from "@/lib/dal";
 import DashboardFilters from "@/app/components/DashboardFilters";
 import type { TaskPriority } from "@prisma/client";
 import { getLocaleFromCookie } from "@/lib/i18n/locale-cookie";
@@ -36,18 +37,18 @@ function buildPageButtons(page: number, total: number) {
 }
 
 async function StatsSection({
-  userId,
-  teamIds,
-  role,
+  user,
   m,
 }: {
-  userId: string;
-  teamIds: string[];
-  role: "ADMIN" | "STAFF";
+  user: CurrentUser;
   m: Messages;
 }) {
-  const stats = await dashboardStats(userId, teamIds, role);
-  const isAdmin = role === "ADMIN";
+  const stats = await dashboardStats(user.id, user.teamIds, user.role, {
+    scope: user.taskViewScope,
+    teamIds: user.taskViewTeamIds,
+    memberIds: user.taskViewMemberIds,
+  });
+  const isAdmin = user.role === "ADMIN";
   const d = m.dashboard;
   const cards = [
     {
@@ -93,8 +94,7 @@ function StatsSkeleton() {
 }
 
 async function TasksSection({
-  userId,
-  teamIds,
+  user,
   prio,
   sort,
   page,
@@ -104,8 +104,7 @@ async function TasksSection({
   m,
   dateLocale,
 }: {
-  userId: string;
-  teamIds: string[];
+  user: CurrentUser;
   prio: string;
   sort: string;
   page: number;
@@ -118,8 +117,9 @@ async function TasksSection({
   const effectiveScope = (scope === "all" ? "all" : "mine") as "all" | "mine";
   const result = await listTasks({
     scope: effectiveScope,
-    userId,
-    teamIds,
+    userId: user.id,
+    teamIds: user.teamIds,
+    ...taskViewFilter(user),
     priority: (prio as TaskPriority) || undefined,
     sort: (sort === "dueAsc" || sort === "dueDesc" ? sort : undefined),
     page,
@@ -238,7 +238,7 @@ export default async function DashboardPage({
   return (
     <div className="w-full">
       <Suspense fallback={<StatsSkeleton />}>
-        <StatsSection userId={user.id} teamIds={user.teamIds} role={user.role} m={m} />
+        <StatsSection user={user} m={m} />
       </Suspense>
 
       <div className="mt-6">
@@ -253,8 +253,7 @@ export default async function DashboardPage({
 
         <Suspense fallback={<TasksSkeleton />}>
           <TasksSection
-            userId={user.id}
-            teamIds={user.teamIds}
+            user={user}
             prio={prio}
             sort={sort}
             page={page}

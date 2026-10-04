@@ -29,6 +29,9 @@ type UserRow = {
   notifyScope: string;
   notifyTeamIds: string[];
   notifyMemberIds: string[];
+  taskViewScope: string;
+  taskViewTeamIds: string[];
+  taskViewMemberIds: string[];
 };
 type Opt = { id: string; name: string };
 
@@ -249,6 +252,7 @@ function UserDialog({
   const [state, formAction, pending] = useActionState<UserState, FormData>(action, undefined);
   const [role, setRole] = useState<"ADMIN" | "STAFF">(user?.role ?? "STAFF");
   const [notifyScope, setNotifyScope] = useState<string>(user?.notifyScope ?? "ALL");
+  const [taskViewAll, setTaskViewAll] = useState<boolean>((user?.taskViewScope ?? "ALL") === "ALL");
 
   // Rolul e blocat dacă: editezi pe tine însuți (nu te poți retrogrада) SAU editezi alt admin și nu ești super
   const roleLocked = !!user && (user.id === viewerId || (!viewerIsSuper && user.role === "ADMIN"));
@@ -422,6 +426,62 @@ function UserDialog({
               )}
             </div>
           )}
+
+          <div className="rounded-xl border border-[var(--color-line)] p-3">
+            <p className="mb-1 text-xs font-semibold text-ink-soft">{m.users.taskViewLabel}</p>
+            <p className="mb-2 text-[11px] text-ink-soft">{m.users.taskViewHint}</p>
+            <input type="hidden" name="taskViewScope" value={taskViewAll ? "ALL" : "RESTRICTED"} />
+            <label className="mb-2 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={taskViewAll}
+                onChange={(e) => setTaskViewAll(e.target.checked)}
+                className="size-4 accent-[var(--color-brand)]"
+              />
+              {m.users.taskViewAllLabel}
+            </label>
+
+            {!taskViewAll && (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="mb-1 text-[11px] font-semibold uppercase text-ink-soft">{m.users.taskViewTeamsLabel}</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {teams.length === 0 && <p className="text-xs text-ink-soft">{m.users.noTeams}</p>}
+                    {teams.map((t) => (
+                      <label key={t.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          name="taskViewTeamIds"
+                          value={t.id}
+                          defaultChecked={user?.taskViewTeamIds.includes(t.id) ?? false}
+                          className="size-4 accent-[var(--color-brand)]"
+                        />
+                        {t.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-[11px] font-semibold uppercase text-ink-soft">{m.users.taskViewMembersLabel}</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {staffOptions.length === 0 && <p className="text-xs text-ink-soft">{m.users.noStaff}</p>}
+                    {staffOptions.map((u) => (
+                      <label key={u.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          name="taskViewMemberIds"
+                          value={u.id}
+                          defaultChecked={user?.taskViewMemberIds.includes(u.id) ?? false}
+                          className="size-4 accent-[var(--color-brand)]"
+                        />
+                        {u.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {state?.error && <p className="text-sm text-st-cancelled">{state.error}</p>}
           <button type="submit" disabled={pending} className="tap h-12 rounded-xl bg-brand font-semibold text-white hover:bg-brand-strong disabled:opacity-60">

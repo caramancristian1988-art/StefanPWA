@@ -5,7 +5,7 @@ import ExportButton from "@/app/components/ExportButton";
 import ImportButton from "@/app/components/ImportButton";
 import ApaCanalApiSync from "@/app/components/ApaCanalApiSync";
 import AutoSubmitOnChange from "@/app/components/AutoSubmitOnChange";
-import { listPayers, listPayerMonths, parsePayerMonth, countPayersNeedingNameFix, normalizePerPage, PER_PAGE_OPTIONS, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
+import { listPayers, listPayerMonths, parsePayerMonth, parseInstalledFrom, countPayersNeedingNameFix, normalizePerPage, PER_PAGE_OPTIONS, type PayerSector, type PayerDebtFilter, type PayerSort } from "@/lib/queries/payers";
 import { money } from "@/app/components/invoice-meta";
 import { INVOICE_STATUS, INVOICE_STATUS_LIST, type InvoiceStatusKey } from "@/app/components/invoice-meta";
 import { IconChevronLeft, IconChevronRight } from "@/app/components/icons";
@@ -25,6 +25,8 @@ const SORT_OPTIONS: { value: PayerSort; label: string }[] = [
   { value: "name", label: "Nume (A-Z)" },
   { value: "debtDesc", label: "Sold: descrescător" },
   { value: "debtAsc", label: "Sold: crescător" },
+  { value: "installDesc", label: "Instalare: cele mai recente" },
+  { value: "installAsc", label: "Instalare: cele mai vechi" },
 ];
 const selectCls =
   "h-11 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand";
@@ -40,6 +42,7 @@ export default async function PayersPage({
   searchParams: Promise<{
     q?: string; status?: string; sector?: string; invoiceStatus?: string;
     debt?: string; street?: string; sort?: string; page?: string; perPage?: string; nameFix?: string; month?: string;
+    installedFrom?: string;
   }>;
 }) {
   const user = await requirePermission("clients.view");
@@ -53,11 +56,12 @@ export default async function PayersPage({
   const invoiceStatus = INVOICE_STATUS_LIST.includes(sp.invoiceStatus as InvoiceStatusKey) ? sp.invoiceStatus! : "";
   const debt = sp.debt === "has" || sp.debt === "none" ? sp.debt : "";
   const street = sp.street ?? "";
-  const sort = sp.sort === "debtDesc" || sp.sort === "debtAsc" ? sp.sort : "name";
+  const sort = ["debtDesc", "debtAsc", "installDesc", "installAsc"].includes(sp.sort ?? "") ? (sp.sort as PayerSort) : "name";
   const nameFix = sp.nameFix === "1";
   const page = Math.max(1, Number(sp.page) || 1);
   const perPage = normalizePerPage(sp.perPage);
   const month = parsePayerMonth(sp.month) ?? "";
+  const installedFrom = parseInstalledFrom(sp.installedFrom) ?? "";
   const statusFilter = status === "activated" || status === "pending" ? status : undefined;
 
   const [{ items, total, hasMore }, nameFixCount, months] = await Promise.all([
@@ -71,6 +75,7 @@ export default async function PayersPage({
       sort: sort as PayerSort,
       needsNameFix: nameFix || undefined,
       month: month || undefined,
+      installedFrom: installedFrom || undefined,
       page,
       perPage,
     }),
@@ -79,11 +84,11 @@ export default async function PayersPage({
   ]);
 
   const qp = (overrides: Record<string, string>) => {
-    const p = new URLSearchParams({ q, status, sector, invoiceStatus, debt, street, sort, month, nameFix: nameFix ? "1" : "", perPage: perPage === 50 ? "" : String(perPage), ...overrides });
+    const p = new URLSearchParams({ q, status, sector, invoiceStatus, debt, street, sort, month, installedFrom, nameFix: nameFix ? "1" : "", perPage: perPage === 50 ? "" : String(perPage), ...overrides });
     for (const [k, v] of [...p.entries()]) if (!v || v === "name") p.delete(k);
     return `?${p.toString()}`;
   };
-  const activeFilterCount = [status, sector, invoiceStatus, debt, street, month].filter(Boolean).length;
+  const activeFilterCount = [status, sector, invoiceStatus, debt, street, month, installedFrom].filter(Boolean).length;
   const LUNI = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
   const monthLabel = (m: string) => `${LUNI[Number(m.slice(5, 7)) - 1] ?? m.slice(5, 7)} ${m.slice(0, 4)}`;
 
@@ -114,6 +119,7 @@ export default async function PayersPage({
               street: street || undefined,
               nameFix: nameFix ? "1" : undefined,
               month: month || undefined,
+              installedFrom: installedFrom || undefined,
             }}
           />
           {canSyncApi && <ApaCanalApiSync />}
@@ -182,6 +188,14 @@ export default async function PayersPage({
               <option key={d.value} value={d.value}>{d.label}</option>
             ))}
           </select>
+          <input
+            type="date"
+            name="installedFrom"
+            defaultValue={installedFrom}
+            title="Instalați după data"
+            aria-label="Instalați după data"
+            className={activeSelectCls(!!installedFrom)}
+          />
           <select name="sort" defaultValue={sort} className={selectCls}>
             {SORT_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
@@ -227,6 +241,11 @@ export default async function PayersPage({
                     <>Firmă · Contract: {p.contract}</>
                   )}
                 </p>
+                {p.installedAt && (
+                  <p className="text-xs text-ink-soft">
+                    Contor instalat: {p.installedAt.split("-").reverse().join(".")}
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-4">
                 <span className="text-xs text-ink-soft">{p.invoiceCount} facturi</span>

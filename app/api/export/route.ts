@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/dal";
 import { listTasks, taskViewFilter } from "@/lib/queries/tasks";
 import { listClients } from "@/lib/queries/clients";
-import { buildPayerWhere, matchesMonthInvoice, monthRange, parsePayerMonth } from "@/lib/queries/payers";
+import { buildPayerWhere, matchesMonthInvoice, monthRange, parsePayerMonth, parseInstalledFrom } from "@/lib/queries/payers";
 import { INVOICE_STATUS_LIST, INVOICE_STATUS } from "@/app/components/invoice-meta";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
@@ -257,13 +257,19 @@ export async function GET(req: Request) {
       if (range && !(inv.issueDate >= range.gte && inv.issueDate < range.lt)) continue;
       lastInvoice.set(inv.clientId, inv);
     }
-    const payers = month
-      ? payersAll.filter((p) => {
-          const inv = lastInvoice.get(p.id);
-          return inv && matchesMonthInvoice(inv, { debt: debtFilter, invoiceStatus: invoiceStatusFilter });
-        })
-      : payersAll;
+    const installedFrom = parseInstalledFrom(sp.get("installedFrom"));
     const oneCByClient = new Map(oneC.map((r) => [r.clientId, r]));
+    const payers = payersAll
+      .filter((p) => {
+        if (!month) return true;
+        const inv = lastInvoice.get(p.id);
+        return inv && matchesMonthInvoice(inv, { debt: debtFilter, invoiceStatus: invoiceStatusFilter });
+      })
+      .filter((p) => {
+        if (!installedFrom) return true;
+        const d = oneCByClient.get(p.id)?.dataInstalare;
+        return !!d && d >= installedFrom;
+      });
 
     // Primele 8 coloane sunt cele acceptate la import; restul sunt informative (ignorate la import).
     const HEADERS = [

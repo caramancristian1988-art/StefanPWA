@@ -43,7 +43,7 @@ async function run(req: Request) {
     if (!applied) throw new Error("Import fără rezultat.");
 
     revalidateTag("clients", { expire: 0 });
-    const msg = `Automat: ${applied.clientsCreated} clienți noi, ${applied.clientsUpdated} actualizați, ${applied.invoicesCreated} facturi noi (din ${plan.stats.documenteTotale} abonați).`;
+    const msg = `Automat: ${applied.clientsCreated} clienți noi, ${applied.clientsUpdated} actualizați, ${applied.invoicesCreated} facturi noi, ${applied.invoicesUpdated} actualizate (din ${plan.stats.documenteTotale} abonați).`;
     await recordSync(true, msg, { wrote: true, contentHash: hash });
     await logAudit(
       { id: state.owner.id, name: state.owner.name, role: state.owner.role, isSuperAdmin: state.owner.isSuperAdmin },

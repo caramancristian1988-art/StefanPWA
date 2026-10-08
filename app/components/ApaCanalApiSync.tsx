@@ -26,10 +26,11 @@ type Stats = {
   clientiExistentiActualizati: number;
   facturiDeCreat: number;
   facturiSaritePreexistente: number;
+  facturiActualizate?: number;
   totalNecuvenit: number;
   totalDePlata: number;
 };
-type Applied = { clientsCreated: number; clientsUpdated: number; invoicesCreated: number; itemsCreated: number };
+type Applied = { clientsCreated: number; clientsUpdated: number; invoicesCreated: number; itemsCreated: number; invoicesUpdated?: number };
 
 const fld =
   "h-11 w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-brand disabled:opacity-60";
@@ -349,14 +350,15 @@ export default function ApaCanalApiSync() {
                   <li>Clienți noi: <b>{stats.clientiNoiDeCreat.toLocaleString("ro-RO")}</b></li>
                   <li>Clienți actualizați: <b>{stats.clientiExistentiActualizati.toLocaleString("ro-RO")}</b></li>
                   <li>Facturi noi: <b>{stats.facturiDeCreat.toLocaleString("ro-RO")}</b></li>
-                  <li>Facturi deja existente (sărite): <b>{stats.facturiSaritePreexistente.toLocaleString("ro-RO")}</b></li>
+                  <li>Facturi deja existente: <b>{stats.facturiSaritePreexistente.toLocaleString("ro-RO")}</b>{stats.facturiActualizate ? <> (din care actualizate: <b>{stats.facturiActualizate.toLocaleString("ro-RO")}</b>)</> : null}</li>
                   <li>Fără abonat/document (sărite): <b>{stats.sariteFaraAbonent.toLocaleString("ro-RO")}</b></li>
                   <li>Calculat (facturi noi): <b>{money(stats.totalNecuvenit)}</b></li>
                   <li>De achitat (facturi noi): <b>{money(stats.totalDePlata)}</b></li>
                 </ul>
                 {applied && (
                   <p className="mt-2 text-xs text-brand-strong">
-                    Scrise: {applied.clientsCreated} clienți noi, {applied.clientsUpdated} actualizați, {applied.invoicesCreated} facturi ({applied.itemsCreated} linii).
+                    Scrise: {applied.clientsCreated} clienți noi, {applied.clientsUpdated} actualizați, {applied.invoicesCreated} facturi noi ({applied.itemsCreated} linii)
+                    {applied.invoicesUpdated ? `, ${applied.invoicesUpdated} facturi existente actualizate` : ""}.
                   </p>
                 )}
               </div>

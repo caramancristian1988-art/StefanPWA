@@ -30,7 +30,7 @@ async function run(req: Request) {
   const state = await getAutoSyncState();
   if (!state) return Response.json({ ok: true, skipped: "Sincronizarea automată nu e pornită." });
 
-  if (!(await acquireSyncLock())) return Response.json({ ok: true, skipped: "O sincronizare rulează deja." });
+  if (!(await acquireSyncLock()).ok) return Response.json({ ok: true, skipped: "O sincronizare rulează deja." });
   try {
     const buf = await fetchFromConfiguredApi();
     const hash = createHash("sha256").update(buf).digest("hex");

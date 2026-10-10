@@ -531,7 +531,6 @@ export type ApaCanalApplyResult = {
 type ApaCanalPrisma = {
   client: {
     createMany(args: { data: Prisma.ClientCreateManyInput[] }): Promise<{ count: number }>;
-    update(args: { where: { id: string }; data: Prisma.ClientUpdateInput }): Promise<unknown>;
   };
   invoice: {
     createMany(args: { data: Prisma.InvoiceCreateManyInput[] }): Promise<{ count: number }>;
@@ -539,7 +538,50 @@ type ApaCanalPrisma = {
   invoiceItem: {
     createMany(args: { data: Prisma.InvoiceItemCreateManyInput[] }): Promise<{ count: number }>;
   };
+  $runCommandRaw(command: object): Promise<unknown>;
 };
+
+/** `Date` → EJSON `{$date}` (altfel ajunge string simplu în Mongo, nefiltrabil ca dată la citire);
+ * restul valorilor merg ca atare. `undefined` e omis explicit din `$set` (nu doar lăsat să cadă la
+ * JSON.stringify), ca intenția „nu atinge câmpul ăsta" să rămână clară. */
+function toSetDoc(data: Record<string, unknown>): Record<string, unknown> {
+  const set: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === undefined) continue;
+    set[k] = v instanceof Date ? { $date: v.toISOString() } : v;
+  }
+  return set;
+}
+
+/**
+ * Actualizează clienții existenți printr-o singură comandă nativă MongoDB `update` per lot (bulk,
+ * un round-trip pentru mii de actualizări), nu câte un apel Prisma per client. La ~18.700 clienți
+ * de actualizat, varianta anterioară (update() individual, 50 în paralel) a dus sincronizarea peste
+ * limita de 300 s a funcției Vercel — timeout real, observat 2026-10-10 (log: "Task timed out after
+ * 300 seconds"), care lăsa și blocarea de sincronizare agățată 10 minute (vezi acquireSyncLock),
+ * fiindcă un kill forțat de platformă sare peste blocul `finally` care ar fi eliberat-o.
+ */
+async function bulkUpdateClients(
+  prisma: ApaCanalPrisma,
+  updates: { id: string; data: Prisma.ClientUpdateInput }[],
+): Promise<number> {
+  if (!updates.length) return 0;
+  const CHUNK = 2000;
+  let modified = 0;
+  for (let i = 0; i < updates.length; i += CHUNK) {
+    const slice = updates.slice(i, i + CHUNK);
+    const res = (await prisma.$runCommandRaw({
+      update: "Client",
+      updates: slice.map((u) => ({
+        q: { _id: { $oid: u.id } },
+        u: { $set: toSetDoc(u.data as Record<string, unknown>) },
+      })),
+      ordered: false,
+    })) as { n?: number; nModified?: number };
+    modified += res.nModified ?? res.n ?? slice.length;
+  }
+  return modified;
+}
 
 type OneCPrisma = {
   invoice: {
@@ -743,14 +785,7 @@ export async function applyApaCanalPlan(
     plan.clientsToCreate,
   );
 
-  let clientsUpdated = 0;
-  for (let i = 0; i < plan.clientUpdates.length; i += 50) {
-    const slice = plan.clientUpdates.slice(i, i + 50);
-    await Promise.all(
-      slice.map((u) => prisma.client.update({ where: { id: u.id }, data: u.data }).catch(() => {})),
-    );
-    clientsUpdated += slice.length;
-  }
+  const clientsUpdated = await bulkUpdateClients(prisma, plan.clientUpdates);
 
   const invoicesCreated = await chunkedCreateMany(
     (args) => prisma.invoice.createMany(args),

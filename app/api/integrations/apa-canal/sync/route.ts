@@ -5,6 +5,7 @@ import { can } from "@/lib/permissions";
 import { logAudit } from "@/lib/services/audit";
 import { buildSyncReport, importApaCanalBuffer } from "@/lib/services/apa-canal-import";
 import { acquireSyncLock, ApiFetchError, fetchFromConfiguredApi, getApiConfigPublic, recordSync, releaseSyncLock } from "@/lib/services/apa-canal-api";
+import { formatTime } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 // Descărcare + procesare (~18.000 de abonați durează sub 2 minute) — marjă generoasă.
@@ -31,8 +32,10 @@ export async function POST(req: Request) {
   if (!(await getApiConfigPublic()).url) {
     return Response.json({ error: "API-ul nu e configurat. Completează linkul și credențialele și salvează." }, { status: 400 });
   }
-  if (!(await acquireSyncLock())) {
-    return Response.json({ error: "O sincronizare rulează deja. Încearcă din nou peste câteva minute." }, { status: 409 });
+  const lock = await acquireSyncLock();
+  if (!lock.ok) {
+    const untilTxt = lock.until ? ` Se deblochează automat la ${formatTime(lock.until)}.` : "";
+    return Response.json({ error: `O sincronizare rulează deja (sau una anterioară a rămas blocată).${untilTxt} Încearcă din nou după aceea.` }, { status: 409 });
   }
   try {
     const buf = await fetchFromConfiguredApi();

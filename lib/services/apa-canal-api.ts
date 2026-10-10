@@ -139,18 +139,21 @@ export async function getAutoSyncState() {
 
 /**
  * Blocare "o singură sincronizare odată" (valabilă 10 min, ca să nu rămână blocat pe veci după un
- * crash). Întoarce false dacă rulează deja una.
+ * crash — inclusiv un timeout dur de platformă, care omite blocul `finally` ce ar elibera-o normal).
+ * `ok:false` dacă rulează deja una; `until` e ora exactă la care se eliberează singură, ca mesajul
+ * din UI să spună concret "încearcă după ora X", nu doar "peste câteva minute".
  */
-export async function acquireSyncLock(): Promise<boolean> {
-  const row = await prisma.apiIntegration.findFirst({ where: { key: KEY }, select: { id: true } });
-  if (!row) return false;
+export async function acquireSyncLock(): Promise<{ ok: boolean; until?: Date }> {
+  const row = await prisma.apiIntegration.findFirst({ where: { key: KEY }, select: { id: true, syncLockUntil: true } });
+  if (!row) return { ok: false };
   const now = new Date();
+  const until = new Date(now.getTime() + 10 * 60_000);
   const res = await prisma.apiIntegration.updateMany({
     // câmpul poate lipsi complet din document (nu doar să fie null) — de-aia și isSet:false
     where: { id: row.id, OR: [{ syncLockUntil: null }, { syncLockUntil: { isSet: false } }, { syncLockUntil: { lt: now } }] },
-    data: { syncLockUntil: new Date(now.getTime() + 10 * 60_000) },
+    data: { syncLockUntil: until },
   });
-  return res.count === 1;
+  return res.count === 1 ? { ok: true } : { ok: false, until: row.syncLockUntil ?? undefined };
 }
 
 export async function releaseSyncLock() {

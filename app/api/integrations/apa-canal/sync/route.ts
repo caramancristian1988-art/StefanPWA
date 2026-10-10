@@ -43,12 +43,12 @@ export async function POST(req: Request) {
     const report = await buildSyncReport(data, plan);
 
     if (!commit || !applied) {
-      await recordSync(true, `Test reușit: ${plan.stats.documenteTotale} abonați în API, ${plan.stats.clientiNoiDeCreat} clienți noi, ${plan.stats.facturiDeCreat} facturi noi.`);
+      await recordSync(true, `Test reușit: ${plan.stats.documenteTotale} abonați în API, ${plan.stats.clientiNoiDeCreat} clienți noi, ${plan.stats.facturiDeCreat} facturi noi, ${plan.stats.facturiActualizate} de actualizat.`);
       return Response.json({ dryRun: true, stats: plan.stats, report });
     }
 
     revalidateTag("clients", { expire: 0 });
-    const msg = `Sincronizat: ${applied.clientsCreated} clienți noi, ${applied.clientsUpdated} actualizați, ${applied.invoicesCreated} facturi noi.`;
+    const msg = `Sincronizat: ${applied.clientsCreated} clienți noi, ${applied.clientsUpdated} actualizați, ${applied.invoicesCreated} facturi noi, ${applied.invoicesUpdated} facturi actualizate.`;
     await recordSync(true, msg, { wrote: true, contentHash: createHash("sha256").update(buf).digest("hex") });
     await logAudit(
       { id: user.id, name: user.name, role: user.role, isSuperAdmin: user.isSuperAdmin },

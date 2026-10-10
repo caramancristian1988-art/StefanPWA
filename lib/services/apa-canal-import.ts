@@ -134,7 +134,18 @@ export type ExistingClientLite = {
   apaCanalContract?: string | null;
 };
 
-export type ExistingInvoiceLite = { clientId: string | null; issueDate: Date };
+export type ExistingInvoiceLite = {
+  clientId: string | null;
+  issueDate: Date;
+  /** Valorile stocate — pentru a actualiza o factură existentă când 1C trimite date corectate. */
+  id?: string;
+  meterNumber?: string | null;
+  meterPrevReading?: string | null;
+  meterCurrReading?: string | null;
+  subtotal?: number | null;
+  datoriiAvans?: number | null;
+  grandTotal?: number | null;
+};
 
 export type ApaCanalPlanStats = {
   documenteTotale: number;
@@ -145,6 +156,8 @@ export type ApaCanalPlanStats = {
   coliziuniContPersonal: number;
   facturiDeCreat: number;
   facturiSaritePreexistente: number;
+  /** Din cele existente: câte au primit date corectate din 1C (contor, citiri, sume). */
+  facturiActualizate: number;
   liniiFacturaDeCreat: number;
   totalNecuvenit: number;
   totalDePlata: number;
@@ -159,9 +172,11 @@ export type ApaCanalDocOutcome = {
   /** НомерДоговора — singurul identificator al firmelor/instituțiilor, care nu au cont personal. */
   contract?: string | null;
   period: string | null;
-  status: "nou" | "existent" | "sarit";
+  status: "nou" | "existent" | "actualizat" | "sarit";
   clientNou?: boolean;
   motiv?: string;
+  /** La "actualizat": ce s-a schimbat (valoarea din aplicație → valoarea nouă din 1C). */
+  diffs?: { camp: string; api: string; aplicatie: string }[];
   api: { calculat: number; datorie: number; deAchitat: number; citirePrec: string | null; citireCurenta: string | null } | null;
 };
 
@@ -170,6 +185,8 @@ export type ApaCanalPlan = {
   clientUpdates: { id: string; data: Prisma.ClientUpdateInput }[];
   invoicesToCreate: Prisma.InvoiceCreateManyInput[];
   itemsToCreate: Prisma.InvoiceItemCreateManyInput[];
+  /** Facturi existente (aceeași lună) ale căror date din 1C s-au schimbat: câmpuri noi + liniile de calcul refăcute. */
+  invoiceUpdates: { id: string; data: Prisma.InvoiceUpdateInput; items: Prisma.InvoiceItemCreateManyInput[] | null }[];
   stats: ApaCanalPlanStats;
   docs: ApaCanalDocOutcome[];
 };
@@ -224,7 +241,8 @@ export function buildApaCanalPlan(
     }
   }
 
-  type Reading = { prev: number; curr: number; total: number; dataPokazanii: string; estimat: boolean };
+  // `meter` = contorul pe care s-a făcut citirea cea mai recentă a lunii (Потребления.ИзмерительныйПрибор).
+  type Reading = { prev: number; curr: number; total: number; dataPokazanii: string; estimat: boolean; meter?: string };
   const readingByUid = new Map<string, Reading>();
   for (const r of data.citiri) {
     const uid = str(r.UID);
@@ -234,6 +252,7 @@ export function buildApaCanalPlan(
       agg.dataPokazanii = str(r["ДатаПоказаний"]);
       agg.prev = Number(r["ПредыдущиеПоказания"]) || 0;
       agg.curr = Number(r["Показания"]) || 0;
+      if (str(r["ИзмерительныйПрибор"])) agg.meter = str(r["ИзмерительныйПрибор"]);
     }
     if (str(r["Источник"]) !== "Контролер") agg.estimat = true;
     readingByUid.set(uid, agg);
@@ -265,6 +284,23 @@ export function buildApaCanalPlan(
   const clientUpdates: { id: string; data: Prisma.ClientUpdateInput }[] = [];
   const invoicesToCreate: Prisma.InvoiceCreateManyInput[] = [];
   const itemsToCreate: Prisma.InvoiceItemCreateManyInput[] = [];
+  const invoiceUpdates: ApaCanalPlan["invoiceUpdates"] = [];
+
+  const buildItems = (invoiceId: string, rows: Record<string, unknown>[]): Prisma.InvoiceItemCreateManyInput[] =>
+    rows.map((it, idx) => {
+      const lineTotal = round2(it["Сумма"]);
+      return {
+        id: oid(),
+        invoiceId,
+        description: SERVICE_RO[str(it["ТипУслуги"])] ?? (str(it["ТипУслуги"]) || "Serviciu"),
+        quantity: Number(it["Показания"]) || 0,
+        unitPrice: Number(it["Цена"]) || 0,
+        taxRate: 0,
+        lineSubtotal: lineTotal,
+        lineTotal,
+        position: idx,
+      };
+    });
 
   let skippedNoDoc = 0;
   let meterSeriesCollisions = 0;
@@ -310,12 +346,6 @@ export function buildApaCanalPlan(
       citireCurenta: reading ? pad5(reading.curr) : null,
     };
     const docBase = { uid, number, name, contPersonal: contPersonalRaw || null, contract: str(sub["НомерДоговора"]) || null, period: `${period.slice(0, 4)}-${period.slice(4)}`, api: apiValues };
-    // Factura există deja (același abonat, aceeași perioadă): nu atingem nimic — nici factura, nici clientul.
-    if (existingInvoiceNumbers.has(number)) {
-      skippedExistingInvoice++;
-      docs.push({ ...docBase, status: "existent" });
-      continue;
-    }
 
     const phone = str(sub["Телефон"]) || null;
     const consumAddress = [
@@ -326,9 +356,71 @@ export function buildApaCanalPlan(
     ].filter(Boolean).join(", ") || null;
     const sectorRaw = str(sub["ТипСектора"]) || str(consumer?.["Участок"]);
     const sectorNr = sectorRaw ? (SECTOR_RO[sectorRaw] ?? sectorRaw) : null;
-    const meterNumber = meter ? str(meter["ИзмерительныйПрибор"]) || null : null;
+    // Contorul citit în luna facturii (dintre citiri), altfel cel activ din lista de contoare: la o lună mai veche,
+    // contorul activ de azi poate fi altul decât cel de atunci (ex. înlocuit între timp).
+    const meterNumber = reading?.meter || (meter ? str(meter["ИзмерительныйПрибор"]) || null : null);
     const meterCurrReadingNum = reading ? reading.curr : null;
     const meterReadingEstimated = reading ? reading.estimat : false;
+
+    // Factura există deja (același abonat, aceeași perioadă): nu se creează alta. Dacă 1C trimite acum alte
+    // valori (ex. nr. contorului corectat, citiri, sume), factura existentă se ACTUALIZEAZĂ cu ele — altfel o
+    // corectură făcută în 1C nu ajungea niciodată în aplicație ("nu se actualizează datele").
+    if (existingInvoiceNumbers.has(number)) {
+      skippedExistingInvoice++;
+      const stored = existingInvoices.get(number);
+      const diffs: { camp: string; api: string; aplicatie: string }[] = [];
+      let amountsChanged = false;
+      if (stored?.id) {
+        const meterKey = (v: string | null | undefined) => String(v ?? "").trim().replace(/^0+/, "");
+        if (meterNumber && meterKey(meterNumber) !== meterKey(stored.meterNumber)) diffs.push({ camp: "Nr. contor", api: meterNumber, aplicatie: stored.meterNumber || "—" });
+        const txt = (camp: string, api: string | null, app: string | null | undefined) => {
+          if (api !== null && api !== (app ?? null)) diffs.push({ camp, api, aplicatie: app || "—" });
+        };
+        txt("Citire precedentă", apiValues.citirePrec, stored.meterPrevReading);
+        txt("Citire curentă", apiValues.citireCurenta, stored.meterCurrReading);
+        const num = (camp: string, api: number, app: number | null | undefined) => {
+          if (Math.abs(api - (app ?? 0)) > 0.005) { diffs.push({ camp, api: api.toFixed(2), aplicatie: (app ?? 0).toFixed(2) }); amountsChanged = true; }
+        };
+        num("Calculat (MDL)", apiValues.calculat, stored.subtotal);
+        num("Datorie/avans (MDL)", apiValues.datorie, stored.datoriiAvans);
+        num("De achitat (MDL)", apiValues.deAchitat, stored.grandTotal);
+      }
+      if (stored?.id && diffs.length) {
+        invoiceUpdates.push({
+          id: stored.id,
+          data: {
+            ...(meterNumber ? { meterNumber } : {}),
+            meterPrevReading: apiValues.citirePrec,
+            meterCurrReading: apiValues.citireCurenta,
+            isEstimatedVolume: meterReadingEstimated,
+            subtotal: apiValues.calculat,
+            datoriiAvans: apiValues.datorie,
+            grandTotal: apiValues.deAchitat,
+            ...(sectorNr ? { sectorNr } : {}),
+            ...(reading ? { monthlyConsumption: [{ label: String(issueDate.getUTCMonth() + 1), value: round2(reading.total) }] } : {}),
+          },
+          items: amountsChanged ? buildItems(stored.id, items) : null,
+        });
+        // Instantaneul de pe fișa plătitorului (contor, sold) — doar dacă e factura lui cea mai nouă.
+        const owner = stored.clientId ? clientById.get(stored.clientId) : undefined;
+        if (owner && (!owner.lastInvoiceIssueDate || issueDate >= owner.lastInvoiceIssueDate)) {
+          clientUpdates.push({
+            id: owner.id,
+            data: {
+              ...(meterNumber ? { meterNumber } : {}),
+              meterCurrReading: meterCurrReadingNum,
+              meterReadingEstimated,
+              lastInvoiceGrandTotal: apiValues.deAchitat,
+              ...(sectorNr ? { lastInvoiceSectorNr: sectorNr } : {}),
+            },
+          });
+        }
+        docs.push({ ...docBase, status: "actualizat", diffs });
+      } else {
+        docs.push({ ...docBase, status: "existent" });
+      }
+      continue;
+    }
 
     // Identitatea clientului: factură → cont personal → (firme, fără cont) nr. contract → nume.
     // Numele doar ca ultimă variantă și DOAR spre un client fără identitate 1C (fără cont personal și fără
@@ -460,22 +552,7 @@ export function buildApaCanalPlan(
       userId: ctx.ownerId,
     });
 
-    items.forEach((it, idx) => {
-      const qty = Number(it["Показания"]) || 0;
-      const price = Number(it["Цена"]) || 0;
-      const lineTotal = round2(it["Сумма"]);
-      itemsToCreate.push({
-        id: oid(),
-        invoiceId,
-        description: SERVICE_RO[str(it["ТипУслуги"])] ?? (str(it["ТипУслуги"]) || "Serviciu"),
-        quantity: qty,
-        unitPrice: price,
-        taxRate: 0,
-        lineSubtotal: lineTotal,
-        lineTotal,
-        position: idx,
-      });
-    });
+    itemsToCreate.push(...buildItems(invoiceId, items));
   }
 
   const totalNecuvenit = round2(invoicesToCreate.reduce((s, i) => s + (i.subtotal as number), 0));
@@ -487,6 +564,7 @@ export function buildApaCanalPlan(
     invoicesToCreate,
     itemsToCreate,
     docs,
+    invoiceUpdates,
     stats: {
       documenteTotale: docByUid.size,
       sariteFaraAbonent: skippedNoDoc,
@@ -496,6 +574,7 @@ export function buildApaCanalPlan(
       coliziuniContPersonal: meterSeriesCollisions,
       facturiDeCreat: invoicesToCreate.length,
       facturiSaritePreexistente: skippedExistingInvoice,
+      facturiActualizate: invoiceUpdates.length,
       liniiFacturaDeCreat: itemsToCreate.length,
       totalNecuvenit,
       totalDePlata,
@@ -522,6 +601,7 @@ export type ApaCanalApplyResult = {
   clientsUpdated: number;
   invoicesCreated: number;
   itemsCreated: number;
+  invoicesUpdated: number;
 };
 
 // Interfață minimală, scrisă de mână (NU derivată din PrismaClient) — clientul din
@@ -534,9 +614,11 @@ type ApaCanalPrisma = {
   };
   invoice: {
     createMany(args: { data: Prisma.InvoiceCreateManyInput[] }): Promise<{ count: number }>;
+    update(args: { where: { id: string }; data: Prisma.InvoiceUpdateInput }): Promise<unknown>;
   };
   invoiceItem: {
     createMany(args: { data: Prisma.InvoiceItemCreateManyInput[] }): Promise<{ count: number }>;
+    deleteMany(args: { where: { invoiceId: string } }): Promise<{ count: number }>;
   };
   $runCommandRaw(command: object): Promise<unknown>;
 };
@@ -653,14 +735,19 @@ export async function importApaCanalBuffer(buf: Buffer, opts: { ownerId: string;
     prisma.client.findMany({
       select: { id: true, name: true, meterSeries: true, portalActivatedAt: true, lastInvoiceIssueDate: true, apaCanalContract: true },
     }),
-    prisma.invoice.findMany({ select: { number: true, clientId: true, issueDate: true } }),
+    prisma.invoice.findMany({
+      select: {
+        id: true, number: true, clientId: true, issueDate: true, meterNumber: true, meterPrevReading: true,
+        meterCurrReading: true, subtotal: true, datoriiAvans: true, grandTotal: true,
+      },
+    }),
   ]);
 
   const plan = buildApaCanalPlan(data, {
     ownerId: opts.ownerId,
     existingClients,
     existingInvoiceNumbers: new Set(existingInvoices.map((i) => i.number)),
-    existingInvoices: new Map(existingInvoices.map((i) => [i.number, { clientId: i.clientId, issueDate: i.issueDate }])),
+    existingInvoices: new Map(existingInvoices.map((i) => [i.number, i])),
   });
   if (!opts.commit) return { data, plan, applied: null as ApaCanalApplyResult | null };
 
@@ -708,16 +795,9 @@ const money2 = (n: number) => n.toFixed(2);
  * nu sunt modificate de sincronizare (vezi buildApaCanalPlan); raportul doar arată dacă datele din API mai
  * corespund cu cele din aplicație.
  */
+// Comparația cu facturile existente se face deja în buildApaCanalPlan (în memorie) — aici nu mai citim nimic
+// din bază: un `number: { in: [~18.000] }` dura ~80 s.
 export async function buildSyncReport(data: ApaCanalRawData, plan: ApaCanalPlan): Promise<SyncReport> {
-  const existingNumbers = plan.docs.filter((d) => d.status === "existent" && d.number).map((d) => d.number as string);
-  const stored = existingNumbers.length
-    ? await prisma.invoice.findMany({
-        where: { number: { in: existingNumbers } },
-        select: { number: true, subtotal: true, datoriiAvans: true, grandTotal: true, meterPrevReading: true, meterCurrReading: true },
-      })
-    : [];
-  const byNumber = new Map(stored.map((s) => [s.number, s]));
-
   const noi: SyncReportRow[] = [];
   const diferite: SyncReportRow[] = [];
   const identice: SyncReportRow[] = [];
@@ -731,25 +811,10 @@ export async function buildSyncReport(data: ApaCanalRawData, plan: ApaCanalPlan)
     } else if (d.status === "nou") {
       if (d.clientNou) noiCuClientNou++;
       noi.push({ ...base, clientNou: d.clientNou });
+    } else if (d.status === "actualizat") {
+      diferite.push({ ...base, diffs: d.diffs });
     } else {
-      const s = d.number ? byNumber.get(d.number) : undefined;
-      const a = d.api!;
-      const diffs: SyncReportDiff[] = [];
-      if (s) {
-        const num = (camp: string, api: number, app: number | null | undefined) => {
-          if (Math.abs(api - (app ?? 0)) > 0.005) diffs.push({ camp, api: money2(api), aplicatie: money2(app ?? 0) });
-        };
-        const txt = (camp: string, api: string | null, app: string | null | undefined) => {
-          if ((api ?? "") !== (app ?? "")) diffs.push({ camp, api: api ?? "—", aplicatie: app ?? "—" });
-        };
-        num("Calculat (MDL)", a.calculat, s.subtotal);
-        num("Datorie/avans (MDL)", a.datorie, s.datoriiAvans);
-        num("De achitat (MDL)", a.deAchitat, s.grandTotal);
-        txt("Citire precedentă", a.citirePrec, s.meterPrevReading);
-        txt("Citire curentă", a.citireCurenta, s.meterCurrReading);
-      }
-      if (diffs.length) diferite.push({ ...base, diffs });
-      else identice.push(base);
+      identice.push(base);
     }
   }
 
@@ -796,5 +861,21 @@ export async function applyApaCanalPlan(
     plan.itemsToCreate,
   );
 
-  return { clientsCreated, clientsUpdated, invoicesCreated, itemsCreated };
+  // Facturi existente cu date corectate în 1C: câmpurile noi + (dacă s-au schimbat sumele) liniile de calcul refăcute.
+  let invoicesUpdated = 0;
+  for (let i = 0; i < plan.invoiceUpdates.length; i += 25) {
+    const slice = plan.invoiceUpdates.slice(i, i + 25);
+    await Promise.all(
+      slice.map(async (u) => {
+        await prisma.invoice.update({ where: { id: u.id }, data: u.data });
+        if (u.items) {
+          await prisma.invoiceItem.deleteMany({ where: { invoiceId: u.id } });
+          if (u.items.length) await prisma.invoiceItem.createMany({ data: u.items });
+        }
+      }),
+    );
+    invoicesUpdated += slice.length;
+  }
+
+  return { clientsCreated, clientsUpdated, invoicesCreated, itemsCreated, invoicesUpdated };
 }

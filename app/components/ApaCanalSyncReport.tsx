@@ -125,7 +125,7 @@ export default function ApaCanalSyncReport({ report, committed }: { report: Sync
         </div>
         <div className={`rounded-xl p-2 text-center ${counts.diferite ? "bg-st-progress/15" : "bg-[var(--color-surface-2)]"}`}>
           <p className={`text-lg font-bold tabular-nums ${counts.diferite ? "text-st-progress" : ""}`}>{nf(counts.diferite)}</p>
-          <p className="text-[11px]">Existente, diferite</p>
+          <p className="text-[11px]">{committed ? "Existente, actualizate" : "Existente, de actualizat"}</p>
         </div>
         <div className={`rounded-xl p-2 text-center ${counts.sarite ? "bg-st-cancelled/10" : "bg-[var(--color-surface-2)]"}`}>
           <p className={`text-lg font-bold tabular-nums ${counts.sarite ? "text-st-cancelled" : ""}`}>{nf(counts.sarite)}</p>
@@ -141,8 +141,12 @@ export default function ApaCanalSyncReport({ report, committed }: { report: Sync
       />
 
       <Section
-        title="Existente, dar cu valori diferite"
-        hint="Factura din aplicație pentru aceeași lună are alte valori decât API-ul. Sincronizarea NU o modifică — verificați care e corectă."
+        title={committed ? "Existente, actualizate cu datele din 1C" : "Existente, cu alte valori — se vor actualiza"}
+        hint={
+          committed
+            ? "Factura acestei luni exista deja; valorile ei au fost înlocuite cu cele din 1C (contor, citiri, sume)."
+            : "Factura acestei luni există deja, dar 1C trimite acum alte valori. La „Extrage din API” factura se actualizează cu valorile din 1C."
+        }
         total={counts.diferite}
         rows={f(report.diferite)}
         limit={report.limita}
